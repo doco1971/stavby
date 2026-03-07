@@ -605,6 +605,17 @@ export default function StavbaPage() {
         return num(r[8]) || num(r[6])  // Celkem, fallback Výměra
       }
 
+      // PM montážní a zemní hodiny
+      let hMont = 0, hZem = 0
+      for (const r of rowsPM) {
+        const col1 = r[1]
+        const popis = String(r[4]||'').toLowerCase()
+        if (col1 === 3 || col1 === '3') {
+          if (popis.includes('pm:') || popis.includes('mont')) hMont = num(r[8]) || hMont
+          if (popis.includes('pz:') || popis.includes('zemní'))   hZem  = num(r[8]) || hZem
+        }
+      }
+
       // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
       // col[6]=množství, col[18]=jedn.cena, col[19]=cena celkem
       const stroje = {}
