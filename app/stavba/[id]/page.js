@@ -568,7 +568,7 @@ export default function StavbaPage() {
             <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
 
-            {/* Ostatní */
+            {/* Ostatní */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
               <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
@@ -587,20 +587,7 @@ export default function StavbaPage() {
                     )}
                   </div>
                 ))}
-                {/* GZS */}
-                <div>
-                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>GZS</div>
-                  <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>
-                    {(s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0).toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč
-                  </div>
-                </div>
-                {/* Stimulační přirážka */}
-                <div>
-                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>Stimulační přirážka</div>
-                  <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>
-                    {(s.dof?.stimul_prirazka?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0).toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč
-                  </div>
-                </div>
+
               </div>
             </div>
 
