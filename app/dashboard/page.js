@@ -116,9 +116,6 @@ export default function Dashboard() {
               </div>
             </div>
             <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(100,116,139,0.15)', color: T.muted }}>
-                {s.stav === 'rozpracovana' ? 'Rozpracovaná' : s.stav === 'dokoncena' ? 'Dokončená' : 'Archivovaná'}
-              </span>
               <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.12)', color: T.accent }}>{s.oblast}</span>
             </div>
           </div>
