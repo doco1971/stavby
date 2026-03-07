@@ -421,7 +421,9 @@ export default function StavbaPage() {
   const [profile, setProfile] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null) // { title, text, onConfirm }
   const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
+  const [lastSaved, setLastSaved] = useState(null)
   const importFileRef = useRef(null)
+  const autosaveRef = useRef(null)
 
   // Načti katalog položek
   useEffect(() => {
@@ -486,8 +488,17 @@ export default function StavbaPage() {
     setSaving(true)
     await supabase.from('stavby').update(data).eq('id', params.id)
     setSaving(false); setSaved(true)
+    setLastSaved(new Date())
     setTimeout(() => setSaved(false), 2000)
   }
+
+  // Autosave — 3s po každé změně s
+  useEffect(() => {
+    if (!s) return
+    if (autosaveRef.current) clearTimeout(autosaveRef.current)
+    autosaveRef.current = setTimeout(() => save(s), 3000)
+    return () => clearTimeout(autosaveRef.current)
+  }, [s])
 
   const deleteStavba = () => {
     setConfirmDialog({
@@ -683,6 +694,11 @@ export default function StavbaPage() {
               <div style={{ fontSize:16, fontWeight:800, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
+              {lastSaved && (
+                <div style={{ fontSize:10, color:'#10b981', marginTop:2 }}>
+                  🕐 Poslední záloha: {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+                </div>
+              )}
             </div>
             <div style={{ display:'flex', gap:18, flexShrink:0 }}>
               {[
