@@ -34,7 +34,6 @@ const ZEMNI = [
   { key:"kompresor",    label:"Kompresor" },
   { key:"rezac",        label:"Řezač asfaltu" },
   { key:"mot_pech",     label:"Motorový pěch" },
-  { key:"ponorny_vib",  label:"Ponorný vibrátor" },
   { key:"nalosute",     label:"Naložení a doprava sutě" },
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
   { key:"optotrubka",   label:"Optotrubka" },
