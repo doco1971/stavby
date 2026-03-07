@@ -587,6 +587,22 @@ export default function StavbaPage() {
                     )}
                   </div>
                 ))}
+                {/* GZS */}
+                <div>
+                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>GZS</div>
+                  <input type="text" value={(s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0)||''} readOnly
+                    style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }} />
+                </div>
+                {/* Stimulační přirážka */}
+                <div>
+                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>Stimulační přirážka</div>
+                  <input type="text" value={s.dof?.stimul_prirazka?.rows?.[0]?.castka??''} placeholder="0"
+                    onChange={e => {
+                      const rows = [{...(s.dof?.stimul_prirazka?.rows?.[0]||{id:'st1',popis:'Stimulační přirážka'}), castka: e.target.value}]
+                      setS(prev => ({...prev, dof: {...prev.dof, stimul_prirazka: {...(prev.dof?.stimul_prirazka||{}), rows}}}))
+                    }}
+                    style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                </div>
 
               </div>
             </div>
