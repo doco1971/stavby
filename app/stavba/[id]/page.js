@@ -33,6 +33,7 @@ const ZEMNI = [
   { key:"bagr",         label:"Bagr" },
   { key:"kompresor",    label:"Kompresor" },
   { key:"rezac",        label:"Řezač asfaltu" },
+  { key:"uhlova_bruska",label:"Úhlová bruska" },
   { key:"mot_pech",     label:"Motorový pěch" },
   { key:"nalosute",     label:"Naložení a doprava sutě" },
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
