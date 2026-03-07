@@ -25,13 +25,14 @@ const MECH = [
   { key:"nakladni", label:"Nákladní auto" },
   { key:"traktor",  label:"Traktor" },
   { key:"plosina",  label:"Plošina" },
+  // ponorný vibrátor patří do ZEMNI / kompresor
 ]
-// Písek a Štěrk rozepsány, Materiál vlastní přidán
 const ZEMNI = [
   { key:"zemni_prace",  label:"Zemní práce" },
   { key:"zadlazby",     label:"Zádlažby" },
   { key:"bagr",         label:"Bagr" },
   { key:"kompresor",    label:"Kompresor" },
+  { key:"ponorny_vib",  label:"Ponorný vibrátor" },
   { key:"rezac",        label:"Řezač asfaltu" },
   { key:"uhlova_zem",   label:"Úhlová bruska" },
   { key:"mot_pech",     label:"Motorový pěch" },
@@ -56,6 +57,7 @@ const GN = [
   { key:"te_evidence",    label:"TE – tech. evidence" },
   { key:"vychozi_revize", label:"Výchozí revize" },
   { key:"pripl_ppn",      label:"Příplatek PPN NN" },
+  { key:"stimul_prirazka",label:"Stimulační přirážka" },
   { key:"ekolog_likv",    label:"Ekolog. likv. odpadů" },
   { key:"material_vyn",   label:"Materiál výnosový" },
   { key:"doprava_mat",    label:"Doprava mat. na stavbu" },
@@ -146,11 +148,11 @@ function compute(s) {
 
   // Materiál zhotovitele = automaticky z materiálu vlastního
   const matZhotAuto = computeMatZhot(s.zemni)
-  const gzs = num(s.gzs), matZhot = matZhotAuto, prispSklad = num(s.prispevek_sklad)
-  const bazova = mzdySumS + mechSumS + zemniSumS + gnSumS + dofSumS + gzs + matZhot + prispSklad
+  const matZhot = matZhotAuto, prispSklad = num(s.prispevek_sklad)
+  const bazova = mzdySumS + mechSumS + zemniSumS + gnSumS + dofSumS + matZhot + prispSklad
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, gzs, matZhot, prispSklad, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matZhot, prispSklad, bazova, celkemZisk }
 }
 
 // ── komponenty ───────────────────────────────────────────
@@ -388,7 +390,6 @@ export default function StavbaPage() {
               <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
-                  { l:'GZS', k:'gzs' },
                   { l:'Materiál zhotovitele', k:'mat_zhotovitele', note:'počítá se automaticky', readOnly:true, val: fmt(c.matZhot) },
                   { l:'Příspěvek na sklad',   k:'prispevek_sklad' },
                 ].map(({l,k,note,readOnly,val})=>(
@@ -543,8 +544,8 @@ export default function StavbaPage() {
 
               const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
               const dofSP = dofBez*(1+pri)
-              const gzs = num(s.gzs), matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
-              const bazova = mzdySP+mechSP+zemniSP+gnSP+dofSP+gzs+matZhot+prispSklad
+              const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
+              const bazova = mzdySP+mechSP+zemniSP+gnSP+dofSP+matZhot+prispSklad
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
@@ -567,13 +568,12 @@ export default function StavbaPage() {
                   <SekceHeader label="Ostatní položky" color="#8b5cf6" icon="🔧" />
                   <Row label="Mat. zhotovitele (auto)" bez={matZhot} priR={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
                   <Row label="Příspěvek na sklad" bez={prispSklad} sP={prispSklad*(1+pri)} idx={0} kVypl={prispSklad*0.8} color="#8b5cf6" />
-                  <Row label="GZS" bez={gzs} sP={gzs*(1+pri)} idx={0} kVypl={gzs*0.8} color="#8b5cf6" />
                   <Row label="Doloženo fakturou" bez={dofBez} sP={dofSP} idx={0} kVypl={dofSP} color="#8b5cf6" />
 
                   {/* CELKEM */}
                   <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.15)', borderRadius:8, marginTop:10, border:'2px solid rgba(37,99,235,0.4)' }}>
                     <div style={{ padding:'9px 8px', color:'#60a5fa', fontWeight:900, fontSize:13 }}>CELKEM ZA STAVBU</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(mzdyBez+mechBez+zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)+gnBez+dofBez+gzs+matZhot+prispSklad)}</div>
+                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(mzdyBez+mechBez+zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)+gnBez+dofBez+matZhot+prispSklad)}</div>
                     <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
                     <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(bazova)}</div>
                     <div/>
