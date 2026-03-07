@@ -417,7 +417,8 @@ export default function StavbaPage() {
   const [saved, setSaved]   = useState(false)
   const [katalog, setKatalog] = useState([])
   const [katalogDialog, setKatalogDialog] = useState(null)
-  const [importDialog, setImportDialog] = useState(null) // { missingItems, parsedData, resolve }
+  const [importDialog, setImportDialog] = useState(null)
+  const [profile, setProfile] = useState(null)
   const importFileRef = useRef(null)
 
   // Načti katalog položek
@@ -469,6 +470,12 @@ export default function StavbaPage() {
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
       const dof   = data.dof   || {}; for (const it of DOF)   if (!dof[it.key])   dof[it.key]   = { rows: mkRows(), open: false }
       setS({ ...data, mzdy, mech, zemni, gn, dof })
+      // Načti profil uživatele
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        setProfile(prof)
+      }
     }
     load()
   }, [params.id])
@@ -478,6 +485,12 @@ export default function StavbaPage() {
     await supabase.from('stavby').update(data).eq('id', params.id)
     setSaving(false); setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  const deleteStavba = async () => {
+    if (!confirm(`Opravdu smazat stavbu "${s.nazev}"? Tato akce je nevratná.`)) return
+    await supabase.from('stavby').delete().eq('id', params.id)
+    router.push('/dashboard')
   }
 
   const setField = (k, v) => setS(prev => ({ ...prev, [k]: v }))
@@ -675,6 +688,11 @@ export default function StavbaPage() {
               ))}
             </div>
             <button onClick={toggleTheme} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'5px 8px', color:T.muted, fontSize:12, cursor:'pointer' }}>{dark?'☀️':'🌙'}</button>
+            {profile?.role === 'admin' && (
+              <button onClick={deleteStavba} style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                🗑️ Smazat
+              </button>
+            )}
             <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
               {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
             </button>
