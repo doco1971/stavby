@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '../../../lib/supabase'
 import { useTheme } from '../../layout'
@@ -416,7 +416,9 @@ export default function StavbaPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [katalog, setKatalog] = useState([])
-  const [katalogDialog, setKatalogDialog] = useState(null) // { popis, sekce }
+  const [katalogDialog, setKatalogDialog] = useState(null)
+  const [importDialog, setImportDialog] = useState(null) // { missingItems, parsedData, resolve }
+  const importFileRef = useRef(null)
 
   // Načti katalog položek
   useEffect(() => {
@@ -498,7 +500,157 @@ export default function StavbaPage() {
   // Protlaky hodnota pro rozbor (kladná)
   const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
 
-  return (
+  // ── Import z Excelu ──────────────────────────────────────
+  const handleImportFile = async (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    e.target.value = ''
+
+    // Dynamicky načti SheetJS
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+        script.onload = res; script.onerror = rej
+        document.head.appendChild(script)
+      })
+    }
+    const XLSX = window.XLSX
+    const ab = await file.arrayBuffer()
+    const wb = XLSX.read(ab, { type: 'array' })
+    const ws = wb.Sheets['Vstupní hodnoty']
+    if (!ws) { alert('List "Vstupní hodnoty" nenalezen!'); return }
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+
+    // Pomocná funkce: najdi řádek podle názvu v sloupci A
+    const findRow = (name) => rows.find(r => String(r[0]||'').toLowerCase().includes(name.toLowerCase()))
+    const v = (row, col) => parseFloat(String(row?.[col]||'0').replace(/\s/g,'').replace(',','.')) || 0
+
+    // Mapování: { klíč: hodnota }
+    // R1 hlavičky sloupců: col6=Jeřáb, col8=Nák.auto, col10=Traktor, col12=Plošina
+    //                      col14=Zem.práce, col16=Zádlažby, col18=Bagr, col20=Kopresor
+    //                      col22=Řez.asfaltu, col24=Protlak, col26=Mot.pěch, col28=Úhl.bruska
+    // R20 hlavičky: col6=GZS, col8=Stimul, col12=Mat.vlastní, col14=Asfalt
+    //               col16=Písek, col18=Štěrk, col20=Beton, col22=Mat.zhot, col24=Optotrubka
+    //               col26=Nalož.suť, col28=Stav.pr., col30=Rezerv.zemní
+    // Součtový řádek R18 (Vytýčení sítí) obsahuje součty všech sloupců
+    const sumRow = rows[17] // R18 = index 17
+
+    // GN — sloupec B (index 1)
+    const gnMap = {
+      inzenyrska:     findRow('Inženýrsk'),
+      geodetika:      findRow('Geodetick'),
+      te_evidence:    findRow('technická evidence'),
+      vychozi_revize: findRow('Výchozí revize'),
+      pripl_ppn:      findRow('PPN'),
+      ekolog_likv:    findRow('Eko'),
+      material_vyn:   findRow('Materiál výnosový'),
+      doprava_mat:    findRow('Doprava mat'),
+      popl_ver:       findRow('veř.prostranství'),
+      pripl_capex:    findRow('Capex'),
+      kolaudace:      findRow('Kolaudace'),
+    }
+
+    // DOF — sloupec B (index 1)
+    const dofMap = {
+      dio:          findRow('DIO'),
+      vytyc_siti:   findRow('Vytýčení sítí'),
+      neplanvykon:  findRow('Neplánovaný'),
+      spravni_popl: findRow('Správní poplatky'),
+      demontaz:     findRow('Demontáž'),
+      spec_zadlazby:findRow('Speciální zádlažby'),
+      omezeni_dopr: findRow('Omezení sil'),
+      rezerva:      findRow('Rezerva'),
+    }
+
+    // Sestavení parsed dat
+    const parsed = {
+      prirazka:       String(v(findRow('Vysoutěžená přírážka'), 1)),
+      hzs_mont:       String(v(findRow('HZS montážní'), 1)),
+      hzs_zem:        String(v(findRow('HZS zemní'), 1)),
+      zmes_mont:      String(v(findRow('Montážní práce ZMES'), 1)),
+      zmes_zem:       String(v(findRow('Zemní práce ZMES'), 1)),
+      prispevek_sklad:String(v(findRow('Příspěvek na sklad'), 1)),
+      // Mechanizace ze součtového řádku R18
+      mech: {
+        jerab:    [{ id: uid(), popis: 'Autojeřáb', castka: String(v(sumRow, 6)) }],
+        nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(v(sumRow, 8)) }],
+        traktor:  [{ id: uid(), popis: 'Traktor', castka: String(v(sumRow, 10)) }],
+        plosina:  [{ id: uid(), popis: 'Plošina', castka: String(v(sumRow, 12)) }],
+      },
+      // Zemní práce ze součtového řádku R18
+      zemni: {
+        zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: String(v(sumRow, 14)) }],
+        zadlazby:     [{ id: uid(), popis: 'Zádlažby', castka: String(v(sumRow, 16)) }],
+        bagr:         [{ id: uid(), popis: 'Rypadlo do 0,5m³', castka: String(v(sumRow, 18)) }, { id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '0' }],
+        kompresor:    [{ id: uid(), popis: 'Kompresor', castka: String(v(sumRow, 20)) }],
+        rezac:        [{ id: uid(), popis: 'Řezač asfaltu', castka: String(v(sumRow, 22)) }],
+        mot_pech:     [{ id: uid(), popis: 'Motorový pěch', castka: String(v(sumRow, 26)) }],
+        uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska', castka: String(v(sumRow, 28)) }],
+        // R20 sloupce pro materiál
+        mat_vlastni:  [{ id: uid(), popis: 'Materiál vlastní', castka: String(v(rows[20], 12)) }],
+        asfalt:       [{ id: uid(), popis: 'Asfalt', castka: String(v(rows[20], 14)) }],
+        pisek_d02:    [{ id: uid(), popis: 'Písek D0-2', castka: String(v(rows[20], 16)) }],
+        sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: String(v(rows[20], 18)) }],
+        beton:        [{ id: uid(), popis: 'Beton', castka: String(v(rows[20], 20)) }],
+        optotrubka:   [{ id: uid(), popis: 'Optotrubka', castka: String(v(rows[20], 24)) }],
+        nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: String(v(rows[20], 26)) }],
+        stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: String(v(rows[20], 28)) }],
+        rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: String(v(rows[20], 30)) }],
+      },
+      // GN
+      gn: Object.fromEntries(
+        Object.entries(gnMap).map(([k, row]) => [k, { rows: [{ id: uid(), popis: k, castka: String(v(row, 1)) }], open: false }])
+      ),
+      // DOF
+      dof: Object.fromEntries(
+        Object.entries(dofMap).map(([k, row]) => [k, { rows: [{ id: uid(), popis: k, castka: String(v(row, 1)) }], open: false }])
+      ),
+    }
+
+    // Zjisti chybějící položky (hodnota 0)
+    const missing = []
+    const checkZero = (label, val) => { if (!parseFloat(val)) missing.push(label) }
+    checkZero('Jeřáb', parsed.mech.jerab[0].castka)
+    checkZero('Nákladní auto', parsed.mech.nakladni[0].castka)
+    checkZero('Traktor', parsed.mech.traktor[0].castka)
+    checkZero('Plošina', parsed.mech.plosina[0].castka)
+    checkZero('Zemní práce', parsed.zemni.zemni_prace[0].castka)
+    checkZero('Zádlažby', parsed.zemni.zadlazby[0].castka)
+    checkZero('Bagr', parsed.zemni.bagr[0].castka)
+    checkZero('Inženýrská činnost', parsed.gn.inzenyrska?.rows[0]?.castka)
+    checkZero('Geodetické práce', parsed.gn.geodetika?.rows[0]?.castka)
+
+    if (missing.length > 0) {
+      setImportDialog({ missing, parsed })
+    } else {
+      applyImport(parsed)
+    }
+  }
+
+  const applyImport = (parsed) => {
+    setS(prev => {
+      const next = { ...prev, ...parsed }
+      // Doplň chybějící mzdy, gn, dof klíče
+      const mzdy = prev.mzdy || {}
+      for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
+      const zemni = { ...prev.zemni }
+      for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
+      // Přepiš zemni z parsed
+      for (const [k, rows] of Object.entries(parsed.zemni)) {
+        zemni[k] = { rows, open: false }
+      }
+      const mech = { ...prev.mech }
+      for (const [k, rows] of Object.entries(parsed.mech)) {
+        mech[k] = { rows, open: false }
+      }
+      return { ...next, mzdy, mech, zemni }
+    })
+    setImportDialog(null)
+    alert('Import dokončen! Zkontroluj hodnoty a ulož.')
+  }
+
+
     <div style={{ minHeight:'100vh', background:T.bg }}>
       {/* HEADER */}
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
@@ -527,10 +679,19 @@ export default function StavbaPage() {
               {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
             </button>
           </div>
-          <div style={{ display:'flex', marginTop:10 }}>
-            {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
-              <button key={t.k} onClick={()=>setTab(t.k)} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
-            ))}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+            <div style={{ display:'flex' }}>
+              {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
+                <button key={t.k} onClick={()=>setTab(t.k)} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
+              ))}
+            </div>
+            <div>
+              <input ref={importFileRef} type="file" accept=".xlsx" style={{ display:'none' }} onChange={handleImportFile} />
+              <button onClick={() => importFileRef.current?.click()}
+                style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                📂 Importovat z Excelu
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -826,6 +987,35 @@ export default function StavbaPage() {
           onConfirm={handleKatalogConfirm}
           onCancel={() => setKatalogDialog(null)}
         />
+      )}
+
+      {/* Dialog chybějící položky při importu */}
+      {importDialog && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:28, maxWidth:480, width:'90%' }}>
+            <div style={{ color:'#f59e0b', fontWeight:800, fontSize:16, marginBottom:12 }}>⚠️ Chybějící položky</div>
+            <div style={{ color:T.muted, fontSize:13, marginBottom:16 }}>
+              Následující položky mají v rozpočtu hodnotu 0. Chceš je přeskočit nebo zadat ručně po importu?
+            </div>
+            <div style={{ marginBottom:20 }}>
+              {importDialog.missing.map(m => (
+                <div key={m} style={{ padding:'6px 10px', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, marginBottom:6, color:'#fbbf24', fontSize:13 }}>
+                  • {m}
+                </div>
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setImportDialog(null)}
+                style={{ padding:'8px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:7, color:T.muted, cursor:'pointer', fontSize:13 }}>
+                Zrušit
+              </button>
+              <button onClick={() => applyImport(importDialog.parsed)}
+                style={{ padding:'8px 18px', background:'rgba(99,102,241,0.2)', border:'1px solid rgba(99,102,241,0.5)', borderRadius:7, color:'#818cf8', cursor:'pointer', fontSize:13, fontWeight:700 }}>
+                Importovat (doplním ručně)
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
