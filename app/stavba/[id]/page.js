@@ -11,22 +11,23 @@ const fmt  = n  => Math.round(n).toLocaleString('cs-CZ')
 const pct  = v  => (num(v) * 100).toFixed(2)
 
 // ── definice sekcí ───────────────────────────────────────
+// MZDY: mont_ts odstraněno - TS hodiny patří do mont_vn
 const MZDY = [
-  { key:"mont_vn",    label:"Montáž VN",              isZem:false },
-  { key:"mont_nn",    label:"Montáž NN",              isZem:false },
-  { key:"mont_opto",  label:"Montáž Opto",            isZem:false },
-  { key:"mont_ts",    label:"Montáž TS",              isZem:false },
-  { key:"zem_vn",     label:"Zemní VN",               isZem:true  },
-  { key:"zem_nn",     label:"Zemní NN",               isZem:true  },
-  { key:"uhlova_bruska", label:"Úhlová bruska",       isZem:true  },
-  { key:"rezerv_mont",label:"Rezerva montáž",         isZem:false },
+  { key:"mont_vn",       label:"Montáž VN (vč. TS)",     isZem:false },
+  { key:"mont_nn",       label:"Montáž NN",               isZem:false },
+  { key:"mont_opto",     label:"Montáž Opto",             isZem:false },
+  { key:"zem_vn",        label:"Zemní VN",                isZem:true  },
+  { key:"zem_nn",        label:"Zemní NN",                isZem:true  },
+  { key:"uhlova_bruska", label:"Úhlová bruska",           isZem:true  },
+  { key:"rezerv_mont",   label:"Rezerva montáž", editLabel:true, isZem:false },
 ]
 const MECH = [
-  { key:"jerab",    label:"Jeřáb" },
+  { key:"jerab",    label:"Autojeřáb hydr. ruka" },
   { key:"nakladni", label:"Nákladní auto" },
   { key:"traktor",  label:"Traktor" },
   { key:"plosina",  label:"Plošina" },
 ]
+// Písek a Štěrk rozepsány, Materiál vlastní přidán
 const ZEMNI = [
   { key:"zemni_prace",  label:"Zemní práce" },
   { key:"zadlazby",     label:"Zádlažby" },
@@ -37,13 +38,17 @@ const ZEMNI = [
   { key:"nalosute",     label:"Naložení a doprava sutě" },
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
   { key:"optotrubka",   label:"Optotrubka" },
-  { key:"protlak",      label:"Protlak" },
+  { key:"protlak",      label:"Protlak (zadej záporně)", isProtlak:true },
   { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
-  { key:"pisek",        label:"Písek", noIdx:true },
-  { key:"sterk",        label:"Štěrk", noIdx:true },
+  { key:"mat_vlastni",  label:"Materiál vlastní", noIdx:true },
+  { key:"pisek_d02",    label:"Písek D0-2", noIdx:true },
+  { key:"pisek_b04",    label:"Štěrkopísek B 0-4", noIdx:true },
+  { key:"pisek_beton",  label:"Betonářský písek", noIdx:true },
+  { key:"sterk_032",    label:"Štěrkodrť 0-32", noIdx:true },
+  { key:"sterk_3264",   label:"Štěrkokamen 32-64", noIdx:true },
   { key:"beton",        label:"Beton", noIdx:true },
   { key:"asfalt",       label:"Asfalt" },
-  { key:"rezerv_zemni", label:"Rezerva zemní" },
+  { key:"rezerv_zemni", label:"Rezerva zemní", editLabel:true },
 ]
 const GN = [
   { key:"inzenyrska",     label:"Inženýrská činnost" },
@@ -54,6 +59,9 @@ const GN = [
   { key:"ekolog_likv",    label:"Ekolog. likv. odpadů" },
   { key:"material_vyn",   label:"Materiál výnosový" },
   { key:"doprava_mat",    label:"Doprava mat. na stavbu" },
+  { key:"gzs_silnice",    label:"GZS – Silniční provoz / rušení dopravy" },
+  { key:"gzs_vn",         label:"GZS – Provozní vlivy VN/VVN" },
+  { key:"gzs_zeleznice",  label:"GZS – Železniční provoz do 10 m od koleje" },
   { key:"popl_ver",       label:"Popl. za veřej. prostr." },
   { key:"pripl_capex",    label:"Příplatek Capex / Opex" },
   { key:"kolaudace",      label:"Kolaudace" },
@@ -79,6 +87,15 @@ const SEC = {
 const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
 const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
+
+// Automatický výpočet Materiálu zhotovitele
+// = Materiál vlastní - (písek + štěrkopísek + betonářský písek + štěrkodrť + štěrkokamen + beton + roura PE + asfalt)
+function computeMatZhot(zemni) {
+  const matV   = itemSum(zemni['mat_vlastni']?.rows  || mkRows())
+  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','beton','roura_pe','asfalt']
+    .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
+  return Math.max(0, matV - odecti)
+}
 
 function compute(s) {
   const pri = num(s.prirazka), zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
@@ -107,10 +124,10 @@ function compute(s) {
   const zemniT = {}; let zemniSumBez = 0, zemniSumS = 0
   for (const it of ZEMNI) {
     const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
-    const idx = it.noIdx ? 0 : -0.15
+    const idx = it.noIdx ? 0 : it.isProtlak ? 0 : -0.15
     const sP  = bez * (1 + pri) * (1 + idx)
     zemniT[it.key] = { bez, idx, sP }
-    zemniSumBez += bez; zemniSumS += sP
+    if (!it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
   }
   const zemniZisk = zemniSumS - num(s.vypl_zemni)
 
@@ -127,7 +144,9 @@ function compute(s) {
   const dofBez = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
   const dofSumS = dofBez * (1 + pri)
 
-  const gzs = num(s.gzs), matZhot = num(s.mat_zhotovitele), prispSklad = num(s.prispevek_sklad)
+  // Materiál zhotovitele = automaticky z materiálu vlastního
+  const matZhotAuto = computeMatZhot(s.zemni)
+  const gzs = num(s.gzs), matZhot = matZhotAuto, prispSklad = num(s.prispevek_sklad)
   const bazova = mzdySumS + mechSumS + zemniSumS + gnSumS + dofSumS + gzs + matZhot + prispSklad
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
@@ -147,14 +166,13 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove }) {
   )
 }
 
-function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T }) {
+function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T, onLabelChange }) {
   const { toggle, addRow, changeRow, removeRow } = handlers
   const total = sumS
-  const openCount = items.filter(it => data[it.key]?.open).length
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
-      <div onClick={() => {}} style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
+      <div style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
         <span style={{ fontSize:16 }}>{icon}</span>
         <span style={{ color, fontWeight:800, fontSize:14, flex:1 }}>{label}</span>
         <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {fmt(total)} Kč</span>
@@ -163,22 +181,53 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, 
       <div style={{ padding:'10px 14px' }}>
         {items.map(it => {
           const sec = data[it.key] || { rows: mkRows(), open: false }
-          const total = it.isZem !== undefined ? itemSum(sec.rows) : itemSum(sec.rows)
+          const rowTotal = itemSum(sec.rows)
           const cnt = sec.rows.length
+          // Label pro editovatelné sekce
+          const displayLabel = it.editLabel
+            ? (data[it.key]?.customLabel || it.label)
+            : it.label
+          const isProtlak = it.isProtlak
+          const protlakVal = isProtlak ? Math.abs(rowTotal) : 0
+
           return (
             <div key={it.key} style={{ marginBottom:6 }}>
               <div onClick={() => toggle(secKey, it.key)}
-                style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:6, cursor:'pointer', background: sec.open ? `${color}12` : 'transparent', border:`1px solid ${sec.open ? color+'30' : T.border}` }}>
-                <div style={{ width:7, height:7, borderRadius:2, background: total>0 ? color : T.border, flexShrink:0 }}/>
-                <span style={{ color: sec.open ? color : total>0 ? T.text : T.muted, fontSize:13, fontWeight: sec.open?700:400, flex:1 }}>{it.label}</span>
+                style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:6, cursor:'pointer',
+                  background: sec.open ? `${color}12` : 'transparent',
+                  border:`1px solid ${sec.open ? color+'30' : T.border}` }}>
+                <div style={{ width:7, height:7, borderRadius:2, background: rowTotal!=0 ? color : T.border, flexShrink:0 }}/>
+                <span style={{ color: sec.open ? color : rowTotal!=0 ? T.text : T.muted, fontSize:13, fontWeight: sec.open?700:400, flex:1 }}>
+                  {displayLabel}
+                  {isProtlak && rowTotal < 0 && <span style={{ color:'#f59e0b', fontSize:10, marginLeft:6 }}>→ Protlaky: {fmt(protlakVal)} Kč</span>}
+                </span>
                 {cnt > 1 && <span style={{ background:`${color}22`, color, fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4 }}>{cnt}×</span>}
-                <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: total>0?700:400, color: sec.open ? color : total>0 ? T.text : T.muted }}>{fmt(total)}</span>
+                <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: rowTotal!=0?700:400, color: isProtlak&&rowTotal<0 ? '#f97316' : sec.open ? color : rowTotal!=0 ? T.text : T.muted }}>
+                  {fmt(rowTotal)}{isProtlak && rowTotal < 0 ? '' : ''}
+                </span>
                 <span style={{ color:T.muted, fontSize:10 }}>{sec.open?'▲':'▼'}</span>
               </div>
               {sec.open && (
                 <div style={{ padding:'10px 10px 6px', background:`${color}08`, borderRadius:'0 0 6px 6px', border:`1px solid ${color}20`, borderTop:'none' }}>
+                  {/* Editovatelný label pro rezervy */}
+                  {it.editLabel && (
+                    <div style={{ marginBottom:8 }}>
+                      <input
+                        value={data[it.key]?.customLabel || ''}
+                        placeholder={it.label + ' (název…)'}
+                        onClick={e => e.stopPropagation()}
+                        onChange={e => onLabelChange && onLabelChange(secKey, it.key, e.target.value)}
+                        style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:`1px solid ${color}40`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', boxSizing:'border-box', fontStyle:'italic' }}
+                      />
+                    </div>
+                  )}
+                  {isProtlak && (
+                    <div style={{ padding:'5px 8px', marginBottom:8, background:'rgba(249,115,22,0.1)', borderRadius:5, color:'#f97316', fontSize:11 }}>
+                      ⚠️ Zadej zápornou hodnotu (např. -39524). Kladná částka přejde do sloupce Protlaky v rozboru.
+                    </div>
+                  )}
                   {sec.rows.map((row, idx) => (
-                    <ItemRow key={row.id} row={row} color={color} T={T}
+                    <ItemRow key={row.id} row={row} color={isProtlak ? '#f97316' : color} T={T}
                       onChange={r => changeRow(secKey, it.key, idx, r)}
                       onRemove={() => removeRow(secKey, it.key, idx)}
                       canRemove={sec.rows.length > 1} />
@@ -189,7 +238,9 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, 
                   </button>
                   <div style={{ display:'flex', justifyContent:'space-between', padding:'4px 8px' }}>
                     <span style={{ color:T.muted, fontSize:11 }}>Součet</span>
-                    <span style={{ color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>{fmt(itemSum(sec.rows))} {it.isZem !== undefined ? 'hod' : 'Kč'}</span>
+                    <span style={{ color: isProtlak&&rowTotal<0?'#f97316':color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>
+                      {fmt(rowTotal)} {it.isZem !== undefined ? 'hod' : 'Kč'}
+                    </span>
                   </div>
                 </div>
               )}
@@ -216,7 +267,6 @@ export default function StavbaPage() {
     const load = async () => {
       const { data } = await supabase.from('stavby').select('*').eq('id', params.id).single()
       if (!data) { router.push('/dashboard'); return }
-      // Inicializace chybějících sekcí
       const mzdy  = data.mzdy  || {}; for (const it of MZDY)  if (!mzdy[it.key])  mzdy[it.key]  = { rows: mkRows(), open: false }
       const mech  = data.mech  || {}; for (const it of MECH)  if (!mech[it.key])  mech[it.key]  = { rows: mkRows(), open: false }
       const zemni = data.zemni || {}; for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
@@ -243,10 +293,16 @@ export default function StavbaPage() {
     removeRow: (_, key, idx) => setS(prev => { const rows = prev[secName][key].rows.filter((_, i) => i !== idx); return { ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], rows } } } }),
   })
 
+  const handleLabelChange = (secName, key, val) =>
+    setS(prev => ({ ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], customLabel: val } } }))
+
   if (!s) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', color:'#64748b' }}>Načítám…</div>
 
   const c = compute(s)
   const mzdyH = makeH('mzdy'), mechH = makeH('mech'), zemniH = makeH('zemni'), gnH = makeH('gn'), dofH = makeH('dof')
+
+  // Protlaky hodnota pro rozbor (kladná)
+  const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
 
   return (
     <div style={{ minHeight:'100vh', background:T.bg }}>
@@ -321,11 +377,11 @@ export default function StavbaPage() {
               </div>
             </div>
 
-            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH} />
-            <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  zisk={c.mechZisk}  handlers={mechH} />
-            <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} />
-            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH} />
-            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH} />
+            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} />
+            <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} />
+            <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} />
+            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} />
+            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH}   onLabelChange={handleLabelChange} />
 
             {/* Ostatní */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
@@ -333,14 +389,18 @@ export default function StavbaPage() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
                   { l:'GZS', k:'gzs' },
-                  { l:'Materiál zhotovitele', k:'mat_zhotovitele', note:'není indexován' },
+                  { l:'Materiál zhotovitele', k:'mat_zhotovitele', note:'počítá se automaticky', readOnly:true, val: fmt(c.matZhot) },
                   { l:'Příspěvek na sklad',   k:'prispevek_sklad' },
-                ].map(({l,k,note})=>(
+                ].map(({l,k,note,readOnly,val})=>(
                   <div key={k}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>{l}</div>
                     {note&&<div style={{ color:T.muted, fontSize:10, fontStyle:'italic', marginBottom:4 }}>{note}</div>}
-                    <input type="text" value={s[k]??''} placeholder="0" onChange={e=>setField(k,e.target.value)}
-                      style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                    {readOnly ? (
+                      <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>{val} Kč</div>
+                    ) : (
+                      <input type="text" value={s[k]??''} placeholder="0" onChange={e=>setField(k,e.target.value)}
+                        style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                    )}
                   </div>
                 ))}
               </div>
@@ -391,7 +451,6 @@ export default function StavbaPage() {
                   ))}
                 </div>
               </div>
-              {/* Procentuální bar */}
               {c.bazova > 0 && (() => {
                 const bars = [
                   {l:'Mzdy',v:c.mzdySumS,col:'#3b82f6'},{l:'Mech.',v:c.mechSumS,col:'#f59e0b'},
@@ -420,139 +479,107 @@ export default function StavbaPage() {
             {(() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
-
-              // Hlavička tabulky
-              const TH = ({children, right}) => (
-                <div style={{ color:T.muted, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign: right?'right':'left', padding:'4px 6px' }}>{children}</div>
-              )
               const cols = '2fr 1fr 1fr 1fr 1fr 1fr 1fr'
 
+              const TH = ({children}) => (
+                <div style={{ color:T.muted, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'right', padding:'4px 6px' }}>{children}</div>
+              )
               const SekceHeader = ({label, color, icon}) => (
                 <div style={{ display:'grid', gridTemplateColumns:cols, background:`${color}18`, borderRadius:'6px 6px 0 0', borderBottom:`2px solid ${color}`, marginTop:14 }}>
                   <div style={{ padding:'7px 8px', color, fontWeight:800, fontSize:12 }}>{icon} {label}</div>
-                  <TH right>Bez přirážky</TH>
-                  <TH right>Přirážka</TH>
-                  <TH right>S přirážkou</TH>
-                  <TH right>Index</TH>
-                  <TH right>K vyplacení</TH>
-                  <TH right>Vyplaceno</TH>
+                  <TH>Bez přirážky</TH><TH>Přirážka</TH><TH>S přirážkou</TH><TH>Index</TH><TH>K vyplacení</TH><TH>Vyplaceno</TH>
                 </div>
               )
-
-              const Row = ({label, bez, pri: p, sP, idx, kVypl, vypl, color, isBold, isTotal}) => {
-                const zisk = sP - (vypl||0)
-                return (
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background: isTotal ? `${color}10` : 'transparent', borderBottom:`1px solid ${T.border}40`, borderRadius: isTotal?'0 0 6px 6px':0 }}>
-                    <div style={{ padding:'5px 8px', color: isTotal?color:T.text, fontSize: isTotal?12:11, fontWeight: isTotal||isBold?700:400 }}>{label}</div>
-                    {[
-                      bez > 0 ? fmt(bez) : '—',
-                      `${((p||pri)*100).toFixed(1)} %`,
-                      sP > 0 ? fmt(sP) : '—',
-                      idx !== undefined ? `${(idx*100).toFixed(0)} %` : '—',
-                      kVypl > 0 ? fmt(kVypl) : '—',
-                      vypl > 0 ? fmt(vypl) : '—',
-                    ].map((v,i) => (
-                      <div key={i} style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color: isTotal&&i===4 ? color : i===5&&vypl>0 ? '#f59e0b' : T.muted, fontWeight: isTotal?700:400 }}>{v}</div>
-                    ))}
-                  </div>
-                )
-              }
+              const Row = ({label, bez, priR, sP, idx, kVypl, vypl, color, isTotal, highlight}) => (
+                <div style={{ display:'grid', gridTemplateColumns:cols, background: isTotal?`${color}10`:highlight?'rgba(249,115,22,0.06)':'transparent', borderBottom:`1px solid ${T.border}40`, borderRadius:isTotal?'0 0 6px 6px':0 }}>
+                  <div style={{ padding:'5px 8px', color:isTotal?color:highlight?'#f97316':T.text, fontSize:isTotal?12:11, fontWeight:isTotal?700:400 }}>{label}</div>
+                  {[
+                    bez !== 0 ? fmt(Math.abs(bez)) : '—',
+                    `${((priR??pri)*100).toFixed(1)} %`,
+                    sP !== 0 ? fmt(Math.abs(sP)) : '—',
+                    idx !== undefined ? `${(idx*100).toFixed(0)} %` : '—',
+                    kVypl > 0 ? fmt(kVypl) : '—',
+                    vypl > 0 ? fmt(vypl) : '—',
+                  ].map((v,i) => (
+                    <div key={i} style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color: isTotal&&i===4?color : i===5&&vypl>0?'#f59e0b' : T.muted, fontWeight:isTotal?700:400 }}>{v}</div>
+                  ))}
+                </div>
+              )
 
               // MZDY
               const mzdyRows = MZDY.map(it => {
                 const hod = itemSum(s.mzdy[it.key]?.rows||[])
                 const saz = it.isZem ? zmesZ : zmesM
                 const bez = hod * saz
-                const sP = bez * (1 + pri)
-                const kVypl = bez * 0.66
-                return { label: it.label, bez, sP, kVypl, idx: 0 }
+                return { label: s.mzdy[it.key]?.customLabel || it.label, bez, sP: bez*(1+pri), kVypl: bez*0.66, idx:0 }
               })
               const mzdyBez = mzdyRows.reduce((a,r)=>a+r.bez,0)
-              const mzdySP  = mzdyBez * (1+pri)
-              const vyplMzdy = num(s.vypl_mzdy)
+              const mzdySP = mzdyBez*(1+pri)
 
               // MECH
               const mechRows = MECH.map(it => {
                 const bez = itemSum(s.mech[it.key]?.rows||[])
-                const sP = bez * (1+pri)
-                return { label: it.label, bez, sP, kVypl: bez*0.8, idx: 0 }
+                return { label: it.label, bez, sP: bez*(1+pri), kVypl: bez*0.8, idx:0 }
               })
               const mechBez = mechRows.reduce((a,r)=>a+r.bez,0)
-              const mechSP  = mechBez * (1+pri)
-              const vyplMech = num(s.vypl_mech)
+              const mechSP = mechBez*(1+pri)
 
-              // ZEMNÍ
+              // ZEMNÍ – protlak je zvláštní řádek (kladná hodnota)
               const zemniRows = ZEMNI.map(it => {
                 const bez = itemSum(s.zemni[it.key]?.rows||[])
-                const idx = it.noIdx ? 0 : -0.15
-                const sP = bez * (1+pri) * (1+idx)
-                return { label: it.label, bez, sP, idx, kVypl: sP*0.8 }
+                const idx = it.noIdx ? 0 : it.isProtlak ? 0 : -0.15
+                const sP = it.isProtlak ? Math.abs(bez)*(1+pri) : bez*(1+pri)*(1+idx)
+                return { label: s.zemni[it.key]?.customLabel || it.label, bez: it.isProtlak ? Math.abs(bez) : bez, sP, idx, kVypl: sP*0.8, isProtlak: it.isProtlak }
               })
-              const zemniSP = zemniRows.reduce((a,r)=>a+r.sP,0)
-              const vyplZemni = num(s.vypl_zemni)
+              const zemniSP = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.sP,0)
 
               // GN
               const gnRows = GN.map(it => {
                 const bez = itemSum(s.gn[it.key]?.rows||[])
-                const sP = bez * (1+pri)
-                return { label: it.label, bez, sP, kVypl: bez*0.8, idx: 0 }
+                return { label: it.label, bez, sP: bez*(1+pri), kVypl: bez*0.8, idx:0 }
               })
               const gnBez = gnRows.reduce((a,r)=>a+r.bez,0)
-              const gnSP  = gnBez * (1+pri)
-              const vyplGN = num(s.vypl_gn)
+              const gnSP = gnBez*(1+pri)
 
-              // DOF
               const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
-              const dofSP = dofBez * (1+pri)
-
-              const gzs = num(s.gzs), matZhot = num(s.mat_zhotovitele), prispSklad = num(s.prispevek_sklad)
-              const bazova = mzdySP + mechSP + zemniSP + gnSP + dofSP + gzs + matZhot * 1 + prispSklad * (1+pri)
+              const dofSP = dofBez*(1+pri)
+              const gzs = num(s.gzs), matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
+              const bazova = mzdySP+mechSP+zemniSP+gnSP+dofSP+gzs+matZhot+prispSklad
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
-
-                  {/* MZDY */}
                   <SekceHeader label="Mzdy montáže" color="#3b82f6" icon="👷" />
-                  {mzdyRows.map((r,i) => <Row key={i} {...r} color="#3b82f6" pri={pri} />)}
-                  <Row label="CELKEM MZDY" bez={mzdyBez} pri={pri} sP={mzdySP} idx={0}
-                    kVypl={mzdyBez*0.66} vypl={vyplMzdy} color="#3b82f6" isTotal />
+                  {mzdyRows.map((r,i) => <Row key={i} {...r} color="#3b82f6" />)}
+                  <Row label="CELKEM MZDY" bez={mzdyBez} sP={mzdySP} idx={0} kVypl={mzdyBez*0.66} vypl={num(s.vypl_mzdy)} color="#3b82f6" isTotal />
 
-                  {/* MECHANIZACE */}
                   <SekceHeader label="Mechanizace" color="#f59e0b" icon="🚜" />
-                  {mechRows.map((r,i) => <Row key={i} {...r} color="#f59e0b" pri={pri} />)}
-                  <Row label="CELKEM MECHANIZACE" bez={mechBez} pri={pri} sP={mechSP} idx={0}
-                    kVypl={mechBez*0.8} vypl={vyplMech} color="#f59e0b" isTotal />
+                  {mechRows.map((r,i) => <Row key={i} {...r} color="#f59e0b" />)}
+                  <Row label="CELKEM MECHANIZACE" bez={mechBez} sP={mechSP} idx={0} kVypl={mechBez*0.8} vypl={num(s.vypl_mech)} color="#f59e0b" isTotal />
 
-                  {/* ZEMNÍ */}
                   <SekceHeader label="Zemní práce" color="#ef4444" icon="⛏️" />
-                  {zemniRows.map((r,i) => <Row key={i} {...r} color="#ef4444" pri={pri} />)}
-                  <Row label="CELKEM ZEMNÍ PRÁCE" bez={zemniRows.reduce((a,r)=>a+r.bez,0)} pri={pri} sP={zemniSP} idx={-0.15}
-                    kVypl={zemniSP*0.8} vypl={vyplZemni} color="#ef4444" isTotal />
+                  {zemniRows.map((r,i) => <Row key={i} {...r} color={r.isProtlak?'#f97316':'#ef4444'} highlight={r.isProtlak} />)}
+                  <Row label="CELKEM ZEMNÍ PRÁCE (bez protlaků)" bez={zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)} sP={zemniSP} idx={-0.15} kVypl={zemniSP*0.8} vypl={num(s.vypl_zemni)} color="#ef4444" isTotal />
 
-                  {/* GN */}
                   <SekceHeader label="Globální náklady" color="#10b981" icon="📋" />
-                  {gnRows.map((r,i) => <Row key={i} {...r} color="#10b981" pri={pri} />)}
-                  <Row label="CELKEM GLOBÁLNÍ NÁKLADY" bez={gnBez} pri={pri} sP={gnSP} idx={0}
-                    kVypl={gnBez*0.8} vypl={vyplGN} color="#10b981" isTotal />
+                  {gnRows.map((r,i) => <Row key={i} {...r} color="#10b981" />)}
+                  <Row label="CELKEM GLOBÁLNÍ NÁKLADY" bez={gnBez} sP={gnSP} idx={0} kVypl={gnBez*0.8} vypl={num(s.vypl_gn)} color="#10b981" isTotal />
 
-                  {/* OSTATNÍ */}
                   <SekceHeader label="Ostatní položky" color="#8b5cf6" icon="🔧" />
-                  <Row label="Mat. zhotovitele (bez indexu)" bez={matZhot} pri={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
-                  <Row label="Příspěvek na sklad" bez={prispSklad} pri={pri} sP={prispSklad*(1+pri)} idx={0} kVypl={prispSklad*0.8} color="#8b5cf6" />
-                  <Row label="GZS" bez={gzs} pri={pri} sP={gzs*(1+pri)} idx={0} kVypl={gzs*0.8} color="#8b5cf6" />
-                  <Row label="Doloženo fakturou" bez={dofBez} pri={pri} sP={dofSP} idx={0} kVypl={dofSP} color="#8b5cf6" />
+                  <Row label="Mat. zhotovitele (auto)" bez={matZhot} priR={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
+                  <Row label="Příspěvek na sklad" bez={prispSklad} sP={prispSklad*(1+pri)} idx={0} kVypl={prispSklad*0.8} color="#8b5cf6" />
+                  <Row label="GZS" bez={gzs} sP={gzs*(1+pri)} idx={0} kVypl={gzs*0.8} color="#8b5cf6" />
+                  <Row label="Doloženo fakturou" bez={dofBez} sP={dofSP} idx={0} kVypl={dofSP} color="#8b5cf6" />
 
-                  {/* CELKEM ZA STAVBU */}
+                  {/* CELKEM */}
                   <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.15)', borderRadius:8, marginTop:10, border:'2px solid rgba(37,99,235,0.4)' }}>
                     <div style={{ padding:'9px 8px', color:'#60a5fa', fontWeight:900, fontSize:13 }}>CELKEM ZA STAVBU</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(mzdyBez+mechBez+zemniRows.reduce((a,r)=>a+r.bez,0)+gnBez+dofBez+gzs+matZhot+prispSklad)}</div>
+                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(mzdyBez+mechBez+zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)+gnBez+dofBez+gzs+matZhot+prispSklad)}</div>
                     <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
                     <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(bazova)}</div>
                     <div/>
                     <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{fmt(mzdyBez*0.66+mechBez*0.8+zemniSP*0.8+gnBez*0.8)}</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(vyplMzdy+vyplMech+vyplZemni+vyplGN)}</div>
+                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(num(s.vypl_mzdy)+num(s.vypl_mech)+num(s.vypl_zemni)+num(s.vypl_gn))}</div>
                   </div>
-
                 </div>
               )
             })()}
@@ -564,7 +591,6 @@ export default function StavbaPage() {
             </div>
           </div>
         )}
-
       </div>
     </div>
   )
