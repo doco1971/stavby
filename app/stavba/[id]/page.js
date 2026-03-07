@@ -419,6 +419,8 @@ export default function StavbaPage() {
   const [katalogDialog, setKatalogDialog] = useState(null)
   const [importDialog, setImportDialog] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState(null) // { title, text, onConfirm }
+  const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
   const importFileRef = useRef(null)
 
   // Načti katalog položek
@@ -487,10 +489,16 @@ export default function StavbaPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const deleteStavba = async () => {
-    if (!confirm(`Opravdu smazat stavbu "${s.nazev}"? Tato akce je nevratná.`)) return
-    await supabase.from('stavby').delete().eq('id', params.id)
-    router.push('/dashboard')
+  const deleteStavba = () => {
+    setConfirmDialog({
+      title: 'Smazat stavbu',
+      text: `Opravdu smazat stavbu "${s.nazev}"? Tato akce je nevratná.`,
+      color: '#ef4444',
+      onConfirm: async () => {
+        await supabase.from('stavby').delete().eq('id', params.id)
+        router.push('/dashboard')
+      }
+    })
   }
 
   const setField = (k, v) => setS(prev => ({ ...prev, [k]: v }))
@@ -532,7 +540,7 @@ export default function StavbaPage() {
     const ab = await file.arrayBuffer()
     const wb = XLSX.read(ab, { type: 'array' })
     const ws = wb.Sheets['Vstupní hodnoty']
-    if (!ws) { alert('List "Vstupní hodnoty" nenalezen!'); return }
+    if (!ws) { setAlertDialog({ title: 'Chyba importu', text: 'List "Vstupní hodnoty" nenalezen!', color: '#ef4444' }); return }
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
 
     // Pomocná funkce: najdi řádek podle názvu v sloupci A
@@ -660,7 +668,7 @@ export default function StavbaPage() {
       return { ...next, mzdy, mech, zemni }
     })
     setImportDialog(null)
-    alert('Import dokončen! Zkontroluj hodnoty a ulož.')
+    setAlertDialog({ title: '✅ Import dokončen', text: 'Všechny hodnoty byly načteny. Zkontroluj a ulož.', color: '#10b981' })
   }
 
   return (
@@ -1005,6 +1013,42 @@ export default function StavbaPage() {
           onConfirm={handleKatalogConfirm}
           onCancel={() => setKatalogDialog(null)}
         />
+      )}
+
+      {/* Confirm dialog */}
+      {confirmDialog && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:18, fontWeight:800, color: confirmDialog.color||'#f59e0b', marginBottom:12 }}>⚠️ {confirmDialog.title}</div>
+            <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{confirmDialog.text}</div>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setConfirmDialog(null)}
+                style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13, fontWeight:600 }}>
+                Zrušit
+              </button>
+              <button onClick={() => { setConfirmDialog(null); confirmDialog.onConfirm() }}
+                style={{ padding:'9px 20px', background: confirmDialog.color||'#ef4444', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
+                Potvrdit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert dialog */}
+      {alertDialog && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:`1px solid ${alertDialog.color}40`, borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:18, fontWeight:800, color: alertDialog.color, marginBottom:12 }}>{alertDialog.title}</div>
+            <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{alertDialog.text}</div>
+            <div style={{ display:'flex', justifyContent:'flex-end' }}>
+              <button onClick={() => setAlertDialog(null)}
+                style={{ padding:'9px 24px', background: alertDialog.color, border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Dialog chybějící položky při importu */}
