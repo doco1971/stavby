@@ -86,10 +86,10 @@ const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRo
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 
 // Automatický výpočet Materiálu zhotovitele
-// = Materiál vlastní - (písek + štěrkopísek + betonářský písek + štěrkodrť + štěrkokamen + beton + roura PE + asfalt)
+// = Materiál vlastní - (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + beton)
 function computeMatZhot(zemni) {
-  const matV   = itemSum(zemni['mat_vlastni']?.rows  || mkRows())
-  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','beton','roura_pe','asfalt']
+  const matV   = itemSum(zemni['mat_vlastni']?.rows || mkRows())
+  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','beton']
     .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
   return Math.max(0, matV - odecti)
 }
