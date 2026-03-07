@@ -56,13 +56,9 @@ const GN = [
   { key:"te_evidence",    label:"TE – tech. evidence" },
   { key:"vychozi_revize", label:"Výchozí revize" },
   { key:"pripl_ppn",      label:"Příplatek PPN NN" },
-  { key:"stimul_prirazka",label:"Stimulační přirážka" },
   { key:"ekolog_likv",    label:"Ekolog. likv. odpadů" },
   { key:"material_vyn",   label:"Materiál výnosový" },
   { key:"doprava_mat",    label:"Doprava mat. na stavbu" },
-  { key:"gzs_silnice",    label:"GZS – Silniční provoz / rušení dopravy" },
-  { key:"gzs_vn",         label:"GZS – Provozní vlivy VN/VVN" },
-  { key:"gzs_zeleznice",  label:"GZS – Železniční provoz do 10 m od koleje" },
   { key:"popl_ver",       label:"Popl. za veřej. prostr." },
   { key:"pripl_capex",    label:"Příplatek Capex / Opex" },
   { key:"kolaudace",      label:"Kolaudace" },
@@ -75,6 +71,8 @@ const DOF = [
   { key:"demontaz",      label:"Demontáž – nestandart" },
   { key:"spec_zadlazby", label:"Speciální zádlažby" },
   { key:"omezeni_dopr",  label:"Omezení sil./žel. dopr." },
+  { key:"gzs",           label:"GZS – Garančně záruční správa" },
+  { key:"stimul_prirazka", label:"Stimulační přirážka", editLabel:true },
   { key:"rezerva",       label:"Rezerva" },
 ]
 const SEC = {
