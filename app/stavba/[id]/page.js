@@ -615,12 +615,14 @@ export default function StavbaPage() {
         stroje[kod] = cena
       }
 
-      // PZ zemní práce v Kč — col[19] = cena celkem
+      // PZ zemní práce v Kč — hledám řádek kde col[4] obsahuje 'PZ:'
       let zemniPraceKc = 0
       for (const r of rowsPM) {
-        if (String(r[1]||'').trim() !== '3') continue
+        const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
-        if (popis.includes('pz:') || popis.includes('zemní')) zemniPraceKc = num(r[19]) || zemniPraceKc
+        if ((col1 === 3 || col1 === '3') && (popis.includes('pz:') || popis.includes('zemní'))) {
+          zemniPraceKc = num(r[19]) || num(r[20]) || zemniPraceKc
+        }
       }
 
       // Materiál vlastní — sečti množství × cena (col[3]=výměra, col[4]=jedn.cena)
@@ -719,8 +721,11 @@ export default function StavbaPage() {
         const mzdy = { ...prev.mzdy }
         for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
         mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
-        mzdy['zem_nn']  = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        mzdy['zem_vn']  = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
+        mzdy['mont_vn']    = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
+        mzdy['mont_opto']  = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
+        mzdy['zem_nn']     = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
+        mzdy['zem_vn']     = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
+        mzdy['rezerv_mont']= { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
         const zemni = { ...prev.zemni }
         for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
         for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
