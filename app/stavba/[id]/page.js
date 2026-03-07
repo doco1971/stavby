@@ -794,38 +794,17 @@ export default function StavbaPage() {
               <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
-                  { l:'Materiál zhotovitele', k:'mat_vlastni',     readOnly:true, val: fmt(c.matVlastni) },
-                  { l:'Materiál vlastní',     k:'mat_zhotovitele', readOnly:true, val: fmt(c.matZhot) },
-                  { l:'Příspěvek na sklad',   k:'prispevek_sklad' },
-                ].map(({l,k,readOnly,val})=>(
-                  <div key={k}>
+                  { l:'Materiál zhotovitele', val: fmt(c.matVlastni) },
+                  { l:'Materiál vlastní',     val: fmt(c.matZhot) },
+                  { l:'Příspěvek na sklad',   val: fmt(num(s.prispevek_sklad)) },
+                  { l:'GZS',                  val: fmt((s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0)) },
+                  { l:'Stimulační přirážka',  val: fmt(num(s.dof?.stimul_prirazka?.rows?.[0]?.castka)) },
+                ].map(({l,val})=>(
+                  <div key={l}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>{l}</div>
-                    {readOnly ? (
-                      <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>{val} Kč</div>
-                    ) : (
-                      <input type="text" value={s[k]??''} placeholder="0" onChange={e=>setField(k,e.target.value)}
-                        style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-                    )}
+                    <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>{val} Kč</div>
                   </div>
                 ))}
-                {/* GZS */}
-                <div>
-                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>GZS</div>
-                  <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>
-                    {fmt((s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0))} Kč
-                  </div>
-                </div>
-                {/* Stimulační přirážka */}
-                <div>
-                  <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>Stimulační přirážka</div>
-                  <input type="text" value={s.dof?.stimul_prirazka?.rows?.[0]?.castka??''} placeholder="0"
-                    onChange={e => {
-                      const rows = [{...(s.dof?.stimul_prirazka?.rows?.[0]||{id:'st1',popis:'Stimulační přirážka'}), castka: e.target.value}]
-                      setS(prev => ({...prev, dof: {...prev.dof, stimul_prirazka: {...(prev.dof?.stimul_prirazka||{}), rows}}}))
-                    }}
-                    style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-                </div>
-
               </div>
             </div>
 
