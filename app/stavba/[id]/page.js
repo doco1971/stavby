@@ -474,6 +474,7 @@ export default function StavbaPage() {
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
       const dof   = data.dof   || {}; for (const it of DOF)   if (!dof[it.key])   dof[it.key]   = { rows: mkRows(), open: false }
       setS({ ...data, mzdy, mech, zemni, gn, dof })
+      if (data.updated_at) setLastSaved(new Date(data.updated_at))
       // Načti profil uživatele
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
