@@ -457,7 +457,7 @@ export default function StavbaPage() {
       } else {
         const hasMini = zemni.bagr.rows.some(r => r.popis?.toLowerCase().includes('miniryp') || r.popis?.toLowerCase().includes('minirýp'))
         if (!hasMini) {
-          zemni.bagr.rows.push({ id: uid(), popis: 'minirýpadlo', castka: '26792.30' })
+          zemni.bagr.rows.push({ id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '9900' })
         }
       }
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
