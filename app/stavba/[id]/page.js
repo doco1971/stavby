@@ -85,9 +85,13 @@ const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
 const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 
-// Automatický výpočet Materiálu zhotovitele
-// = Materiál vlastní - (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + beton)
+// Materiál zhotovitele = písek D0-2 + štěrkokamen 32-64 + beton
 function computeMatZhot(zemni) {
+  return ['pisek_d02','sterk_3264','beton']
+    .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
+}
+// Materiál vlastní = mat_vlastni - (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + beton)
+function computeMatVlastni(zemni) {
   const matV   = itemSum(zemni['mat_vlastni']?.rows || mkRows())
   const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','beton']
     .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
@@ -143,13 +147,13 @@ function compute(s) {
   const dofBez = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
   const dofSumS = dofBez * (1 + pri)
 
-  // Materiál zhotovitele = automaticky z materiálu vlastního
-  const matZhotAuto = computeMatZhot(s.zemni)
-  const matZhot = matZhotAuto, prispSklad = num(s.prispevek_sklad)
+  // Materiál vlastní a zhotovitele = automatické výpočty
+  const matVlastni = computeMatVlastni(s.zemni)
+  const matZhot = computeMatZhot(s.zemni), prispSklad = num(s.prispevek_sklad)
   const bazova = mzdySumS + mechSumS + zemniSumS + gnSumS + dofSumS + matZhot + prispSklad
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matZhot, prispSklad, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
 }
 
 // ── Dialog: schválení nové položky do katalogu ───────────
@@ -578,7 +582,8 @@ export default function StavbaPage() {
               <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
-                  { l:'Materiál zhotovitele', k:'mat_zhotovitele', note:'počítá se automaticky', readOnly:true, val: fmt(c.matZhot) },
+                  { l:'Materiál zhotovitele', k:'mat_vlastni',     note:'počítá se automaticky', readOnly:true, val: fmt(c.matVlastni) },
+                  { l:'Materiál vlastní',     k:'mat_zhotovitele', note:'počítá se automaticky', readOnly:true, val: fmt(c.matZhot) },
                   { l:'Příspěvek na sklad',   k:'prispevek_sklad' },
                 ].map(({l,k,note,readOnly,val})=>(
                   <div key={k}>
@@ -784,7 +789,7 @@ export default function StavbaPage() {
                   <Row label="CELKEM GLOBÁLNÍ NÁKLADY" bez={gnBez} sP={gnSP} idx={0} kVypl={gnBez*0.8} vypl={num(s.vypl_gn)} color="#10b981" isTotal />
 
                   <SekceHeader label="Ostatní položky" color="#8b5cf6" icon="🔧" />
-                  <Row label="Mat. zhotovitele (auto)" bez={matZhot} priR={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
+                  <Row label="Mat. zhotovitele" bez={matZhot} priR={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
                   <Row label="Příspěvek na sklad" bez={prispSklad} sP={prispSklad*(1+pri)} idx={0} kVypl={prispSklad*0.8} color="#8b5cf6" />
                   <Row label="Doloženo fakturou" bez={dofBez} sP={dofSP} idx={0} kVypl={dofSP} color="#8b5cf6" />
 
