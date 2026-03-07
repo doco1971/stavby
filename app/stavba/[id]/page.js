@@ -487,7 +487,7 @@ export default function StavbaPage() {
 
   const save = async (data = s) => {
     setSaving(true)
-    await supabase.from('stavby').update(data).eq('id', params.id)
+    await supabase.from('stavby').update({ ...data, updated_at: new Date().toISOString() }).eq('id', params.id)
     setSaving(false); setSaved(true)
     setLastSaved(new Date())
     setTimeout(() => setSaved(false), 2000)
