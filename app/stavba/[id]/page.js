@@ -11,14 +11,13 @@ const fmt  = n  => Math.round(n).toLocaleString('cs-CZ')
 const pct  = v  => (num(v) * 100).toFixed(2)
 
 // ── definice sekcí ───────────────────────────────────────
-// MZDY: mont_ts odstraněno - TS hodiny patří do mont_vn
+// MZDY: mont_vn obsahuje VN venkovní + VN kabelové + TS technologie + TS vnitřní
 const MZDY = [
-  { key:"mont_vn",       label:"Montáž VN (vč. TS)",     isZem:false },
+  { key:"mont_vn",       label:"Montáž VN + TS",          isZem:false },
   { key:"mont_nn",       label:"Montáž NN",               isZem:false },
   { key:"mont_opto",     label:"Montáž Opto",             isZem:false },
   { key:"zem_vn",        label:"Zemní VN",                isZem:true  },
   { key:"zem_nn",        label:"Zemní NN",                isZem:true  },
-  { key:"uhlova_bruska", label:"Úhlová bruska",           isZem:true  },
   { key:"rezerv_mont",   label:"Rezerva montáž", editLabel:true, isZem:false },
 ]
 const MECH = [
@@ -34,6 +33,7 @@ const ZEMNI = [
   { key:"bagr",         label:"Bagr" },
   { key:"kompresor",    label:"Kompresor" },
   { key:"rezac",        label:"Řezač asfaltu" },
+  { key:"uhlova_zem",   label:"Úhlová bruska" },
   { key:"mot_pech",     label:"Motorový pěch" },
   { key:"nalosute",     label:"Naložení a doprava sutě" },
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
