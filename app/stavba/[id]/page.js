@@ -719,13 +719,12 @@ export default function StavbaPage() {
       setS(prev => {
         const mzdy = { ...prev.mzdy }
         for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
-        // Vymaž staré hodiny montáže a zemní
         mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
-        // PZ hodiny jdou do zemních prací (výkopové práce), ne do mzdy
-        zemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(hZem * 10) / 10) }], open: false }
         const zemni = { ...prev.zemni }
         for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
         for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
+        // PZ hodiny jdou do zemních prací (výkopové práce) — přepíše parsedEBC.zemni
+        zemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(hZem * 10) / 10) }], open: false }
         const mech = { ...prev.mech }
         for (const [k, rows] of Object.entries(parsedEBC.mech)) mech[k] = { rows, open: false }
         return { ...prev, nazev: parsedEBC.nazev || prev.nazev, cislo: parsedEBC.cislo || prev.cislo, mzdy, mech, zemni, gn: parsedEBC.gn, dof: parsedEBC.dof }
