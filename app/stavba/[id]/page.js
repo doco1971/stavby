@@ -31,6 +31,7 @@ const ZEMNI = [
   { key:"zemni_prace",  label:"Zemní práce" },
   { key:"zadlazby",     label:"Zádlažby" },
   { key:"bagr",         label:"Bagr" },
+  { key:"miniryadlo",   label:"Minirýpadlo" },
   { key:"kompresor",    label:"Kompresor" },
   { key:"rezac",        label:"Řezač asfaltu" },
   { key:"uhlova_bruska",label:"Úhlová bruska" },
