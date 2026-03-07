@@ -111,6 +111,8 @@ function compute(s) {
   }
   const mzdySumS = mzdySumBez * (1 + pri)
   const mzdyZisk = (mzdySumS - num(s.vypl_mzdy)) * 0.66
+  const hodMont = MZDY.filter(i => !i.isZem).reduce((a, i) => a + (mzdyT[i.key]?.hod || 0), 0)
+  const hodZem  = MZDY.filter(i =>  i.isZem).reduce((a, i) => a + (mzdyT[i.key]?.hod || 0), 0)
 
   const mechT = {}; let mechSumBez = 0
   for (const it of MECH) {
@@ -151,7 +153,7 @@ function compute(s) {
   const bazova = mzdySumS + mechSumS + zemniSumS + gnSumS + dofSumS + matZhot + prispSklad
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matZhot, prispSklad, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matZhot, prispSklad, bazova, celkemZisk }
 }
 
 // ── Dialog: schválení nové položky do katalogu ───────────
@@ -247,7 +249,7 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, s
   )
 }
 
-function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T, onLabelChange, katalog, onNewPopis }) {
+function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T, onLabelChange, katalog, onNewPopis, hodMont, hodZem }) {
   const { toggle, addRow, changeRow, removeRow } = handlers
   const total = sumS
 
@@ -256,6 +258,13 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, 
       <div style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
         <span style={{ fontSize:16 }}>{icon}</span>
         <span style={{ color, fontWeight:800, fontSize:14, flex:1 }}>{label}</span>
+        {hodMont != null && (
+          <span style={{ color:T.muted, fontSize:11, fontFamily:'monospace', marginRight:8 }}>
+            mont. <span style={{ color, fontWeight:700 }}>{hodMont.toFixed(3)}</span> hod
+            {'  '}
+            zem. <span style={{ color, fontWeight:700 }}>{hodZem.toFixed(3)}</span> hod
+          </span>
+        )}
         <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {fmt(total)} Kč</span>
         {zisk != null && total > 0 && <span style={{ color: zisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:11, marginLeft:12 }}>zisk {fmt(zisk)}</span>}
       </div>
@@ -494,7 +503,7 @@ export default function StavbaPage() {
               </div>
             </div>
 
-            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
             <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
@@ -665,6 +674,19 @@ export default function StavbaPage() {
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
                   <SekceHeader label="Mzdy montáže" color="#3b82f6" icon="👷" />
+                  {/* Součet hodin */}
+                  <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.06)', borderBottom:`1px solid ${T.border}40` }}>
+                    <div style={{ padding:'5px 8px', color:'#3b82f6', fontSize:11, fontWeight:700 }}>⏱ Hodiny celkem</div>
+                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:800, color:'#3b82f6', gridColumn:'2/4' }}>
+                      mont. {c.hodMont.toFixed(3)} hod
+                    </div>
+                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:800, color:'#60a5fa', gridColumn:'4/6' }}>
+                      zem. {c.hodZem.toFixed(3)} hod
+                    </div>
+                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted, gridColumn:'6/8' }}>
+                      Σ {(c.hodMont + c.hodZem).toFixed(3)} hod
+                    </div>
+                  </div>
                   {mzdyRows.map((r,i) => <Row key={i} {...r} color="#3b82f6" />)}
                   <Row label="CELKEM MZDY" bez={mzdyBez} sP={mzdySP} idx={0} kVypl={mzdyBez*0.66} vypl={num(s.vypl_mzdy)} color="#3b82f6" isTotal />
 
