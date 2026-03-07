@@ -615,7 +615,7 @@ export default function StavbaPage() {
         stroje[kod] = cena
       }
 
-      // Hodiny PM (montáž) a PZ (zemní) — součtové řádky kde col[1]='3' a col[4] obsahuje PM/PZ
+      // Hodiny PM (montáž) a PZ (zemní) — součtové řádky kde col[1]=3 a col[4] obsahuje PM/PZ
       let hMont = 0, hZem = 0
       for (const r of rowsPM) {
         if (String(r[1]||'').trim() !== '3') continue
@@ -720,8 +720,8 @@ export default function StavbaPage() {
         const mzdy = { ...prev.mzdy }
         for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
         // Vymaž staré hodiny montáže a zemní
-        mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: '0', hodiny: String(Math.round(hMont * 10) / 10) }], open: false }
-        mzdy['zem_nn']  = { rows: [{ id: uid(), popis: 'Zemní práce NN (EBC import)', castka: '0', hodiny: String(Math.round(hZem * 10) / 10) }], open: false }
+        mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
+        mzdy['zem_nn']  = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(hZem * 10) / 10) }], open: false }
         const zemni = { ...prev.zemni }
         for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
         for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
