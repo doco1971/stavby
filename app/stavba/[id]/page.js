@@ -626,6 +626,27 @@ export default function StavbaPage() {
         stroje[kod] = cena
       }
 
+      // GZS a Stimulační přirážka — PP řádky, kód 9343 a 9349, cena = col[19]
+      let gzsKc = 0, stimulacniKc = 0
+      for (const r of rowsPM) {
+        if (String(r[2]||'').trim() !== 'PP') continue
+        const kod = String(r[3]||'').trim()
+        if (kod === '9343') gzsKc = num(r[19])
+        if (kod === '9349') stimulacniKc = num(r[19])
+      }
+
+      // Subdodávky — def. zádlažba (53001) a def. úprava fasád (54003)
+      const wsSub = wb.Sheets['Subdodávky']
+      let zadlazbyKc = 0, stavPraceKc = 0
+      if (wsSub) {
+        const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
+        for (const r of rowsSub) {
+          const kod = String(r[3]||'').trim()
+          if (kod === '53001') zadlazbyKc = num(r[8])
+          if (kod === '54003') stavPraceKc = num(r[8])
+        }
+      }
+
       // PZ zemní práce v Kč — hledám řádek kde col[4] obsahuje 'PZ:'
       let zemniPraceKc = 0
       for (const r of rowsPM) {
@@ -636,28 +657,35 @@ export default function StavbaPage() {
         }
       }
 
-      // Materiál vlastní — sečti množství × cena (col[3]=výměra, col[4]=jedn.cena)
+      // Materiál vlastní — col[8]=Cena, col[3]=Kód, col[4]=Popis
       let matVlastniCelkem = 0
-      for (const r of rowsMatV) {
-        const popis = String(r[4]||'').toLowerCase()
-        const mnoz = num(r[3]), cena = num(r[4])
-        // Přeskoč záhlaví a součtové řádky
-        if (popis.includes('celkem') || popis.includes('popis') || popis.includes('název')) continue
-        const mnozV = num(r[6]), cenaV = num(r[7])  // výměra a jedn cena jsou jinde
-        if (mnozV > 0 && cenaV > 0) matVlastniCelkem += mnozV * cenaV
-      }
-      // Fallback: hledej řádek Celkem
-      if (!matVlastniCelkem) {
-        const celkRow = rowsMatV.find(r => String(r[4]||r[0]||'').toLowerCase().includes('celkem'))
-        if (celkRow) matVlastniCelkem = num(celkRow[8]) || num(celkRow[7]) || num(celkRow[6])
-      }
-
-      // Písek D0-2 — kód 800000000301
       let pisekD02 = 0
       for (const r of rowsMatV) {
-        const kod = String(r[2]||r[0]||'')
+        const popis = String(r[4]||'').toLowerCase()
+        const kod = String(r[3]||'')
+        if (popis.includes('celkem') && num(r[8]) > 0) {
+          matVlastniCelkem = num(r[8])
+        }
         if (kod.includes('800000000301')) {
-          pisekD02 = num(r[8]) || num(r[7])
+          pisekD02 = num(r[8])
+        }
+      }
+      if (!matVlastniCelkem) {
+        for (const r of rowsMatV) {
+          const mnozV = num(r[6]), cenaV = num(r[7])
+          if (mnozV > 0 && cenaV > 0) matVlastniCelkem += mnozV * cenaV
+        }
+      }
+
+      // Příspěvek na sklad — z listu Rekapitulace pro EBC col[7]=Příspěvek za sklad, řádky úrovně 1
+      const wsRekap = wb.Sheets['Rekapitulace pro EBC']
+      let prispevekSklad = 0
+      if (wsRekap) {
+        const rowsRekap = XLSX.utils.sheet_to_json(wsRekap, { header: 1, defval: '' })
+        for (const r of rowsRekap) {
+          if ((r[1] === 1 || r[1] === '1') && num(r[7]) > 0) {
+            prispevekSklad += num(r[7])
+          }
         }
       }
 
@@ -685,13 +713,13 @@ export default function StavbaPage() {
           pisek_d02:    [{ id: uid(), popis: 'Písek D0-2',              castka: String(Math.round(pisekD02)) }],
           // Ostatní položky zemních prací z EBC nejsou přímo dostupné — ponecháme 0
           zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: '0' }],
-          zadlazby:     [{ id: uid(), popis: 'Zádlažby',    castka: '0' }],
+          zadlazby:     [{ id: uid(), popis: 'Def. zádlažba', castka: String(Math.round(zadlazbyKc)) }],
           sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: '0' }],
           beton:        [{ id: uid(), popis: 'Beton',        castka: '0' }],
           asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: '0' }],
           optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: '0' }],
           nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
-          stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
+          stav_prace:   [{ id: uid(), popis: 'Def. úprava fasád', castka: String(Math.round(stavPraceKc)) }],
           rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: '0' }],
           pisek_b04:    [{ id: uid(), popis: 'Písek B0-4',   castka: '0' }],
           pisek_beton:  [{ id: uid(), popis: 'Písek pro beton', castka: '0' }],
@@ -723,6 +751,8 @@ export default function StavbaPage() {
           spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
           omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
           rezerva:      { rows: [{ id: uid(), popis: 'Rezerva',                 castka: '0' }], open: false },
+          gzs:          { rows: [{ id: uid(), popis: 'GZS (SO)',                  castka: String(Math.round(gzsKc * 100) / 100) }], open: false },
+          stimul_prirazka: { rows: [{ id: uid(), popis: 'Stimulační přirážka',   castka: String(Math.round(stimulacniKc * 100) / 100) }], open: false },
         },
       }
 
@@ -750,6 +780,7 @@ export default function StavbaPage() {
         zemni: noveZemni,
         gn:    parsedEBC.gn,
         dof:   parsedEBC.dof,
+        prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
       }))
       setImportDialog(null)
       setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní práce: ${Math.round(zemniPraceKc).toLocaleString('cs')} Kč. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
