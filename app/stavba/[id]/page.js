@@ -794,13 +794,12 @@ export default function StavbaPage() {
               <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
-                  { l:'Materiál zhotovitele', k:'mat_vlastni',     note:'počítá se automaticky', readOnly:true, val: fmt(c.matVlastni) },
-                  { l:'Materiál vlastní',     k:'mat_zhotovitele', note:'počítá se automaticky', readOnly:true, val: fmt(c.matZhot) },
+                  { l:'Materiál zhotovitele', k:'mat_vlastni',     readOnly:true, val: fmt(c.matVlastni) },
+                  { l:'Materiál vlastní',     k:'mat_zhotovitele', readOnly:true, val: fmt(c.matZhot) },
                   { l:'Příspěvek na sklad',   k:'prispevek_sklad' },
-                ].map(({l,k,note,readOnly,val})=>(
+                ].map(({l,k,readOnly,val})=>(
                   <div key={k}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>{l}</div>
-                    {note&&<div style={{ color:T.muted, fontSize:10, fontStyle:'italic', marginBottom:4 }}>{note}</div>}
                     {readOnly ? (
                       <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>{val} Kč</div>
                     ) : (
@@ -812,8 +811,9 @@ export default function StavbaPage() {
                 {/* GZS */}
                 <div>
                   <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>GZS</div>
-                  <input type="text" value={(s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0)||''} readOnly
-                    style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }} />
+                  <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>
+                    {fmt((s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0))} Kč
+                  </div>
                 </div>
                 {/* Stimulační přirážka */}
                 <div>
