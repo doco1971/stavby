@@ -563,7 +563,7 @@ export default function StavbaPage() {
     }
     const XLSX = window.XLSX
     const ab = await file.arrayBuffer()
-    const wb = XLSX.read(ab, { type: 'array' })
+    const wb = XLSX.read(ab, { type: 'array', cellDates: true })
     const ws = wb.Sheets['Vstupní hodnoty']
     if (!ws) { setAlertDialog({ title: 'Chyba importu', text: 'List "Vstupní hodnoty" nenalezen!', color: '#ef4444' }); return }
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
@@ -742,7 +742,7 @@ export default function StavbaPage() {
               ))}
             </div>
             <div>
-              <input ref={importFileRef} type="file" accept=".xlsx" style={{ display:'none' }} onChange={handleImportFile} />
+              <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
               <button onClick={() => importFileRef.current?.click()}
                 style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                 📂 Importovat z Excelu
