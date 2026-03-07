@@ -717,24 +717,29 @@ export default function StavbaPage() {
 
       // Mzdy — hodiny mont/zemní dosadíme do mont_nn a zem_nn (NN = nejblíže odpovídá)
       // Přesné rozdělení VN/NN/TS z EBC nelze, dáme vše do mont_nn resp. zem_nn
-      setS(prev => {
-        const mzdy = { ...prev.mzdy }
-        for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
-        mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
-        mzdy['mont_vn']    = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        mzdy['mont_opto']  = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        mzdy['zem_nn']     = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        mzdy['zem_vn']     = { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        mzdy['rezerv_mont']= { rows: [{ id: uid(), popis: '', castka: '' }], open: false }
-        const zemni = { ...prev.zemni }
-        for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
-        for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
-        // PZ hodiny jdou do zemních prací (výkopové práce) — přepíše parsedEBC.zemni
-        zemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc)) }], open: false }
-        const mech = { ...prev.mech }
-        for (const [k, rows] of Object.entries(parsedEBC.mech)) mech[k] = { rows, open: false }
-        return { ...prev, nazev: parsedEBC.nazev || prev.nazev, cislo: parsedEBC.cislo || prev.cislo, mzdy, mech, zemni, gn: parsedEBC.gn, dof: parsedEBC.dof }
-      })
+      // Sestavení čistých mzdy — žádné hodnoty z databáze nepřežijí
+      const noveMzdy = mkSec(MZDY)
+      noveMzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
+
+      // Zemní práce — čistý objekt
+      const noveZemni = mkSec(ZEMNI)
+      for (const [k, rows] of Object.entries(parsedEBC.zemni)) noveZemni[k] = { rows, open: false }
+      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc)) }], open: false }
+
+      // Mech — čistý objekt
+      const noveMech = mkSec(MECH)
+      for (const [k, rows] of Object.entries(parsedEBC.mech)) noveMech[k] = { rows, open: false }
+
+      setS(prev => ({
+        ...prev,
+        nazev: parsedEBC.nazev || prev.nazev,
+        cislo: parsedEBC.cislo || prev.cislo,
+        mzdy:  noveMzdy,
+        mech:  noveMech,
+        zemni: noveZemni,
+        gn:    parsedEBC.gn,
+        dof:   parsedEBC.dof,
+      }))
       setImportDialog(null)
       setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní práce: ${Math.round(zemniPraceKc).toLocaleString('cs')} Kč. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
       return
