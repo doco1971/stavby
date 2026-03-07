@@ -564,8 +564,178 @@ export default function StavbaPage() {
     const XLSX = window.XLSX
     const ab = await file.arrayBuffer()
     const wb = XLSX.read(ab, { type: 'array', cellDates: true })
+
+    // ── Detekce formátu ──────────────────────────────────────
+    const isEBC = wb.SheetNames.includes('Globální náklady') && wb.SheetNames.includes('Práce, mechanizace a ost. nákl.')
+    const isTemplate = wb.SheetNames.includes('Vstupní hodnoty')
+
+    if (isEBC) {
+      // ── Import z EBC formátu ─────────────────────────────
+      const wsGN  = wb.Sheets['Globální náklady']
+      const wsPM  = wb.Sheets['Práce, mechanizace a ost. nákl.']
+      const wsMatV = wb.Sheets['Materiál vlastní']
+      const rowsGN  = XLSX.utils.sheet_to_json(wsGN,  { header: 1, defval: '' })
+      const rowsPM  = XLSX.utils.sheet_to_json(wsPM,  { header: 1, defval: '' })
+      const rowsMatV = wsMatV ? XLSX.utils.sheet_to_json(wsMatV, { header: 1, defval: '' }) : []
+
+      const num = (val) => parseFloat(String(val||'0').replace(/\s/g,'').replace(',','.')) || 0
+
+      // Pomocník: najdi řádek v listu podle obsahu sloupce 2 (popis)
+      const findGN = (kody) => {
+        const list = Array.isArray(kody) ? kody : [kody]
+        return rowsGN.find(r => list.some(k => String(r[2]||'').toLowerCase().includes(k.toLowerCase())))
+      }
+      const findDOF = (kody) => {
+        const list = Array.isArray(kody) ? kody : [kody]
+        return rowsGN.find(r => list.some(k => String(r[2]||'').toLowerCase().includes(k.toLowerCase())))
+      }
+
+      // GN — kódy: R10=TE, R11=Geodetika, R12=Ekolog, R13=Výchozí revize, R14=Doprava mat, R15=Inženýring
+      const gnRow = (kody) => {
+        const r = findGN(kody)
+        return r ? num(r[5]) : 0   // sloupec F = Jedn. Cena (hodnota JV)
+      }
+      const dofRow = (kody) => {
+        const r = findDOF(kody)
+        return r ? num(r[5]) : 0
+      }
+
+      // Stroje z listu Práce, mechanizace — řádky s ident='S'
+      const stroje = {}
+      for (const r of rowsPM) {
+        if (String(r[0]||'').trim() !== 'S') continue
+        const kod  = String(r[1]||'').trim()
+        const mnoz = num(r[4])  // Výměra / množství
+        const sazba= num(r[5])  // Jedn. cena
+        const cena = mnoz * sazba > 0 ? mnoz * sazba : num(r[6]) // nebo celkem
+        stroje[kod] = cena
+      }
+
+      // Hodiny PM (montáž) a PZ (zemní) — součtové řádky ident='3'
+      let hMont = 0, hZem = 0
+      for (const r of rowsPM) {
+        if (String(r[0]||'').trim() !== '3') continue
+        const popis = String(r[1]||'').toLowerCase()
+        if (popis.includes('pm:') || popis.includes('mont')) hMont = num(r[2]) || hMont
+        if (popis.includes('pz:') || popis.includes('zemn')) hZem  = num(r[2]) || hZem
+      }
+
+      // Materiál vlastní — celkem z řádku Celkem
+      let matVlastniCelkem = 0
+      if (rowsMatV.length > 0) {
+        const celkemRow = rowsMatV.find(r => String(r[0]||'').toLowerCase().includes('celkem'))
+        if (celkemRow) {
+          matVlastniCelkem = num(celkemRow.find ? celkemRow[celkemRow.findIndex(v => num(v) > 100)] : 0)
+          // Fallback: projdi a sečti cenu × množství
+          if (!matVlastniCelkem) {
+            for (const r of rowsMatV) {
+              const mnoz = num(r[3]), cena = num(r[4])
+              if (mnoz > 0 && cena > 0) matVlastniCelkem += mnoz * cena
+            }
+          }
+        }
+      }
+
+      // Písek D0-2 z materiál vlastní (kód 800000000301 nebo "Písek")
+      let pisekD02 = 0
+      for (const r of rowsMatV) {
+        const popis = String(r[1]||'').toLowerCase()
+        if (popis.includes('písek') || String(r[0]||'').includes('800000000301')) {
+          pisekD02 += num(r[3]) * num(r[4])
+        }
+      }
+
+      // Sestavení parsed EBC
+      const parsedEBC = {
+        // Záhlaví — přirážka/sazby nejsou v EBC souboru, necháme stávající hodnoty stavby
+        // Mzdy — jen hodiny, sazbu bereme z nastavení stavby (HZS/ZMES)
+        mzdy_ebc_hmont: hMont,
+        mzdy_ebc_hzem:  hZem,
+        // Mechanizace
+        mech: {
+          jerab:    [{ id: uid(), popis: 'Autojeřáb',    castka: String(Math.round(stroje['120']  || 0)) }],
+          nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(Math.round((stroje['420']||0)+(stroje['440']||0))) }],
+          traktor:  [{ id: uid(), popis: 'Traktor',       castka: String(Math.round(stroje['640']  || 0)) }],
+          plosina:  [{ id: uid(), popis: 'Plošina',       castka: '0' }],
+        },
+        // Zemní práce (Kč)
+        zemni: {
+          bagr:         [{ id: uid(), popis: 'Rypadlo do 0,5m³',       castka: String(Math.round(stroje['520']||0)) }, { id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '0' }],
+          kompresor:    [{ id: uid(), popis: 'Kompresor',               castka: String(Math.round(stroje['740']||0)) }],
+          rezac:        [{ id: uid(), popis: 'Řezač asfaltu',           castka: String(Math.round(stroje['260']||0)) }],
+          mot_pech:     [{ id: uid(), popis: 'Motorový pěch',           castka: String(Math.round(stroje['240']||0)) }],
+          uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska',           castka: String(Math.round(stroje['255']||0)) }],
+          mat_vlastni:  [{ id: uid(), popis: 'Materiál vlastní',        castka: String(Math.round(matVlastniCelkem)) }],
+          pisek_d02:    [{ id: uid(), popis: 'Písek D0-2',              castka: String(Math.round(pisekD02)) }],
+          // Ostatní položky zemních prací z EBC nejsou přímo dostupné — ponecháme 0
+          zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: '0' }],
+          zadlazby:     [{ id: uid(), popis: 'Zádlažby',    castka: '0' }],
+          sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: '0' }],
+          beton:        [{ id: uid(), popis: 'Beton',        castka: '0' }],
+          asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: '0' }],
+          optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: '0' }],
+          nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
+          stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
+          rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: '0' }],
+          pisek_b04:    [{ id: uid(), popis: 'Písek B0-4',   castka: '0' }],
+          pisek_beton:  [{ id: uid(), popis: 'Písek pro beton', castka: '0' }],
+          sterk_032:    [{ id: uid(), popis: 'Štěrk 0-32',   castka: '0' }],
+          protlak:      [{ id: uid(), popis: 'Protlak',       castka: '0' }],
+          roura_pe:     [{ id: uid(), popis: 'Roura PE',      castka: '0' }],
+        },
+        // GN
+        gn: {
+          inzenyrska:     { rows: [{ id: uid(), popis: 'Inženýring zhotovitele CAPEX', castka: String(gnRow(['Inženýring zhotovitele','1101999'])) }], open: false },
+          geodetika:      { rows: [{ id: uid(), popis: 'Geodetické práce',             castka: String(gnRow(['Geodetick','1102000'])) }], open: false },
+          te_evidence:    { rows: [{ id: uid(), popis: 'Dokumentace pro TE',           castka: String(gnRow(['Dokumentace pro TE','1102010'])) }], open: false },
+          vychozi_revize: { rows: [{ id: uid(), popis: 'Výchozí revize',               castka: String(gnRow(['Výchozí revize','1101594'])) }], open: false },
+          pripl_ppn:      { rows: [{ id: uid(), popis: 'Přípl. PPN',                   castka: '0' }], open: false },
+          ekolog_likv:    { rows: [{ id: uid(), popis: 'Ekologická likvidace odpadů',  castka: String(gnRow(['Ekolog','1101638'])) }], open: false },
+          material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: '0' }], open: false },
+          doprava_mat:    { rows: [{ id: uid(), popis: 'Doprava materiálu na stavbu',  castka: String(gnRow(['Doprava materiálu','1102007'])) }], open: false },
+          popl_ver:       { rows: [{ id: uid(), popis: 'Popl. ver. prostranství',      castka: '0' }], open: false },
+          pripl_capex:    { rows: [{ id: uid(), popis: 'Přípl. CAPEX',                 castka: '0' }], open: false },
+          kolaudace:      { rows: [{ id: uid(), popis: 'Kolaudace',                    castka: '0' }], open: false },
+        },
+        // DOF
+        dof: {
+          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(dofRow(['Dopravní značení','1101929'])) }], open: false },
+          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(dofRow(['Vytyčení','Vytýčení','1101922'])) }], open: false },
+          neplanvykon:  { rows: [{ id: uid(), popis: 'Neplánovaný výkon',       castka: '0' }], open: false },
+          spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: '0' }], open: false },
+          demontaz:     { rows: [{ id: uid(), popis: 'Demontáž',                castka: '0' }], open: false },
+          spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
+          omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
+          rezerva:      { rows: [{ id: uid(), popis: 'Rezerva',                 castka: '0' }], open: false },
+        },
+      }
+
+      // Mzdy — hodiny mont/zemní dosadíme do mont_nn a zem_nn (NN = nejblíže odpovídá)
+      // Přesné rozdělení VN/NN/TS z EBC nelze, dáme vše do mont_nn resp. zem_nn
+      setS(prev => {
+        const mzdy = { ...prev.mzdy }
+        for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
+        // Vymaž staré hodiny montáže a zemní
+        mzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: '0', hodiny: String(Math.round(hMont * 10) / 10) }], open: false }
+        mzdy['zem_nn']  = { rows: [{ id: uid(), popis: 'Zemní práce NN (EBC import)', castka: '0', hodiny: String(Math.round(hZem * 10) / 10) }], open: false }
+        const zemni = { ...prev.zemni }
+        for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
+        for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
+        const mech = { ...prev.mech }
+        for (const [k, rows] of Object.entries(parsedEBC.mech)) mech[k] = { rows, open: false }
+        return { ...prev, mzdy, mech, zemni, gn: parsedEBC.gn, dof: parsedEBC.dof }
+      })
+      setImportDialog(null)
+      setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní: ${Math.round(hZem*10)/10} hod. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
+      return
+    }
+
+    if (!isTemplate) {
+      setAlertDialog({ title: 'Chyba importu', text: 'Nerozpoznaný formát souboru. Očekáván list "Vstupní hodnoty" nebo EBC formát (listy "Globální náklady", "Práce, mechanizace a ost. nákl.").', color: '#ef4444' })
+      return
+    }
+
     const ws = wb.Sheets['Vstupní hodnoty']
-    if (!ws) { setAlertDialog({ title: 'Chyba importu', text: 'List "Vstupní hodnoty" nenalezen!', color: '#ef4444' }); return }
     const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
 
     // Pomocná funkce: najdi řádek podle názvu v sloupci A
