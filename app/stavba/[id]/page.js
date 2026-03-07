@@ -753,7 +753,6 @@ export default function StavbaPage() {
                   { l:'Číslo stavby', k:'cislo' },
                   { l:'Datum',        k:'datum' },
                   { l:'Oblast',       k:'oblast', isSelect:true },
-                  { l:'Stav',         k:'stav', isStav:true },
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
                   { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
@@ -762,14 +761,7 @@ export default function StavbaPage() {
                 ].map(({l,k,span,isPct,isSelect,isStav})=>(
                   <div key={k} style={span?{gridColumn:'1/-1'}:{}}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
-                    {isStav ? (
-                      <select value={s[k]||'rozpracovana'} onChange={e=>setField(k,e.target.value)}
-                        style={{ width:'100%', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box' }}>
-                        <option value="rozpracovana">Rozpracovaná</option>
-                        <option value="dokoncena">Dokončená</option>
-                        <option value="archivovana">Archivovaná</option>
-                      </select>
-                    ) : isSelect ? (
+                    {isSelect ? (
                       <select value={s[k]||''} onChange={e=>setField(k,e.target.value)}
                         style={{ width:'100%', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box' }}>
                         {['Jihlava','Třebíč','Znojmo'].map(o=><option key={o}>{o}</option>)}
