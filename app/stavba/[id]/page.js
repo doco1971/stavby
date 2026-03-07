@@ -154,12 +154,92 @@ function compute(s) {
   return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matZhot, prispSklad, bazova, celkemZisk }
 }
 
-// ── komponenty ───────────────────────────────────────────
-function ItemRow({ row, color, T, onChange, onRemove, canRemove }) {
+// ── Dialog: schválení nové položky do katalogu ───────────
+function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
+  const [jeStandard, setJeStandard] = useState(false)
+  const [cilSekce, setCilSekce] = useState(sekce)
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 28px', gap:6, marginBottom:5 }}>
-      <input value={row.popis} placeholder="Popis…" onChange={e => onChange({ ...row, popis: e.target.value })}
-        style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color:T.text, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'system-ui' }} />
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+      <div style={{ background:T.card, border:`1px solid #3b82f6`, borderRadius:14, padding:28, maxWidth:440, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+        <div style={{ color:'#3b82f6', fontWeight:800, fontSize:15, marginBottom:6 }}>📋 Nová položka v katalogu</div>
+        <div style={{ color:T.muted, fontSize:13, marginBottom:18 }}>
+          Položka <strong style={{ color:T.text }}>„{popis}"</strong> dosud není v katalogu. Zařadit ji?
+        </div>
+
+        <div style={{ marginBottom:14 }}>
+          <div style={{ color:T.muted, fontSize:11, fontWeight:700, marginBottom:6, textTransform:'uppercase', letterSpacing:1 }}>Do které sekce patří?</div>
+          <select value={cilSekce} onChange={e => setCilSekce(e.target.value)}
+            style={{ width:'100%', background:T.bg, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none' }}>
+            {vsechnySekce.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
+          </select>
+        </div>
+
+        <div style={{ marginBottom:20 }}>
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+            <div onClick={() => setJeStandard(v => !v)}
+              style={{ width:38, height:22, borderRadius:11, background: jeStandard ? '#3b82f6' : T.border, position:'relative', transition:'background 0.2s', flexShrink:0 }}>
+              <div style={{ position:'absolute', top:3, left: jeStandard ? 19 : 3, width:16, height:16, borderRadius:8, background:'#fff', transition:'left 0.2s' }}/>
+            </div>
+            <div>
+              <div style={{ color:T.text, fontSize:13, fontWeight:600 }}>Standardní položka</div>
+              <div style={{ color:T.muted, fontSize:11 }}>Nabízet automaticky u všech příštích staveb</div>
+            </div>
+          </label>
+        </div>
+
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={() => onConfirm(cilSekce, jeStandard)}
+            style={{ flex:1, padding:'10px 0', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+            ✓ Zařadit do katalogu
+          </button>
+          <button onClick={onCancel}
+            style={{ padding:'10px 16px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, fontSize:13, cursor:'pointer' }}>
+            Přeskočit
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── komponenty ───────────────────────────────────────────
+function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
+  const [open, setOpen] = useState(false)
+  const val = row.popis || ''
+  const suggestions = katalogItems
+    ? katalogItems.filter(k => k.sekce === secKey && k.popis.toLowerCase().includes(val.toLowerCase()) && k.popis !== val)
+    : []
+
+  const handleBlur = () => {
+    // Po opuštění pole — pokud je nový popis který není v katalogu, nabídneme zařazení
+    setTimeout(() => {
+      setOpen(false)
+      if (val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
+        onNewPopis && onNewPopis(val.trim(), secKey)
+      }
+    }, 200)
+  }
+
+  return (
+    <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 28px', gap:6, marginBottom:5, position:'relative' }}>
+      <div style={{ position:'relative' }}>
+        <input value={val} placeholder="Popis…"
+          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onBlur={handleBlur}
+          style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color:T.text, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'system-ui', boxSizing:'border-box' }} />
+        {open && suggestions.length > 0 && (
+          <div style={{ position:'absolute', top:'100%', left:0, right:0, background:T.card, border:`1px solid ${T.border}`, borderRadius:6, zIndex:200, boxShadow:'0 8px 24px rgba(0,0,0,0.3)', overflow:'hidden' }}>
+            {suggestions.slice(0, 6).map(s => (
+              <div key={s.id} onMouseDown={() => { onChange({ ...row, popis: s.popis }); setOpen(false) }}
+                style={{ padding:'7px 11px', cursor:'pointer', fontSize:12, color:T.text, borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
+                {s.je_standard && <span style={{ fontSize:9, background:'#3b82f620', color:'#3b82f6', padding:'1px 5px', borderRadius:3, fontWeight:700 }}>STD</span>}
+                {s.popis}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <input value={row.castka} placeholder="0" onChange={e => onChange({ ...row, castka: e.target.value })}
         style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'monospace', textAlign:'right' }} />
       <button onClick={onRemove} style={{ background:'none', border:'none', color: canRemove ? '#ef4444' : 'transparent', fontSize:14, cursor: canRemove ? 'pointer' : 'default', padding:0 }}>✕</button>
@@ -167,7 +247,7 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove }) {
   )
 }
 
-function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T, onLabelChange }) {
+function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, T, onLabelChange, katalog, onNewPopis }) {
   const { toggle, addRow, changeRow, removeRow } = handlers
   const total = sumS
 
@@ -231,7 +311,10 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, 
                     <ItemRow key={row.id} row={row} color={isProtlak ? '#f97316' : color} T={T}
                       onChange={r => changeRow(secKey, it.key, idx, r)}
                       onRemove={() => removeRow(secKey, it.key, idx)}
-                      canRemove={sec.rows.length > 1} />
+                      canRemove={sec.rows.length > 1}
+                      katalogItems={katalog}
+                      secKey={it.key}
+                      onNewPopis={onNewPopis} />
                   ))}
                   <button onClick={() => addRow(secKey, it.key)}
                     style={{ width:'100%', padding:'5px 10px', background:'transparent', border:`1px dashed ${color}40`, borderRadius:5, color, fontSize:11, cursor:'pointer', marginBottom:6 }}>
@@ -263,6 +346,39 @@ export default function StavbaPage() {
   const [tab, setTab] = useState('vstup')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved]   = useState(false)
+  const [katalog, setKatalog] = useState([])
+  const [katalogDialog, setKatalogDialog] = useState(null) // { popis, sekce }
+
+  // Načti katalog položek
+  useEffect(() => {
+    const loadKatalog = async () => {
+      const { data } = await supabase.from('katalog_polozek').select('*').order('je_standard', { ascending: false })
+      if (data) setKatalog(data)
+    }
+    loadKatalog()
+  }, [])
+
+  // Všechny sekce pro výběr v dialogu
+  const vsechnySekce = [
+    ...MECH.map(i => ({ key: i.key, label: 'Mech: ' + i.label })),
+    ...ZEMNI.filter(i => !i.noIdx && !i.isProtlak).map(i => ({ key: i.key, label: 'Zemní: ' + i.label })),
+  ]
+
+  const handleNewPopis = (popis, sekce) => {
+    setKatalogDialog({ popis, sekce })
+  }
+
+  const handleKatalogConfirm = async (cilSekce, jeStandard) => {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data } = await supabase.from('katalog_polozek').insert({
+      sekce: cilSekce,
+      popis: katalogDialog.popis,
+      je_standard: jeStandard,
+      schvalil: user?.id,
+    }).select().single()
+    if (data) setKatalog(prev => [...prev, data])
+    setKatalogDialog(null)
+  }
 
   useEffect(() => {
     const load = async () => {
@@ -378,11 +494,11 @@ export default function StavbaPage() {
               </div>
             </div>
 
-            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} />
-            <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} />
-            <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} />
-            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} />
-            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH}   onLabelChange={handleLabelChange} />
+            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
 
             {/* Ostatní */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
@@ -591,6 +707,18 @@ export default function StavbaPage() {
           </div>
         )}
       </div>
+
+      {/* Dialog schválení nové položky do katalogu */}
+      {katalogDialog && (
+        <KatalogDialog
+          popis={katalogDialog.popis}
+          sekce={katalogDialog.sekce}
+          vsechnySekce={vsechnySekce}
+          T={T}
+          onConfirm={handleKatalogConfirm}
+          onCancel={() => setKatalogDialog(null)}
+        />
+      )}
     </div>
   )
 }
