@@ -71,8 +71,6 @@ const DOF = [
   { key:"demontaz",        label:"Demontáž – nestandart" },
   { key:"spec_zadlazby",   label:"Speciální zádlažby" },
   { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
-  { key:"gzs",             label:"GZS – Garančně záruční správa" },
-  { key:"stimul_prirazka", label:"Stimulační přirážka", editLabel:true },
   { key:"rezerva",         label:"Rezerva" },
 ]
 const SEC = {
@@ -243,6 +241,67 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, s
       <input value={row.castka} placeholder="0" onChange={e => onChange({ ...row, castka: e.target.value })}
         style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'monospace', textAlign:'right' }} />
       <button onClick={onRemove} style={{ background:'none', border:'none', color: canRemove ? '#ef4444' : 'transparent', fontSize:14, cursor: canRemove ? 'pointer' : 'default', padding:0 }}>✕</button>
+    </div>
+  )
+}
+
+// Jednoduchá sekce pro GZS a Stimulační – stejný vzhled jako položky v Sekce
+function OstatniSekce({ secKey, label, data, color, T, handlers, katalog, onNewPopis, onLabelChange, editLabel }) {
+  const { toggle, addRow, changeRow, removeRow } = handlers
+  const sec = data[secKey] || { rows: [{ id: 'r1', popis: '', castka: '' }], open: false }
+  const rowTotal = sec.rows.reduce((a, r) => a + (parseFloat(r.castka) || 0), 0)
+  const cnt = sec.rows.length
+  return (
+    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
+      <div style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', gap:8 }}>
+        <span style={{ color, fontWeight:800, fontSize:14, flex:1 }}>{label}</span>
+        <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč</span>
+      </div>
+      <div style={{ padding:'10px 14px' }}>
+        <div style={{ marginBottom:6 }}>
+          <div onClick={() => toggle('dof', secKey)}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:6, cursor:'pointer',
+              background: sec.open ? `${color}12` : 'transparent',
+              border:`1px solid ${sec.open ? color+'30' : T.border}` }}>
+            <div style={{ width:7, height:7, borderRadius:2, background: rowTotal!=0 ? color : T.border, flexShrink:0 }}/>
+            <span style={{ color: sec.open ? color : rowTotal!=0 ? T.text : T.muted, fontSize:13, fontWeight: sec.open?700:400, flex:1 }}>
+              {editLabel ? (data[secKey]?.customLabel || label) : label}
+            </span>
+            {cnt > 1 && <span style={{ background:`${color}22`, color, fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4 }}>{cnt}×</span>}
+            <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: rowTotal!=0?700:400, color: sec.open ? color : rowTotal!=0 ? T.text : T.muted }}>
+              {rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})}
+            </span>
+            <span style={{ color:T.muted, fontSize:10 }}>{sec.open?'▲':'▼'}</span>
+          </div>
+          {sec.open && (
+            <div style={{ padding:'10px 10px 6px', background:`${color}08`, borderRadius:'0 0 6px 6px', border:`1px solid ${color}20`, borderTop:'none' }}>
+              {editLabel && (
+                <div style={{ marginBottom:8 }}>
+                  <input value={data[secKey]?.customLabel || ''} placeholder={label + ' (název…)'}
+                    onClick={e => e.stopPropagation()}
+                    onChange={e => onLabelChange && onLabelChange('dof', secKey, e.target.value)}
+                    style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:`1px solid ${color}40`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', boxSizing:'border-box', fontStyle:'italic' }} />
+                </div>
+              )}
+              {sec.rows.map((row, idx) => (
+                <ItemRow key={row.id} row={row} color={color} T={T}
+                  onChange={r => changeRow('dof', secKey, idx, r)}
+                  onRemove={() => removeRow('dof', secKey, idx)}
+                  canRemove={sec.rows.length > 1}
+                  katalogItems={katalog} secKey={secKey} onNewPopis={onNewPopis} />
+              ))}
+              <button onClick={() => addRow('dof', secKey)}
+                style={{ width:'100%', padding:'5px 10px', background:'transparent', border:`1px dashed ${color}40`, borderRadius:5, color, fontSize:11, cursor:'pointer', marginBottom:6 }}>
+                + přidat řádek
+              </button>
+              <div style={{ display:'flex', justifyContent:'space-between', padding:'4px 8px' }}>
+                <span style={{ color:T.muted, fontSize:11 }}>Součet</span>
+                <span style={{ color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>{rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -506,6 +565,13 @@ export default function StavbaPage() {
             <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}               handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+
+            {/* GZS */}
+            <OstatniSekce secKey="gzs" label="GZS" data={s.dof} T={T} color="#14b8a6"
+              handlers={dofH} katalog={katalog} onNewPopis={handleNewPopis} onLabelChange={handleLabelChange} />
+            {/* Stimulační přirážka */}
+            <OstatniSekce secKey="stimul_prirazka" label="Stimulační přirážka" data={s.dof} T={T} color="#14b8a6"
+              handlers={dofH} katalog={katalog} onNewPopis={handleNewPopis} onLabelChange={handleLabelChange} editLabel />
 
             {/* Ostatní */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
