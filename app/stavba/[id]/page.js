@@ -100,14 +100,17 @@ function computeMatVlastni(zemni) {
 
 function compute(s) {
   const pri = num(s.prirazka), zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
-  const mzdyT = {}; let mzdySumBez = 0
+  const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
+  const mzdyT = {}; let mzdySumBez = 0, mzdySumHzs = 0
   for (const it of MZDY) {
     const rows = s.mzdy[it.key]?.rows || mkRows()
     const hod = itemSum(rows)
     const bez = hod * (it.isZem ? zmesZ : zmesM)
+    const hzs = hod * (it.isZem ? hzsZ : hzsM)
     const sP  = bez * (1 + pri)
-    mzdyT[it.key] = { hod, bez, sP }
+    mzdyT[it.key] = { hod, bez, hzs, sP }
     mzdySumBez += bez
+    mzdySumHzs += hzs
   }
   const mzdySumS = mzdySumBez * (1 + pri)
   const mzdyZisk = (mzdySumS - num(s.vypl_mzdy)) * 0.66
@@ -152,10 +155,10 @@ function compute(s) {
   const matZhot = computeMatZhot(s.zemni)
   const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows || mkRows())
   const prispSklad = num(s.prispevek_sklad)
-  const bazova = mzdySumBez + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastniCelkem
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
 }
 
 // ── Dialog: schválení nové položky do katalogu ───────────
@@ -865,6 +868,7 @@ export default function StavbaPage() {
             {(() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
+              const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
               const cols = '2fr 1fr 1fr 1fr 1fr 1fr 1fr'
 
               const TH = ({children}) => (
@@ -895,7 +899,7 @@ export default function StavbaPage() {
               // MZDY
               const mzdyRows = MZDY.map(it => {
                 const hod = itemSum(s.mzdy[it.key]?.rows||[])
-                const saz = it.isZem ? zmesZ : zmesM
+                const saz = it.isZem ? hzsZ : hzsM
                 const bez = hod * saz
                 return { label: s.mzdy[it.key]?.customLabel || it.label, bez, sP: bez*(1+pri), kVypl: bez*0.66, idx:0 }
               })
@@ -930,9 +934,8 @@ export default function StavbaPage() {
               const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
               const dofSP = dofBez*(1+pri)
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
-              const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows||[])
               const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matVlastniCelkem
+              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
