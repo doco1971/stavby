@@ -73,6 +73,7 @@ export default function Dashboard() {
           <button onClick={toggle} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 10px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>{dark ? '☀️' : '🌙'}</button>
           <div style={{ color: T.muted, fontSize: 12 }}>{user?.email}</div>
           {profile?.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 4 }}>ADMIN</span>}
+          <button onClick={() => router.push('/nastaveni')} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>⚙️ Nastavení</button>
           <button onClick={logout} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>Odhlásit</button>
         </div>
       </div>
