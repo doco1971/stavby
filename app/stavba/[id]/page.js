@@ -580,75 +580,79 @@ export default function StavbaPage() {
 
       const num = (val) => parseFloat(String(val||'0').replace(/\s/g,'').replace(',','.')) || 0
 
-      // Pomocník: najdi řádek v listu podle obsahu sloupce 2 (popis)
+      // Struktura EBC listu (sloupce jsou posunuté o 2 doleva — první 2 jsou vždy None):
+      // Globální náklady: col[2]=Poř, col[3]=Kód, col[4]=Popis, col[5]=MJ, col[6]=Výměra/Cena, col[7]=Jedn.cena, col[8]=Celkem
+      // Práce/mech:       col[2]=Ident, col[3]=Kód, col[4]=Popis, col[5]=MJ, col[6]=Výměra, col[7]=Jedn.hod, col[8]=Celkem hod, col[18]=Jedn.Cena, col[19]=Cena celkem
+      // Název stavby:     R2 col[4]=název, col[7]=číslo stavby
+
+      // Název a číslo stavby z R2
+      const nazevStavby = String(rowsGN[1]?.[4] || rowsPM[1]?.[4] || '')
+      const cisloStavby = String(rowsGN[1]?.[7] || rowsPM[1]?.[7] || '')
+
+      // Pomocník: najdi řádek v GN listu podle obsahu sloupce col[4] (Popis) nebo col[3] (Kód)
       const findGN = (kody) => {
         const list = Array.isArray(kody) ? kody : [kody]
-        return rowsGN.find(r => list.some(k => String(r[2]||'').toLowerCase().includes(k.toLowerCase())))
-      }
-      const findDOF = (kody) => {
-        const list = Array.isArray(kody) ? kody : [kody]
-        return rowsGN.find(r => list.some(k => String(r[2]||'').toLowerCase().includes(k.toLowerCase())))
+        return rowsGN.find(r => list.some(k =>
+          String(r[4]||'').toLowerCase().includes(k.toLowerCase()) ||
+          String(r[3]||'').toLowerCase().includes(k.toLowerCase())
+        ))
       }
 
-      // GN — kódy: R10=TE, R11=Geodetika, R12=Ekolog, R13=Výchozí revize, R14=Doprava mat, R15=Inženýring
+      // GN hodnota: col[6] = Výměra (pro JV = cena přímo), col[8] = Celkem
       const gnRow = (kody) => {
         const r = findGN(kody)
-        return r ? num(r[5]) : 0   // sloupec F = Jedn. Cena (hodnota JV)
-      }
-      const dofRow = (kody) => {
-        const r = findDOF(kody)
-        return r ? num(r[5]) : 0
+        if (!r) return 0
+        return num(r[8]) || num(r[6])  // Celkem, fallback Výměra
       }
 
-      // Stroje z listu Práce, mechanizace — řádky s ident='S'
+      // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
+      // col[6]=množství, col[18]=jedn.cena, col[19]=cena celkem
       const stroje = {}
       for (const r of rowsPM) {
-        if (String(r[0]||'').trim() !== 'S') continue
-        const kod  = String(r[1]||'').trim()
-        const mnoz = num(r[4])  // Výměra / množství
-        const sazba= num(r[5])  // Jedn. cena
-        const cena = mnoz * sazba > 0 ? mnoz * sazba : num(r[6]) // nebo celkem
+        if (String(r[2]||'').trim() !== 'S') continue
+        const kod  = String(r[3]||'').trim()
+        const cena = num(r[19]) || num(r[20])  // Cena celkem
         stroje[kod] = cena
       }
 
-      // Hodiny PM (montáž) a PZ (zemní) — součtové řádky ident='3'
+      // Hodiny PM (montáž) a PZ (zemní) — součtové řádky kde col[1]='3' a col[4] obsahuje PM/PZ
       let hMont = 0, hZem = 0
       for (const r of rowsPM) {
-        if (String(r[0]||'').trim() !== '3') continue
-        const popis = String(r[1]||'').toLowerCase()
-        if (popis.includes('pm:') || popis.includes('mont')) hMont = num(r[2]) || hMont
-        if (popis.includes('pz:') || popis.includes('zemn')) hZem  = num(r[2]) || hZem
+        if (String(r[1]||'').trim() !== '3') continue
+        const popis = String(r[4]||'').toLowerCase()
+        if (popis.includes('pm:') || popis.includes('montážní')) hMont = num(r[8]) || hMont
+        if (popis.includes('pz:') || popis.includes('zemní'))    hZem  = num(r[8]) || hZem
       }
 
-      // Materiál vlastní — celkem z řádku Celkem
+      // Materiál vlastní — sečti množství × cena (col[3]=výměra, col[4]=jedn.cena)
       let matVlastniCelkem = 0
-      if (rowsMatV.length > 0) {
-        const celkemRow = rowsMatV.find(r => String(r[0]||'').toLowerCase().includes('celkem'))
-        if (celkemRow) {
-          matVlastniCelkem = num(celkemRow.find ? celkemRow[celkemRow.findIndex(v => num(v) > 100)] : 0)
-          // Fallback: projdi a sečti cenu × množství
-          if (!matVlastniCelkem) {
-            for (const r of rowsMatV) {
-              const mnoz = num(r[3]), cena = num(r[4])
-              if (mnoz > 0 && cena > 0) matVlastniCelkem += mnoz * cena
-            }
-          }
-        }
+      for (const r of rowsMatV) {
+        const popis = String(r[4]||'').toLowerCase()
+        const mnoz = num(r[3]), cena = num(r[4])
+        // Přeskoč záhlaví a součtové řádky
+        if (popis.includes('celkem') || popis.includes('popis') || popis.includes('název')) continue
+        const mnozV = num(r[6]), cenaV = num(r[7])  // výměra a jedn cena jsou jinde
+        if (mnozV > 0 && cenaV > 0) matVlastniCelkem += mnozV * cenaV
+      }
+      // Fallback: hledej řádek Celkem
+      if (!matVlastniCelkem) {
+        const celkRow = rowsMatV.find(r => String(r[4]||r[0]||'').toLowerCase().includes('celkem'))
+        if (celkRow) matVlastniCelkem = num(celkRow[8]) || num(celkRow[7]) || num(celkRow[6])
       }
 
-      // Písek D0-2 z materiál vlastní (kód 800000000301 nebo "Písek")
+      // Písek D0-2 — kód 800000000301
       let pisekD02 = 0
       for (const r of rowsMatV) {
-        const popis = String(r[1]||'').toLowerCase()
-        if (popis.includes('písek') || String(r[0]||'').includes('800000000301')) {
-          pisekD02 += num(r[3]) * num(r[4])
+        const kod = String(r[2]||r[0]||'')
+        if (kod.includes('800000000301')) {
+          pisekD02 = num(r[8]) || num(r[7])
         }
       }
 
       // Sestavení parsed EBC
       const parsedEBC = {
-        // Záhlaví — přirážka/sazby nejsou v EBC souboru, necháme stávající hodnoty stavby
-        // Mzdy — jen hodiny, sazbu bereme z nastavení stavby (HZS/ZMES)
+        nazev: nazevStavby,
+        cislo: cisloStavby,
         mzdy_ebc_hmont: hMont,
         mzdy_ebc_hzem:  hZem,
         // Mechanizace
@@ -699,8 +703,8 @@ export default function StavbaPage() {
         },
         // DOF
         dof: {
-          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(dofRow(['Dopravní značení','1101929'])) }], open: false },
-          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(dofRow(['Vytyčení','Vytýčení','1101922'])) }], open: false },
+          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(gnRow(['Dopravní značení','1101929'])) }], open: false },
+          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(gnRow(['Vytyčení','Vytýčení','1101922'])) }], open: false },
           neplanvykon:  { rows: [{ id: uid(), popis: 'Neplánovaný výkon',       castka: '0' }], open: false },
           spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: '0' }], open: false },
           demontaz:     { rows: [{ id: uid(), popis: 'Demontáž',                castka: '0' }], open: false },
@@ -723,7 +727,7 @@ export default function StavbaPage() {
         for (const [k, rows] of Object.entries(parsedEBC.zemni)) zemni[k] = { rows, open: false }
         const mech = { ...prev.mech }
         for (const [k, rows] of Object.entries(parsedEBC.mech)) mech[k] = { rows, open: false }
-        return { ...prev, mzdy, mech, zemni, gn: parsedEBC.gn, dof: parsedEBC.dof }
+        return { ...prev, nazev: parsedEBC.nazev || prev.nazev, cislo: parsedEBC.cislo || prev.cislo, mzdy, mech, zemni, gn: parsedEBC.gn, dof: parsedEBC.dof }
       })
       setImportDialog(null)
       setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní: ${Math.round(hZem*10)/10} hod. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
