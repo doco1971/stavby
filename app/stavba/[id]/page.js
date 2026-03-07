@@ -63,6 +63,14 @@ const GN = [
   { key:"pripl_capex",    label:"Příplatek Capex / Opex" },
   { key:"kolaudace",      label:"Kolaudace" },
 ]
+const GZS_ITEMS = [
+  { key:"gzs_vn_venk",  label:"GZS – VN venkovní" },
+  { key:"gzs_vn_kab",   label:"GZS – VN kabelové" },
+  { key:"gzs_ts_tech",  label:"GZS – TS technologie" },
+  { key:"gzs_ts_vnitr", label:"GZS – TS vnitřní" },
+  { key:"gzs_nn",       label:"GZS – NN kabelové" },
+  { key:"gzs_opto",     label:"GZS – Optotrubka" },
+]
 const DOF = [
   { key:"dio",             label:"DIO – Dopravní značení" },
   { key:"vytyc_siti",      label:"Vytýčení sítí" },
@@ -71,12 +79,7 @@ const DOF = [
   { key:"demontaz",        label:"Demontáž – nestandart" },
   { key:"spec_zadlazby",   label:"Speciální zádlažby" },
   { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
-  { key:"gzs_vn_venk",     label:"GZS – VN venkovní" },
-  { key:"gzs_vn_kab",      label:"GZS – VN kabelové" },
-  { key:"gzs_ts_tech",     label:"GZS – TS technologie" },
-  { key:"gzs_ts_vnitr",    label:"GZS – TS vnitřní" },
-  { key:"gzs_nn",          label:"GZS – NN kabelové" },
-  { key:"gzs_opto",        label:"GZS – Optotrubka" },
+  { key:"gzs_group",       label:"GZS – Garančně záruční správa", isGroup:true, groupItems: GZS_ITEMS },
   { key:"stimul_prirazka", label:"Stimulační přirážka", editLabel:true },
   { key:"rezerva",         label:"Rezerva" },
 ]
@@ -147,7 +150,10 @@ function compute(s) {
   const gnSumS = gnSumBez * (1 + pri)
   const gnZisk = gnSumS - num(s.vypl_gn)
 
-  const dofBez = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
+  const dofBez = DOF.reduce((a, it) => {
+    if (it.isGroup) return a + it.groupItems.reduce((b, gi) => b + itemSum(s.dof[gi.key]?.rows || mkRows()), 0)
+    return a + itemSum(s.dof[it.key]?.rows || mkRows())
+  }, 0)
   const dofSumS = dofBez * (1 + pri)
 
   // Materiál zhotovitele = automaticky z materiálu vlastního
@@ -282,6 +288,71 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, zisk, 
             : it.label
           const isProtlak = it.isProtlak
           const protlakVal = isProtlak ? Math.abs(rowTotal) : 0
+
+          // Skupina (napr. GZS)
+          if (it.isGroup) {
+            const groupTotal = it.groupItems.reduce((a, gi) => a + itemSum(data[gi.key]?.rows || mkRows()), 0)
+            const groupOpen = data[it.key + '_open'] || false
+            return (
+              <div key={it.key} style={{ marginBottom:6 }}>
+                <div onClick={() => toggle(secKey, it.key + '_open')}
+                  style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius: groupOpen ? '6px 6px 0 0' : 6, cursor:'pointer',
+                    background: groupOpen ? `${color}18` : `${color}08`,
+                    border:`1px solid ${groupOpen ? color+'50' : color+'25'}` }}>
+                  <div style={{ width:7, height:7, borderRadius:2, background: groupTotal!=0 ? color : T.border, flexShrink:0 }}/>
+                  <span style={{ color, fontSize:13, fontWeight:700, flex:1 }}>📁 {it.label}</span>
+                  <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:800, color }}>{fmt(groupTotal)}</span>
+                  <span style={{ color, fontSize:10 }}>{groupOpen?'▲':'▼'}</span>
+                </div>
+                {groupOpen && (
+                  <div style={{ border:`1px solid ${color}25`, borderTop:'none', borderRadius:'0 0 6px 6px', padding:'6px 8px', background:`${color}05` }}>
+                    {it.groupItems.map(gi => {
+                      const gsec = data[gi.key] || { rows: mkRows(), open: false }
+                      const gTotal = itemSum(gsec.rows)
+                      return (
+                        <div key={gi.key} style={{ marginBottom:4 }}>
+                          <div onClick={() => toggle(secKey, gi.key)}
+                            style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', borderRadius:5, cursor:'pointer',
+                              background: gsec.open ? `${color}12` : 'transparent',
+                              border:`1px solid ${gsec.open ? color+'30' : T.border}` }}>
+                            <div style={{ width:5, height:5, borderRadius:2, background: gTotal!=0 ? color : T.border, flexShrink:0 }}/>
+                            <span style={{ color: gTotal!=0 ? T.text : T.muted, fontSize:12, flex:1 }}>{gi.label}</span>
+                            <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: gTotal!=0?700:400, color: gTotal!=0 ? T.text : T.muted }}>{fmt(gTotal)}</span>
+                            <span style={{ color:T.muted, fontSize:10 }}>{gsec.open?'▲':'▼'}</span>
+                          </div>
+                          {gsec.open && (
+                            <div style={{ padding:'8px 8px 4px', background:`${color}08`, borderRadius:'0 0 5px 5px', border:`1px solid ${color}20`, borderTop:'none' }}>
+                              {gsec.rows.map((row, idx) => (
+                                <ItemRow key={row.id} row={row} color={color} T={T}
+                                  onChange={r => changeRow(secKey, gi.key, idx, r)}
+                                  onRemove={() => removeRow(secKey, gi.key, idx)}
+                                  canRemove={gsec.rows.length > 1}
+                                  katalogItems={katalog}
+                                  secKey={gi.key}
+                                  onNewPopis={onNewPopis} />
+                              ))}
+                              <button onClick={() => addRow(secKey, gi.key)}
+                                style={{ width:'100%', padding:'4px 10px', background:'transparent', border:`1px dashed ${color}40`, borderRadius:5, color, fontSize:11, cursor:'pointer', marginBottom:4 }}>
+                                + přidat řádek
+                              </button>
+                              <div style={{ display:'flex', justifyContent:'space-between', padding:'3px 8px' }}>
+                                <span style={{ color:T.muted, fontSize:11 }}>Součet</span>
+                                <span style={{ color, fontFamily:'monospace', fontSize:12, fontWeight:800 }}>{fmt(gTotal)} Kč</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 8px', borderTop:`1px solid ${color}25`, marginTop:4 }}>
+                      <span style={{ color, fontSize:11, fontWeight:700 }}>Σ GZS celkem</span>
+                      <span style={{ color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>{fmt(groupTotal)} Kč</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          }
 
           return (
             <div key={it.key} style={{ marginBottom:6 }}>
@@ -669,7 +740,10 @@ export default function StavbaPage() {
               const gnBez = gnRows.reduce((a,r)=>a+r.bez,0)
               const gnSP = gnBez*(1+pri)
 
-              const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
+              const dofBez = DOF.reduce((a,it)=>{
+                if(it.isGroup) return a + it.groupItems.reduce((b,gi)=>b+itemSum(s.dof[gi.key]?.rows||[]),0)
+                return a + itemSum(s.dof[it.key]?.rows||[])
+              },0)
               const dofSP = dofBez*(1+pri)
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
               const bazova = mzdySP+mechSP+zemniSP+gnSP+dofSP+matZhot+prispSklad
