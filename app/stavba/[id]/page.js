@@ -149,8 +149,10 @@ function compute(s) {
 
   // Materiál vlastní a zhotovitele = automatické výpočty
   const matVlastni = computeMatVlastni(s.zemni)
-  const matZhot = computeMatZhot(s.zemni), prispSklad = num(s.prispevek_sklad)
-  const bazova = mzdySumBez + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad
+  const matZhot = computeMatZhot(s.zemni)
+  const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows || mkRows())
+  const prispSklad = num(s.prispevek_sklad)
+  const bazova = mzdySumBez + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastniCelkem + prispSklad
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
@@ -928,8 +930,9 @@ export default function StavbaPage() {
               const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
               const dofSP = dofBez*(1+pri)
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
+              const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows||[])
               const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matZhot+prispSklad
+              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matVlastniCelkem+prispSklad
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
