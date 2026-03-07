@@ -64,23 +64,28 @@ const GN = [
   { key:"kolaudace",      label:"Kolaudace" },
 ]
 const DOF = [
-  { key:"dio",           label:"DIO – Dopravní značení" },
-  { key:"vytyc_siti",    label:"Vytýčení sítí" },
-  { key:"neplanvykon",   label:"Neplánovaný výkon" },
-  { key:"spravni_popl",  label:"Správní poplatky" },
-  { key:"demontaz",      label:"Demontáž – nestandart" },
-  { key:"spec_zadlazby", label:"Speciální zádlažby" },
-  { key:"omezeni_dopr",  label:"Omezení sil./žel. dopr." },
-  { key:"gzs",           label:"GZS – Garančně záruční správa" },
+  { key:"dio",             label:"DIO – Dopravní značení" },
+  { key:"vytyc_siti",      label:"Vytýčení sítí" },
+  { key:"neplanvykon",     label:"Neplánovaný výkon" },
+  { key:"spravni_popl",    label:"Správní poplatky" },
+  { key:"demontaz",        label:"Demontáž – nestandart" },
+  { key:"spec_zadlazby",   label:"Speciální zádlažby" },
+  { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
+  { key:"gzs_vn_venk",     label:"GZS – VN venkovní" },
+  { key:"gzs_vn_kab",      label:"GZS – VN kabelové" },
+  { key:"gzs_ts_tech",     label:"GZS – TS technologie" },
+  { key:"gzs_ts_vnitr",    label:"GZS – TS vnitřní" },
+  { key:"gzs_nn",          label:"GZS – NN kabelové" },
+  { key:"gzs_opto",        label:"GZS – Optotrubka" },
   { key:"stimul_prirazka", label:"Stimulační přirážka", editLabel:true },
-  { key:"rezerva",       label:"Rezerva" },
+  { key:"rezerva",         label:"Rezerva" },
 ]
 const SEC = {
   mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
   mech:  { color:'#f59e0b', icon:'🚜', label:'Mechanizace' },
   zemni: { color:'#ef4444', icon:'⛏️', label:'Zemní práce' },
   gn:    { color:'#10b981', icon:'📋', label:'Globální náklady' },
-  dof:   { color:'#8b5cf6', icon:'🧾', label:'Doloženo fakturou' },
+  dof:   { color:'#8b5cf6', icon:'🧾', label:'Ostatní náklady' },
 }
 
 const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
