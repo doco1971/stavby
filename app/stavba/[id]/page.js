@@ -7,7 +7,7 @@ import { useTheme } from '../../layout'
 // ── helpers ──────────────────────────────────────────────
 const uid  = () => Math.random().toString(36).slice(2, 9)
 const num  = v  => parseFloat(String(v).replace(/\s/g,'').replace(',','.')) || 0
-const fmt  = n  => Math.round(n).toLocaleString('cs-CZ')
+const fmt  = n  => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits:2, maximumFractionDigits:2 })
 const pct  = v  => (num(v) * 100).toFixed(2)
 
 // ── definice sekcí ───────────────────────────────────────
@@ -313,13 +313,6 @@ function OstatniSekce({ secKey, label, data, color, T, handlers, katalog, onNewP
 function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez, zisk, T, onLabelChange, katalog, onNewPopis, hodMont, hodZem }) {
   const { toggle, addRow, changeRow, removeRow } = handlers
   const total = sumBez != null ? sumBez : sumS
-  const sortedItems = [...items].sort((a, b) => {
-    const aVal = itemSum(data[a.key]?.rows || [])
-    const bVal = itemSum(data[b.key]?.rows || [])
-    if (aVal > 0 && bVal === 0) return -1
-    if (aVal === 0 && bVal > 0) return 1
-    return 0
-  })
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
@@ -790,11 +783,11 @@ export default function StavbaPage() {
               </div>
             </div>
 
+            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    sumBez={c.gnSumBez}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}   sumBez={c.dofBez}                     handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  sumBez={c.mzdySumBez}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
             <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  sumBez={c.mechSumBez}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} sumBez={c.zemniSumBez} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    sumBez={c.gnSumBez}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}   sumBez={c.dofBez}                     handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
 
             {/* Ostatní */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
