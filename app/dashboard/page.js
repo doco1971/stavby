@@ -108,6 +108,7 @@ export default function Dashboard() {
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.nazev}</div>
                 <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{s.cislo && `č. ${s.cislo} · `}{s.oblast} · {new Date(s.updated_at).toLocaleDateString('cs-CZ')}</div>
+                <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>🕐 Záloha: {new Date(s.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
