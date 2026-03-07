@@ -37,6 +37,7 @@ const ZEMNI = [
   { key:"mot_pech",     label:"Motorový pěch" },
   { key:"nalosute",     label:"Naložení a doprava sutě" },
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
+  { key:"def_fasady",    label:"Def. úprava fasád" },
   { key:"optotrubka",   label:"Optotrubka" },
   { key:"protlak",      label:"Protlak (zadej záporně)", isProtlak:true },
   { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
@@ -709,7 +710,7 @@ export default function StavbaPage() {
           rezac:        [{ id: uid(), popis: 'Řezač asfaltu',           castka: String(Math.round(stroje['260']||0)) }],
           mot_pech:     [{ id: uid(), popis: 'Motorový pěch',           castka: String(Math.round(stroje['240']||0)) }],
           uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska',           castka: String(Math.round(stroje['255']||0)) }],
-          mat_vlastni:  [{ id: uid(), popis: 'Materiál vlastní',        castka: String(Math.round(matVlastniCelkem)) }],
+          // mat_vlastni nejde do zemni — jde do s.mat_vlastni_celkem
           pisek_d02:    [{ id: uid(), popis: 'Písek D0-2',              castka: String(Math.round(pisekD02)) }],
           // Ostatní položky zemních prací z EBC nejsou přímo dostupné — ponecháme 0
           zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: '0' }],
@@ -719,7 +720,8 @@ export default function StavbaPage() {
           asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: '0' }],
           optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: '0' }],
           nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
-          stav_prace:   [{ id: uid(), popis: 'Def. úprava fasád', castka: String(Math.round(stavPraceKc)) }],
+          stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
+          def_fasady:   [{ id: uid(), popis: 'Def. úprava fasád', castka: String(Math.round(stavPraceKc)) }],
           rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: '0' }],
           pisek_b04:    [{ id: uid(), popis: 'Písek B0-4',   castka: '0' }],
           pisek_beton:  [{ id: uid(), popis: 'Písek pro beton', castka: '0' }],
@@ -781,6 +783,7 @@ export default function StavbaPage() {
         gn:    parsedEBC.gn,
         dof:   parsedEBC.dof,
         prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
+        mat_vlastni_celkem: matVlastniCelkem > 0 ? String(Math.round(matVlastniCelkem * 100) / 100) : prev.mat_vlastni_celkem,
       }))
       setImportDialog(null)
       setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní práce: ${Math.round(zemniPraceKc).toLocaleString('cs')} Kč. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
@@ -1027,7 +1030,7 @@ export default function StavbaPage() {
               <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
                 {[
                   { l:'Materiál zhotovitele', val: fmt(c.matVlastni) },
-                  { l:'Materiál vlastní',     val: fmt(c.matZhot) },
+                  { l:'Materiál vlastní',     val: fmt(num(s.mat_vlastni_celkem) || c.matZhot) },
                   { l:'Příspěvek na sklad',   val: fmt(num(s.prispevek_sklad)) },
                   { l:'GZS',                  val: fmt((s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0)) },
                   { l:'Stimulační přirážka',  val: fmt(num(s.dof?.stimul_prirazka?.rows?.[0]?.castka)) },
