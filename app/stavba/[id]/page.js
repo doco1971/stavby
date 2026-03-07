@@ -30,7 +30,7 @@ const MECH = [
 const ZEMNI = [
   { key:"zemni_prace",  label:"Zemní práce" },
   { key:"zadlazby",     label:"Zádlažby" },
-  { key:"bagr",         label:"Bagr / minirýpadlo" },
+  { key:"bagr",         label:"Bagr" },
   { key:"kompresor",    label:"Kompresor" },
   { key:"rezac",        label:"Řezač asfaltu" },
   { key:"uhlova_bruska",label:"Úhlová bruska" },
@@ -452,6 +452,12 @@ export default function StavbaPage() {
       const mzdy  = data.mzdy  || {}; for (const it of MZDY)  if (!mzdy[it.key])  mzdy[it.key]  = { rows: mkRows(), open: false }
       const mech  = data.mech  || {}; for (const it of MECH)  if (!mech[it.key])  mech[it.key]  = { rows: mkRows(), open: false }
       const zemni = data.zemni || {}; for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
+      if (!zemni.bagr || zemni.bagr.rows.length < 2) {
+        const existRows = zemni.bagr?.rows || []
+        const row0 = existRows[0] || { id: uid(), popis: 'Rypadlo do 0,5m³', castka: '59826.44' }
+        if (!row0.popis) row0.popis = 'Rypadlo do 0,5m³'
+        zemni.bagr = { rows: [ row0, { id: uid(), popis: 'minirýpadlo', castka: '26792.30' } ], open: zemni.bagr?.open || false }
+      }
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
       const dof   = data.dof   || {}; for (const it of DOF)   if (!dof[it.key])   dof[it.key]   = { rows: mkRows(), open: false }
       setS({ ...data, mzdy, mech, zemni, gn, dof })
