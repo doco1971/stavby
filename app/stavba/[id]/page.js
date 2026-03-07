@@ -492,12 +492,14 @@ export default function StavbaPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  // Autosave — 3s po každé změně s
+  // Autosave při odchodu ze stránky
   useEffect(() => {
     if (!s) return
-    if (autosaveRef.current) clearTimeout(autosaveRef.current)
-    autosaveRef.current = setTimeout(() => save(s), 3000)
-    return () => clearTimeout(autosaveRef.current)
+    const handleBeforeUnload = (e) => {
+      save(s)
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [s])
 
   const deleteStavba = () => {
@@ -688,7 +690,7 @@ export default function StavbaPage() {
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:1060, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
-            <button onClick={() => router.push('/dashboard')} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
+            <button onClick={() => { save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
               <div style={{ fontSize:16, fontWeight:800, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
