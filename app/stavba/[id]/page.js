@@ -313,6 +313,13 @@ function OstatniSekce({ secKey, label, data, color, T, handlers, katalog, onNewP
 function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez, zisk, T, onLabelChange, katalog, onNewPopis, hodMont, hodZem }) {
   const { toggle, addRow, changeRow, removeRow } = handlers
   const total = sumBez != null ? sumBez : sumS
+  const sortedItems = [...items].sort((a, b) => {
+    const aVal = itemSum(data[a.key]?.rows || [])
+    const bVal = itemSum(data[b.key]?.rows || [])
+    if (aVal > 0 && bVal === 0) return -1
+    if (aVal === 0 && bVal > 0) return 1
+    return 0
+  })
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
@@ -329,7 +336,13 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez
         <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {fmt(total)} Kč</span>
       </div>
       <div style={{ padding:'10px 14px' }}>
-        {items.map(it => {
+        {[...items].sort((a, b) => {
+          const aVal = itemSum((data[a.key]?.rows || mkRows()))
+          const bVal = itemSum((data[b.key]?.rows || mkRows()))
+          if (aVal !== 0 && bVal === 0) return -1
+          if (aVal === 0 && bVal !== 0) return 1
+          return 0
+        }).map(it => {
           const sec = data[it.key] || { rows: mkRows(), open: false }
           const rowTotal = itemSum(sec.rows)
           const cnt = sec.rows.length
