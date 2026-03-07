@@ -823,24 +823,6 @@ export default function StavbaPage() {
               </div>
             </div>
 
-            {/* Vyplaceno */}
-            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px' }}>
-              <div style={{ color:'#f59e0b', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>💰 Vyplaceno subdodavatelům</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-                {[
-                  { l:'Mzdy', k:'vypl_mzdy' },
-                  { l:'Mechanizace', k:'vypl_mech' },
-                  { l:'Zemní práce', k:'vypl_zemni' },
-                  { l:'Glob. náklady', k:'vypl_gn' },
-                ].map(({l,k})=>(
-                  <div key={k}>
-                    <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
-                    <input type="text" value={s[k]??''} placeholder="0" onChange={e=>setField(k,e.target.value)}
-                      style={{ width:'100%', background:'rgba(245,158,11,0.05)', border:`1px solid rgba(245,158,11,0.3)`, borderRadius:6, color:'#f59e0b', fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
