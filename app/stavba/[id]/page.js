@@ -1012,10 +1012,10 @@ export default function StavbaPage() {
 
   const applySazby = async (sazby) => {
     const { parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad } = sazbyDialog
-    const newState = (prev) => ({
-      ...prev,
-      nazev: parsedEBC.nazev || prev.nazev,
-      cislo: parsedEBC.cislo || prev.cislo,
+    const updated = {
+      ...s,
+      nazev: parsedEBC.nazev || s.nazev,
+      cislo: parsedEBC.cislo || s.cislo,
       prirazka: String(num(sazby.prirazka) / 100),
       hzs_mont: sazby.hzs_mont,
       hzs_zem:  sazby.hzs_zem,
@@ -1026,14 +1026,10 @@ export default function StavbaPage() {
       zemni: noveZemni,
       gn:    parsedEBC.gn,
       dof:   parsedEBC.dof,
-      prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
-    })
-    setS(prev => {
-      const updated = newState(prev)
-      // Uložit ihned po importu
-      save(updated)
-      return updated
-    })
+      prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
+    }
+    setS(updated)
+    await save(updated)
     setSazbyDialog(null)
     setAlertDialog({ title: '✅ Import EBC dokončen', text: `Montáž: ${Math.round(sazbyDialog.hMont*10)/10} hod, Zemní práce: ${Math.round(sazbyDialog.zemniPraceKc).toLocaleString('cs')} Kč.`, color: '#10b981' })
   }
