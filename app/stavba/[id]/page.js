@@ -1211,7 +1211,7 @@ export default function StavbaPage() {
             {/* Parametry */}
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'16px 18px', marginBottom:20 }}>
               <div style={{ color:'#f59e0b', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:14 }}>⚙️ Parametry stavby</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12 }}>
                 {[
                   { l:'Název stavby', k:'nazev', span:true },
                   { l:'Číslo stavby', k:'cislo' },
@@ -1219,12 +1219,17 @@ export default function StavbaPage() {
                   { l:'Oblast',       k:'oblast', isSelect:true },
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
-                  { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
                   { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
+                  { l:'empty1', k:null },
+                  { l:'empty2', k:null },
+                  { l:'empty3', k:null },
+                  { l:'empty4', k:null },
+                  { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
                   { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
 
                 ].map(({l,k,span,isPct,isSelect})=>(
-                  <div key={k} style={span?{gridColumn:'1/-1'}:{}}>
+                  <div key={k||l} style={span?{gridColumn:'1/-1'}:{}}>
+                    {!k ? null : <>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
                     {isSelect ? (
                       <select value={s[k]||''} onChange={e=>setField(k,e.target.value)}
@@ -1239,6 +1244,7 @@ export default function StavbaPage() {
                         onKeyDown={onEnterNext}
                         style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
                     )}
+                    </>}
                   </div>
                 ))}
               </div>
