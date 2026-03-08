@@ -39,7 +39,7 @@ const ZEMNI = [
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
   { key:"def_fasady",    label:"Def. úprava fasád" },
   { key:"optotrubka",   label:"Optotrubka" },
-  { key:"protlak",      label:"Protlak (zadej záporně)", isProtlak:true },
+  { key:"protlak",      label:"Protlak neřízený (zadej záporně)", isProtlak:true },
   { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
   { key:"pisek_d02",    label:"Písek D0-2", noIdx:true },
   { key:"pisek_b04",    label:"Štěrkopísek B 0-4", noIdx:true },
@@ -837,6 +837,15 @@ export default function StavbaPage() {
         }
       }
 
+      // Protlak neřízený — PZ položky EK152, EK25, EK41 sečti přes všechny objekty
+      const PROTLAK_KODY = ['EK152','EK25','EK41']
+      let protlakPzKc = 0
+      for (const r of rowsPM) {
+        if (String(r[2]||'').trim() !== 'PZ') continue
+        const kod = String(r[3]||'').trim()
+        if (PROTLAK_KODY.includes(kod)) protlakPzKc += num(r[colCena]) || num(r[colCena+1])
+      }
+
       // Materiál vlastní — sečti podle kódu přes všechny výskyty
       const matSum = {}
       let matVlastniCelkem = 0
@@ -911,7 +920,7 @@ export default function StavbaPage() {
           pisek_b04:    [{ id: uid(), popis: 'Písek B0-4',   castka: '0' }],
           pisek_beton:  [{ id: uid(), popis: 'Písek pro beton', castka: '0' }],
           sterk_032:    [{ id: uid(), popis: 'Štěrk 0-32',   castka: '0' }],
-          protlak:      [{ id: uid(), popis: 'Protlak',       castka: '0' }],
+          protlak:      [{ id: uid(), popis: 'Protlak neřízený (stroj)', castka: String(Math.round(stroje['250']||0)) }, { id: uid(), popis: 'Protlak neřízený (PZ)', castka: String(Math.round(protlakPzKc)) }],
           roura_pe:     [{ id: uid(), popis: 'Roura PE',      castka: '0' }],
         },
         // GN
