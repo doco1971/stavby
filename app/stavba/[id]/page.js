@@ -496,8 +496,9 @@ export default function StavbaPage() {
   // Enter zavře alertDialog
   useEffect(() => {
     const handler = (e) => {
-      if (e.key === 'Enter') {
-        if (alertDialog) setAlertDialog(null)
+      if (e.key === 'Enter' && alertDialog) {
+        e.stopPropagation()
+        setAlertDialog(null)
       }
     }
     window.addEventListener('keydown', handler)
@@ -1341,7 +1342,7 @@ export default function StavbaPage() {
             <div style={{ fontSize:18, fontWeight:800, color: alertDialog.color, marginBottom:12 }}>{alertDialog.title}</div>
             <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{alertDialog.text}</div>
             <div style={{ display:'flex', justifyContent:'flex-end' }}>
-              <button autoFocus onClick={() => setAlertDialog(null)}
+              <button onClick={() => setAlertDialog(null)}
                 style={{ padding:'9px 24px', background: alertDialog.color, border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
                 OK
               </button>
