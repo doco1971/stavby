@@ -710,12 +710,12 @@ export default function StavbaPage() {
         return inSoutezene && (r[1] == null || r[1] === '') && r[3] != null && r[3] !== ''
       })
 
-      // GN hodnota v celém listu (nesoutěžené výkony - 4.1)
+      // GN hodnota v celém listu — hledej podle kódu bez ohledu na level
       const gnRowAll = (kody) => {
         const list = Array.isArray(kody) ? kody : [kody]
         const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
         return rowsGN
-          .filter(r => (r[1] == null || r[1] === '') && kodList.includes(String(r[3]||'').trim()))
+          .filter(r => kodList.includes(String(r[3]||'').trim()))
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
