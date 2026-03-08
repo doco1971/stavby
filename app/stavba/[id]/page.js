@@ -114,12 +114,11 @@ function compute(s) {
   for (const it of MZDY) {
     const rows = s.mzdy[it.key]?.rows || mkRows()
     const hod = itemSum(rows)
-    const bez = hod * (it.isZem ? zmesZ : zmesM)
-    const hzs = hod * (it.isZem ? hzsZ : hzsM)
+    const bez = hod * (it.isZem ? hzsZ : hzsM)
     const sP  = bez * (1 + pri)
-    mzdyT[it.key] = { hod, bez, hzs, sP }
+    mzdyT[it.key] = { hod, bez, hzs: bez, sP }
     mzdySumBez += bez
-    mzdySumHzs += hzs
+    mzdySumHzs += bez
   }
   const mzdySumS = mzdySumBez * (1 + pri)
   const mzdyZisk = (mzdySumS - num(s.vypl_mzdy)) * 0.66
@@ -139,8 +138,7 @@ function compute(s) {
   const zemniT = {}; let zemniSumBez = 0, zemniSumS = 0
   for (const it of ZEMNI) {
     const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
-    const idx = it.noIdx ? 0 : it.isProtlak ? 0 : -0.15
-    const sP  = bez * (1 + pri) * (1 + idx)
+    const sP  = bez * (1 + pri)
     zemniT[it.key] = { bez, idx, sP }
     if (!it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
   }
