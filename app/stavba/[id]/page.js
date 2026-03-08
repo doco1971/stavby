@@ -161,6 +161,40 @@ function compute(s) {
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
 }
 
+// ── Dialog: sazby po EBC importu ────────────────────────────
+function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
+  const [vals, setVals] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'' })
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+      <div style={{ background:T.card, border:'1px solid #3b82f6', borderRadius:14, padding:28, maxWidth:440, width:'90%' }}>
+        <div style={{ color:'#3b82f6', fontWeight:800, fontSize:16, marginBottom:6 }}>⚙️ Zadej sazby pro stavbu</div>
+        <div style={{ color:T.muted, fontSize:12, marginBottom:18 }}>{nazev}</div>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
+          {[
+            { l:'Přirážka %', k:'prirazka' },
+            { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
+            { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
+            { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
+            { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
+          ].map(({l,k}) => (
+            <div key={k}>
+              <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
+              <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
+                style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+            </div>
+          ))}
+        </div>
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+          <button onClick={onCancel}
+            style={{ padding:'9px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+          <button onClick={() => onConfirm(vals)}
+            style={{ padding:'9px 24px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>✓ Použít import</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dialog: schválení nové položky do katalogu ───────────
 function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
   const [jeStandard, setJeStandard] = useState(false)
@@ -433,6 +467,7 @@ export default function StavbaPage() {
   const [confirmDialog, setConfirmDialog] = useState(null) // { title, text, onConfirm }
   const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
   const [lastSaved, setLastSaved] = useState(null)
+  const [sazbyDialog, setSazbyDialog] = useState(null) // { parsedEBC, noveMzdy, noveMech, noveZemni }
   const importFileRef = useRef(null)
   const autosaveRef = useRef(null)
 
@@ -765,19 +800,8 @@ export default function StavbaPage() {
       const noveMech = mkSec(MECH)
       for (const [k, rows] of Object.entries(parsedEBC.mech)) noveMech[k] = { rows, open: false }
 
-      setS(prev => ({
-        ...prev,
-        nazev: parsedEBC.nazev || prev.nazev,
-        cislo: parsedEBC.cislo || prev.cislo,
-        mzdy:  noveMzdy,
-        mech:  noveMech,
-        zemni: noveZemni,
-        gn:    parsedEBC.gn,
-        dof:   parsedEBC.dof,
-        prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
-      }))
+      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad, hMont, zemniPraceKc })
       setImportDialog(null)
-      setAlertDialog({ title: '✅ Import EBC dokončen', text: `Načteno z EBC formátu. Montáž: ${Math.round(hMont*10)/10} hod, Zemní práce: ${Math.round(zemniPraceKc).toLocaleString('cs')} Kč. Zkontroluj hodnoty a doplň chybějící položky.`, color: '#10b981' })
       return
     }
 
@@ -917,6 +941,28 @@ export default function StavbaPage() {
     setAlertDialog({ title: '✅ Import dokončen', text: 'Všechny hodnoty byly načteny. Zkontroluj a ulož.', color: '#10b981' })
   }
 
+  const applySazby = (sazby) => {
+    const { parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad } = sazbyDialog
+    setS(prev => ({
+      ...prev,
+      nazev: parsedEBC.nazev || prev.nazev,
+      cislo: parsedEBC.cislo || prev.cislo,
+      prirazka: String(num(sazby.prirazka) / 100),
+      hzs_mont: sazby.hzs_mont,
+      hzs_zem:  sazby.hzs_zem,
+      zmes_mont: sazby.zmes_mont,
+      zmes_zem:  sazby.zmes_zem,
+      mzdy:  noveMzdy,
+      mech:  noveMech,
+      zemni: noveZemni,
+      gn:    parsedEBC.gn,
+      dof:   parsedEBC.dof,
+      prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
+    }))
+    setSazbyDialog(null)
+    setAlertDialog({ title: '✅ Import EBC dokončen', text: `Montáž: ${Math.round(sazbyDialog.hMont*10)/10} hod, Zemní práce: ${Math.round(sazbyDialog.zemniPraceKc).toLocaleString('cs')} Kč.`, color: '#10b981' })
+  }
+
   return (
     <div style={{ minHeight:'100vh', background:T.bg }}>
       {/* HEADER */}
@@ -1001,7 +1047,8 @@ export default function StavbaPage() {
                     ) : (
                       <input type="text"
                         value={isPct ? pct(s[k]) : (s[k]??'')}
-                        onChange={e=>setField(k, isPct ? String(num(e.target.value)/100) : e.target.value)}
+                        onChange={e=>setField(k, isPct ? e.target.value : e.target.value)}
+                        onBlur={e=>{ if(isPct) setField(k, String(num(e.target.value)/100)) }}
                         style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
                     )}
                   </div>
@@ -1264,6 +1311,8 @@ export default function StavbaPage() {
           </div>
         </div>
       )}
+
+      {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
 
       {/* Dialog chybějící položky při importu */}
       {importDialog && (
