@@ -191,7 +191,18 @@ function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
             <div key={k}>
               <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
               <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
-                onKeyDown={onEnterNext}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const isLast = k === 'zmes_zem'
+                    if (isLast) { onConfirm(vals) }
+                    else {
+                      const inputs = Array.from(document.querySelectorAll('input'))
+                      const idx = inputs.indexOf(e.target)
+                      if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+                    }
+                  }
+                }}
                 style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
             </div>
           ))}
