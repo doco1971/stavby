@@ -39,7 +39,7 @@ const ZEMNI = [
   { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
   { key:"def_fasady",    label:"Def. úprava fasád" },
   { key:"optotrubka",   label:"Optotrubka" },
-  { key:"protlak",      label:"Protlak neřízený (zadej záporně)", isProtlak:true },
+  { key:"protlak",      label:"Protlak neřízený", isProtlak:true },
   { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
   { key:"pisek_d02",    label:"Písek D0-2", noIdx:true },
   { key:"pisek_b04",    label:"Štěrkopísek B 0-4", noIdx:true },
@@ -501,11 +501,7 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez
                       />
                     </div>
                   )}
-                  {isProtlak && (
-                    <div style={{ padding:'5px 8px', marginBottom:8, background:'rgba(249,115,22,0.1)', borderRadius:5, color:'#f97316', fontSize:11 }}>
-                      ⚠️ Zadej zápornou hodnotu (např. -39524). Kladná částka přejde do sloupce Protlaky v rozboru.
-                    </div>
-                  )}
+
                   {sec.rows.map((row, idx) => (
                     <ItemRow key={row.id} row={row} color={isProtlak ? '#f97316' : color} T={T}
                       onChange={r => changeRow(secKey, it.key, idx, r)}
