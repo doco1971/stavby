@@ -869,7 +869,13 @@ export default function StavbaPage() {
       const noveMech = mkSec(MECH)
       for (const [k, rows] of Object.entries(parsedEBC.mech)) noveMech[k] = { rows, open: false }
 
-      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad, hMont, zemniPraceKc })
+      // GN a DOF — čisté objekty
+      const noveGn = mkSec(GN)
+      for (const [k, v] of Object.entries(parsedEBC.gn)) noveGn[k] = v
+      const noveDof = mkSec(DOF)
+      for (const [k, v] of Object.entries(parsedEBC.dof)) noveDof[k] = v
+
+      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad, hMont, zemniPraceKc })
       setImportDialog(null)
       return
     }
@@ -1011,7 +1017,7 @@ export default function StavbaPage() {
   }
 
   const applySazby = async (sazby) => {
-    const { parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad } = sazbyDialog
+    const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad } = sazbyDialog
     const updated = {
       ...s,
       nazev: parsedEBC.nazev || s.nazev,
@@ -1024,8 +1030,8 @@ export default function StavbaPage() {
       mzdy:  noveMzdy,
       mech:  noveMech,
       zemni: noveZemni,
-      gn:    parsedEBC.gn,
-      dof:   parsedEBC.dof,
+      gn:    noveGn,
+      dof:   noveDof,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
     }
     setS(updated)
