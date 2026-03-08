@@ -73,8 +73,6 @@ const DOF = [
   { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
   { key:"rezerva",         label:"Rezerva" },
   { key:"archeolog_dozor", label:"Archeologický dozor" },
-  { key:"gzs",             label:"GZS" },
-  { key:"stimul_prirazka", label:"Stimulační přirážka" },
 ]
 const SEC = {
   mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
@@ -877,6 +875,7 @@ export default function StavbaPage() {
       const noveDof = mkSec(DOF)
       for (const [k, v] of Object.entries(parsedEBC.dof)) noveDof[k] = v
 
+      console.log('EBC: setSazbyDialog volano, noveGn keys:', Object.keys(noveGn), 'hodnoty:', Object.values(noveGn).map(v=>v.rows[0].castka))
       setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad, hMont, zemniPraceKc })
       setImportDialog(null)
       return
@@ -1017,6 +1016,7 @@ export default function StavbaPage() {
   }
 
   const applySazby = async (sazby) => {
+    console.log('applySazby VOLANO, noveGn:', JSON.stringify(sazbyDialog?.noveGn))
     const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad } = sazbyDialog
     const updated = {
       ...s,
