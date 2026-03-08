@@ -139,7 +139,7 @@ function compute(s) {
   for (const it of ZEMNI) {
     const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
     const sP  = bez * (1 + pri)
-    zemniT[it.key] = { bez, idx, sP }
+    zemniT[it.key] = { bez, sP }
     if (!it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
   }
   const zemniZisk = zemniSumS - num(s.vypl_zemni)
