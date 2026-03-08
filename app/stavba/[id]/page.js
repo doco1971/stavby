@@ -733,16 +733,46 @@ export default function StavbaPage() {
         }
       }
 
-      // PM montážní a zemní hodiny — sečti přes všechny objekty
-      let hMont = 0, hZem = 0
+      // PM montážní a zemní hodiny — rozdělení podle kódu objektu
+      // Mapování kódů objektů na kategorii mzdy:
+      // CZD00040 = TS technologie → mont_vn
+      // CZD00004 = VN venkovní    → mont_vn
+      // CZD00005 = VN kabelové    → mont_vn
+      // CZD00007 = TS vnitřní     → mont_vn
+      // CZD00010 = NN kabelové    → mont_nn
+      // CZD00013 = Optotrubka     → mont_opto
+      const MONT_VN_KODY  = ['CZD00040','CZD00004','CZD00005','CZD00007']
+      const MONT_NN_KODY  = ['CZD00010']
+      const MONT_OPT_KODY = ['CZD00013']
+
+      let hVn = 0, hNn = 0, hOpto = 0, hZem = 0
+      let aktObjKod = null  // aktuálně zpracovávaný objekt (level=2 řádek)
+
       for (const r of rowsPM) {
         const col1 = r[1]
-        const popis = String(r[4]||'').toLowerCase()
+        const popis = String(r[4]||'')
+        const popisLow = popis.toLowerCase()
+
+        // Level 2 = název objektu, obsahuje kód jako CZD00040_00007
+        if (col1 === 2 || col1 === '2') {
+          // Extrahuj kód před podtržítkem: "CZD00040_00007: Trafostanice..." → "CZD00040"
+          const m = popis.match(/^([A-Z0-9]+)_/)
+          aktObjKod = m ? m[1] : null
+        }
+
+        // Level 3 = součtový řádek sekce (51:, 52: atd.)
         if (col1 === 3 || col1 === '3') {
-          if (popis.startsWith('51:') || popis.startsWith('pm:')) hMont += num(r[8])
-          if (popis.startsWith('52:') || popis.startsWith('pz:')) hZem  += num(r[8])
+          if (popisLow.startsWith('51:') || popisLow.startsWith('pm:')) {
+            const hod = num(r[8])
+            if (MONT_VN_KODY.includes(aktObjKod))       hVn   += hod
+            else if (MONT_NN_KODY.includes(aktObjKod))  hNn   += hod
+            else if (MONT_OPT_KODY.includes(aktObjKod)) hOpto += hod
+            else                                         hVn   += hod  // fallback → VN
+          }
+          if (popisLow.startsWith('52:') || popisLow.startsWith('pz:')) hZem += num(r[8])
         }
       }
+      const hMont = hVn + hNn + hOpto
 
       // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
       // col[6]=množství, col[18]=jedn.cena, col[19]=cena celkem
@@ -828,6 +858,9 @@ export default function StavbaPage() {
         cislo: cisloStavby,
         mzdy_ebc_hmont: hMont,
         mzdy_ebc_hzem:  hZem,
+        mzdy_ebc_hvn:   hVn,
+        mzdy_ebc_hnn:   hNn,
+        mzdy_ebc_hopto: hOpto,
         // Mechanizace
         mech: {
           jerab:    [{ id: uid(), popis: 'Autojeřáb',    castka: String(Math.round(stroje['120']  || 0)) }],
@@ -891,11 +924,12 @@ export default function StavbaPage() {
         },
       }
 
-      // Mzdy — hodiny mont/zemní dosadíme do mont_nn a zem_nn (NN = nejblíže odpovídá)
-      // Přesné rozdělení VN/NN/TS z EBC nelze, dáme vše do mont_nn resp. zem_nn
-      // Sestavení čistých mzdy — žádné hodnoty z databáze nepřežijí
+      // Mzdy — rozdělení podle kódů objektů z EBC
       const noveMzdy = mkSec(MZDY)
-      noveMzdy['mont_nn'] = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)', castka: String(Math.round(hMont * 10) / 10) }], open: false }
+      noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn   * 10) / 10) }], open: false }
+      noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn   * 10) / 10) }], open: false }
+      noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto * 10) / 10) }], open: false }
+      noveMzdy['zem_nn']    = { rows: [{ id: uid(), popis: 'Zemní práce hod (EBC import)', castka: String(Math.round(hZem  * 10) / 10) }], open: false }
 
       // Zemní práce — čistý objekt
       const noveZemni = mkSec(ZEMNI)
@@ -1072,7 +1106,8 @@ export default function StavbaPage() {
     setS(updated)
     await save(updated)
     setSazbyDialog(null)
-    setAlertDialog({ title: '✅ Import EBC dokončen', text: `Montáž: ${Math.round(sazbyDialog.hMont*10)/10} hod, Zemní práce: ${Math.round(sazbyDialog.zemniPraceKc).toLocaleString('cs')} Kč.`, color: '#10b981' })
+    const { hMont: hm, zemniPraceKc: zp, parsedEBC: p } = sazbyDialog
+    setAlertDialog({ title: '✅ Import EBC dokončen', text: `VN+TS: ${Math.round((p.mzdy_ebc_hvn||0)*10)/10} hod, NN: ${Math.round((p.mzdy_ebc_hnn||0)*10)/10} hod, Opto: ${Math.round((p.mzdy_ebc_hopto||0)*10)/10} hod, Zemní: ${Math.round(zp).toLocaleString('cs')} Kč.`, color: '#10b981' })
   }
 
   return (
