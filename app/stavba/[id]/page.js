@@ -649,7 +649,7 @@ export default function StavbaPage() {
         if (r[1] === 1 || r[1] === '1') {
           inSoutezene = String(r[4]||'').includes('Soutěžen')
         }
-        return inSoutezene && r[1] == null && r[3] != null
+        return inSoutezene && (r[1] == null || r[1] === '') && r[3] != null && r[3] !== ''
       })
 
       const findGN = (kody) => {
@@ -665,7 +665,7 @@ export default function StavbaPage() {
         const list = Array.isArray(kody) ? kody : [kody]
         const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
         return rowsGN
-          .filter(r => r[1] == null && kodList.includes(String(r[3]||'').trim()))
+          .filter(r => (r[1] == null || r[1] === '') && kodList.includes(String(r[3]||'').trim()))
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
