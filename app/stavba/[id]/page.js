@@ -173,6 +173,8 @@ function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
             { l:'Přirážka %', k:'prirazka' },
             { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
             { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
+            { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
+            { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
 
           ].map(({l,k}) => (
             <div key={k}>
@@ -1032,6 +1034,8 @@ export default function StavbaPage() {
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
                   { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
+                  { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
+                  { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
 
                 ].map(({l,k,span,isPct,isSelect,isStav})=>(
                   <div key={k} style={span?{gridColumn:'1/-1'}:{}}>
@@ -1055,7 +1059,7 @@ export default function StavbaPage() {
 
             <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    sumBez={c.gnSumBez}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}   sumBez={c.dofBez}                     handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumS}  sumBez={c.mzdySumBez}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
+            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumHzs}  sumBez={c.mzdySumHzs}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
             <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  sumBez={c.mechSumBez}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} sumBez={c.zemniSumBez} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
 
