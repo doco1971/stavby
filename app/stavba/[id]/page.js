@@ -109,7 +109,7 @@ function computeMatVlastni(zemni) {
 }
 
 function compute(s) {
-  const pri = num(s.prirazka), zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
+  const pri = num(s.prirazka)
   const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
   const mzdyT = {}; let mzdySumBez = 0, mzdySumHzs = 0
   for (const it of MZDY) {
@@ -161,14 +161,13 @@ function compute(s) {
   // Materiál vlastní a zhotovitele = automatické výpočty
   const matVlastni = computeMatVlastni(s.zemni)
   const matZhot = computeMatZhot(s.zemni, matVlastni)
-  const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows || mkRows())
   const prispSklad = num(s.prispevek_sklad)
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
   const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
 }
 
 // ── Dialog: rozpis bázové ceny (plovoucí, přetahovatelný) ────
@@ -542,8 +541,6 @@ export default function StavbaPage() {
   const [rozpisDialog, setRozpisDialog] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
 
   const importFileRef = useRef(null)
-  const autosaveRef = useRef(null)
-
   // Načti katalog položek
   useEffect(() => {
     const loadKatalog = async () => {
@@ -698,14 +695,6 @@ export default function StavbaPage() {
         return inSoutezene && (r[1] == null || r[1] === '') && r[3] != null && r[3] !== ''
       })
 
-      const findGN = (kody) => {
-        const list = Array.isArray(kody) ? kody : [kody]
-        return rowsGNSoutez.find(r => list.some(k =>
-          String(r[4]||'').toLowerCase().includes(k.toLowerCase()) ||
-          String(r[3]||'').toLowerCase().includes(k.toLowerCase())
-        ))
-      }
-
       // GN hodnota v celém listu (nesoutěžené výkony - 4.1)
       const gnRowAll = (kody) => {
         const list = Array.isArray(kody) ? kody : [kody]
@@ -745,13 +734,13 @@ export default function StavbaPage() {
       }
 
       // PM montážní a zemní hodiny — sečti přes všechny objekty
-      let hMont = 0, hZem = 0
+      let hMont = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if (col1 === 3 || col1 === '3') {
           if (popis.startsWith('51:') || popis.startsWith('pm:')) hMont += num(r[8])
-          if (popis.startsWith('52:') || popis.startsWith('pz:')) hZem  += num(r[8])
+
         }
       }
 
@@ -923,7 +912,6 @@ export default function StavbaPage() {
       const noveDof = mkSec(DOF)
       for (const [k, v] of Object.entries(parsedEBC.dof)) noveDof[k] = v
 
-      console.log('EBC: setSazbyDialog volano, noveGn keys:', Object.keys(noveGn), 'hodnoty:', Object.values(noveGn).map(v=>v.rows[0].castka))
       setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad, hMont, zemniPraceKc })
       setImportDialog(null)
       return
@@ -1064,7 +1052,6 @@ export default function StavbaPage() {
   }
 
   const applySazby = async (sazby) => {
-    console.log('applySazby VOLANO, noveGn:', JSON.stringify(sazbyDialog?.noveGn))
     const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad } = sazbyDialog
     const updated = {
       ...s,
@@ -1170,7 +1157,7 @@ export default function StavbaPage() {
                   { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
                   { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
 
-                ].map(({l,k,span,isPct,isSelect,isStav})=>(
+                ].map(({l,k,span,isPct,isSelect})=>(
                   <div key={k} style={span?{gridColumn:'1/-1'}:{}}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
                     {isSelect ? (
@@ -1247,7 +1234,7 @@ export default function StavbaPage() {
                 const bars = [
                   {l:'Mzdy',v:c.mzdySumS,col:'#3b82f6'},{l:'Mech.',v:c.mechSumS,col:'#f59e0b'},
                   {l:'Zemní',v:c.zemniSumS,col:'#ef4444'},{l:'GN',v:c.gnSumS,col:'#10b981'},
-                  {l:'Ost.',v:c.dofSumS+c.gzs+c.matZhot+c.prispSklad,col:'#8b5cf6'},
+                  {l:'Ost.',v:c.dofSumS+c.gzsKc+c.stimulKc+c.matZhot+c.prispSklad,col:'#8b5cf6'},
                 ].filter(x=>x.v>0)
                 return (<>
                   <div style={{ display:'flex', height:8, borderRadius:4, overflow:'hidden', gap:2, margin:'12px 0 6px' }}>
