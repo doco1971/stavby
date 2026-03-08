@@ -703,12 +703,13 @@ export default function StavbaPage() {
 
       // Subdodávky — def. zádlažba (53001) a def. úprava fasád (54003)
       const wsSub = wb.Sheets['Subdodávky']
-      let zadlazbyKc = 0, stavPraceKc = 0
+      let zadlazbyKc = 0, asfaltKc = 0, stavPraceKc = 0
       if (wsSub) {
         const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
         for (const r of rowsSub) {
           const kod = String(r[3]||'').trim()
-          if (kod === '53001') zadlazbyKc += num(r[8])
+          if (['53007','530071','530173','53025'].includes(kod)) zadlazbyKc += num(r[8])
+          if (kod === '53001') asfaltKc += num(r[8])
           if (kod === '54003') stavPraceKc += num(r[8])
         }
       }
