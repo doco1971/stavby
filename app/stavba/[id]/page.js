@@ -915,7 +915,7 @@ export default function StavbaPage() {
         },
         // DOF
         dof: {
-          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(gnRow(['Dopravní značení','1101929'])) }], open: false },
+          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(gnRowAll(['1101929'])) }], open: false },
           vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(gnRowAll(['1101922'])) }], open: false },
           neplanvykon:  { rows: [{ id: uid(), popis: 'Neplánovaný výkon',       castka: '0' }], open: false },
           spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: String(gnRowAll(['1101926'])) }], open: false },
