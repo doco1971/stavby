@@ -98,7 +98,7 @@ const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 // Materiál zhotovitele = mat_vlastni celkem − (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + roura PE)
 // Asfalt se NEodečítá — je to subdodávka, není součástí mat_vlastni
 function computeMatZhot(zemni, matVlastniCelkem) {
-  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','roura_pe']
+  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','roura_pe','beton']
     .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
   const matV = (matVlastniCelkem != null && matVlastniCelkem > 0) ? matVlastniCelkem : itemSum(zemni['mat_vlastni']?.rows || mkRows())
   return Math.max(0, matV - odecti)
