@@ -626,9 +626,16 @@ export default function StavbaPage() {
       title: 'Smazat stavbu',
       text: `Opravdu smazat stavbu "${s.nazev}"? Tato akce je nevratná.`,
       color: '#ef4444',
-      onConfirm: async () => {
-        await supabase.from('stavby').delete().eq('id', params.id)
-        router.push('/dashboard')
+      onConfirm: () => {
+        setConfirmDialog({
+          title: 'Poslední upozornění',
+          text: `Stavba "${s.nazev}" bude trvale smazána. Pokračovat?`,
+          color: '#ef4444',
+          onConfirm: async () => {
+            await supabase.from('stavby').delete().eq('id', params.id)
+            router.push('/dashboard')
+          }
+        })
       }
     })
   }
@@ -958,7 +965,7 @@ export default function StavbaPage() {
       // Zemní práce — čistý objekt
       const noveZemni = mkSec(ZEMNI)
       for (const [k, rows] of Object.entries(parsedEBC.zemni)) noveZemni[k] = { rows, open: false }
-      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc)) }], open: false }
+      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc + protlakPzKc)) }], open: false }
 
       // Mech — čistý objekt
       const noveMech = mkSec(MECH)
@@ -1212,8 +1219,8 @@ export default function StavbaPage() {
                   { l:'Oblast',       k:'oblast', isSelect:true },
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
-                  { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
                   { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
+                  { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
                   { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
 
                 ].map(({l,k,span,isPct,isSelect})=>(
