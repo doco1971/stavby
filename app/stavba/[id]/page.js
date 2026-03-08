@@ -745,7 +745,7 @@ export default function StavbaPage() {
       const MONT_NN_KODY  = ['CZD00010']
       const MONT_OPT_KODY = ['CZD00013']
 
-      let hVn = 0, hNn = 0, hOpto = 0, hZem = 0
+      let hVn = 0, hNn = 0, hOpto = 0, hZemVn = 0, hZemNn = 0
       let aktObjKod = null  // aktuálně zpracovávaný objekt (level=2 řádek)
 
       for (const r of rowsPM) {
@@ -769,10 +769,15 @@ export default function StavbaPage() {
             else if (MONT_OPT_KODY.includes(aktObjKod)) hOpto += hod
             else                                         hVn   += hod  // fallback → VN
           }
-          if (popisLow.startsWith('52:') || popisLow.startsWith('pz:')) hZem += num(r[8])
+          if (popisLow.startsWith('52:') || popisLow.startsWith('pz:')) {
+            const hod = num(r[8])
+            if (MONT_NN_KODY.includes(aktObjKod))  hZemNn += hod
+            else                                    hZemVn += hod  // VN, TS, Opto → zem_vn
+          }
         }
       }
       const hMont = hVn + hNn + hOpto
+      const hZem  = hZemVn + hZemNn
 
       // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
       // col[6]=množství, col[18]=jedn.cena, col[19]=cena celkem
@@ -929,7 +934,6 @@ export default function StavbaPage() {
       noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn   * 10) / 10) }], open: false }
       noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn   * 10) / 10) }], open: false }
       noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto * 10) / 10) }], open: false }
-      noveMzdy['zem_nn']    = { rows: [{ id: uid(), popis: 'Zemní práce hod (EBC import)', castka: String(Math.round(hZem  * 10) / 10) }], open: false }
 
       // Zemní práce — čistý objekt
       const noveZemni = mkSec(ZEMNI)
