@@ -657,14 +657,28 @@ export default function StavbaPage() {
         return num(r[8]) || num(r[6])  // Celkem, fallback Výměra
       }
 
-      // PM montážní a zemní hodiny
+      // Detekce sloupce ceny — hledej header řádek (obsahuje 'Ident' v col[2])
+      // Jemnice: col[19]='Cena celkem', Chlístov: col[10]='Cena'
+      let colCena = 19  // default Jemnice
+      for (const r of rowsPM) {
+        if (String(r[2]||'').trim() === 'Ident') {
+          // Najdi sloupec kde je 'Cena' nebo 'Cena celkem'
+          for (let ci = 8; ci < 22; ci++) {
+            const h = String(r[ci]||'').toLowerCase()
+            if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
+          }
+          break
+        }
+      }
+
+      // PM montážní a zemní hodiny — sečti přes všechny objekty
       let hMont = 0, hZem = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if (col1 === 3 || col1 === '3') {
-          if (popis.includes('pm:') || popis.includes('mont')) hMont = num(r[8]) || hMont
-          if (popis.includes('pz:') || popis.includes('zemní'))   hZem  = num(r[8]) || hZem
+          if (popis.includes('pm:') || popis.includes('51:') || popis.includes('mont')) hMont += num(r[8])
+          if (popis.includes('pz:') || popis.includes('52:') || popis.includes('zemní'))   hZem  += num(r[8])
         }
       }
 
@@ -674,8 +688,8 @@ export default function StavbaPage() {
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'S') continue
         const kod  = String(r[3]||'').trim()
-        const cena = num(r[19]) || num(r[20])  // Cena celkem
-        stroje[kod] = cena
+        const cena = num(r[colCena]) || num(r[colCena+1])  // Cena celkem
+        stroje[kod] = (stroje[kod] || 0) + cena  // Sečti přes všechny objekty
       }
 
       // GZS a Stimulační přirážka — PP řádky, kód 9343 a 9349, cena = col[19]
@@ -683,8 +697,8 @@ export default function StavbaPage() {
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PP') continue
         const kod = String(r[3]||'').trim()
-        if (kod === '9343') gzsKc = num(r[19])
-        if (kod === '9349') stimulacniKc = num(r[19])
+        if (kod === '9343') gzsKc += num(r[colCena])
+        if (kod === '9349') stimulacniKc += num(r[colCena])
       }
 
       // Subdodávky — def. zádlažba (53001) a def. úprava fasád (54003)
@@ -705,7 +719,7 @@ export default function StavbaPage() {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if ((col1 === 3 || col1 === '3') && (popis.includes('pz:') || popis.includes('zemní'))) {
-          zemniPraceKc = num(r[19]) || num(r[20]) || zemniPraceKc
+          zemniPraceKc += num(r[colCena]) || num(r[colCena+1])
         }
       }
 
