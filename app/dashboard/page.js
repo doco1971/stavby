@@ -47,6 +47,8 @@ export default function Dashboard() {
     init()
   }, [])
 
+  const [logoutConfirm, setLogoutConfirm] = useState(false)
+
   const logout = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -74,7 +76,7 @@ export default function Dashboard() {
           <div style={{ color: T.muted, fontSize: 12 }}>{user?.email}</div>
           {profile?.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 4 }}>ADMIN</span>}
           <button onClick={() => router.push('/nastaveni')} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>⚙️ Nastavení</button>
-          <button onClick={logout} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>Odhlásit</button>
+          <button onClick={() => setLogoutConfirm(true)} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>Odhlásit</button>
         </div>
       </div>
 
@@ -121,6 +123,20 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+      {logoutConfirm && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:380, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:16, fontWeight:800, color:T.text, marginBottom:12 }}>Odhlásit se?</div>
+            <div style={{ color:T.muted, fontSize:13, marginBottom:24 }}>Opravdu se chcete odhlásit z aplikace?</div>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setLogoutConfirm(false)}
+                style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+              <button onClick={logout}
+                style={{ padding:'9px 20px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>Odhlásit</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
