@@ -83,6 +83,14 @@ const SEC = {
 }
 
 const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
+const onEnterNext = (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    const inputs = Array.from(document.querySelectorAll('input, select'))
+    const idx = inputs.indexOf(e.target)
+    if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+  }
+}
 const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 
@@ -183,6 +191,7 @@ function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
             <div key={k}>
               <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
               <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
+                onKeyDown={onEnterNext}
                 style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
             </div>
           ))}
@@ -285,6 +294,7 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, s
         )}
       </div>
       <input value={row.castka} placeholder="0" onChange={e => onChange({ ...row, castka: e.target.value })}
+        onKeyDown={onEnterNext}
         style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'monospace', textAlign:'right' }} />
       <button onClick={onRemove} style={{ background:'none', border:'none', color: canRemove ? '#ef4444' : 'transparent', fontSize:14, cursor: canRemove ? 'pointer' : 'default', padding:0 }}>✕</button>
     </div>
@@ -1054,6 +1064,7 @@ export default function StavbaPage() {
                         value={isPct ? pct(s[k]) : (s[k]??'')}
                         onChange={e=>setField(k, isPct ? e.target.value : e.target.value)}
                         onBlur={e=>{ if(isPct) setField(k, String(num(e.target.value)/100)) }}
+                        onKeyDown={onEnterNext}
                         style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
                     )}
                   </div>
