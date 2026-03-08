@@ -475,14 +475,7 @@ export default function StavbaPage() {
       const mzdy  = data.mzdy  || {}; for (const it of MZDY)  if (!mzdy[it.key])  mzdy[it.key]  = { rows: mkRows(), open: false }
       const mech  = data.mech  || {}; for (const it of MECH)  if (!mech[it.key])  mech[it.key]  = { rows: mkRows(), open: false }
       const zemni = data.zemni || {}; for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
-      if (!zemni.bagr) {
-        zemni.bagr = { rows: [ { id: uid(), popis: 'Rypadlo do 0,5m³', castka: '59826.44' }, { id: uid(), popis: 'minirýpadlo', castka: '26792.30' } ], open: false }
-      } else {
-        const hasMini = zemni.bagr.rows.some(r => r.popis?.toLowerCase().includes('miniryp') || r.popis?.toLowerCase().includes('minirýp'))
-        if (!hasMini) {
-          zemni.bagr.rows.push({ id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '9900' })
-        }
-      }
+
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
       const dof   = data.dof   || {}; for (const it of DOF)   if (!dof[it.key])   dof[it.key]   = { rows: mkRows(), open: false }
       setS({ ...data, mzdy, mech, zemni, gn, dof })
