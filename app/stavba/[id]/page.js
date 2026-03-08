@@ -72,6 +72,7 @@ const DOF = [
   { key:"spec_zadlazby",   label:"Speciální zádlažby" },
   { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
   { key:"rezerva",         label:"Rezerva" },
+  { key:"archeolog_dozor",  label:"Archeologický dozor" },
 ]
 const SEC = {
   mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
@@ -780,6 +781,7 @@ export default function StavbaPage() {
           spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
           omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
           rezerva:      { rows: [{ id: uid(), popis: 'Rezerva',                 castka: '0' }], open: false },
+          archeolog_dozor: { rows: [{ id: uid(), popis: 'Archeologický dozor',    castka: String(gnRow(['Archeologický dozor','1101925'])) }], open: false },
           gzs:          { rows: [{ id: uid(), popis: 'GZS (SO)',                  castka: String(Math.round(gzsKc * 100) / 100) }], open: false },
           stimul_prirazka: { rows: [{ id: uid(), popis: 'Stimulační přirážka',   castka: String(Math.round(stimulacniKc * 100) / 100) }], open: false },
         },
