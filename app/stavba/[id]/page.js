@@ -722,13 +722,13 @@ export default function StavbaPage() {
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PP') continue
         const kod = String(r[3]||'').trim()
-        if (kod === '9343') gzsKc += num(r[colCena])
+        if (kod === '9343' || kod === '9223') gzsKc += num(r[colCena])
         if (kod === '9349') stimulacniKc += num(r[colCena])
       }
 
       // Subdodávky — def. zádlažba (53001) a def. úprava fasád (54003)
       const wsSub = wb.Sheets['Subdodávky']
-      let zadlazbyKc = 0, asfaltKc = 0, stavPraceKc = 0
+      let zadlazbyKc = 0, asfaltKc = 0, stavPraceKc = 0, optotrubkaKc = 0
       if (wsSub) {
         const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
         for (const r of rowsSub) {
@@ -736,6 +736,7 @@ export default function StavbaPage() {
           if (['53007','530071','530173','53025'].includes(kod)) zadlazbyKc += num(r[8])
           if (kod === '53001') asfaltKc += num(r[8])
           if (kod === '54003') stavPraceKc += num(r[8])
+          if (kod === 'PA90' || kod === 'PA91') optotrubkaKc += num(r[8])
         }
       }
 
@@ -812,7 +813,7 @@ export default function StavbaPage() {
           sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: String(Math.round(sterkKamen)) }],
           beton:        [{ id: uid(), popis: 'Beton',        castka: String(Math.round(betonKc)) }],
           asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: String(Math.round(asfaltKc)) }],
-          optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: '0' }],
+          optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: String(Math.round(optotrubkaKc)) }],
           nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
           stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
           def_fasady:   [{ id: uid(), popis: 'Def. úprava fasád', castka: String(Math.round(stavPraceKc)) }],
@@ -831,7 +832,6 @@ export default function StavbaPage() {
           vychozi_revize: { rows: [{ id: uid(), popis: 'Výchozí revize',               castka: String(gnRow(['Výchozí revize','1101594'])) }], open: false },
           pripl_ppn:      { rows: [{ id: uid(), popis: 'Přípl. PPN',                   castka: '0' }], open: false },
           ekolog_likv:    { rows: [{ id: uid(), popis: 'Ekologická likvidace odpadů',  castka: String(gnRow(['Ekolog','1101638'])) }], open: false },
-          material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: '0' }], open: false },
           doprava_mat:    { rows: [{ id: uid(), popis: 'Doprava materiálu na stavbu',  castka: String(gnRow(['Doprava materiálu','1102007','1102008'])) }], open: false },
           material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: String(gnRow(['Materiál výnosového','1102001'])) }], open: false },
           popl_ver:       { rows: [{ id: uid(), popis: 'Popl. ver. prostranství',      castka: '0' }], open: false },
@@ -848,7 +848,7 @@ export default function StavbaPage() {
           spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
           omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
           rezerva:      { rows: [{ id: uid(), popis: 'Rezerva',                 castka: '0' }], open: false },
-          archeolog_dozor: { rows: [{ id: uid(), popis: 'Archeologický dozor',    castka: String(gnRow(['Archeologický dozor','1101925'])) }], open: false },
+          archeolog_dozor: { rows: [{ id: uid(), popis: 'Archeologický dozor',    castka: String(gnRowAll(['1101925'])) }], open: false },
           gzs:          { rows: [{ id: uid(), popis: 'GZS (SO)',                  castka: String(Math.round(gzsKc * 100) / 100) }], open: false },
           stimul_prirazka: { rows: [{ id: uid(), popis: 'Stimulační přirážka',   castka: String(Math.round(stimulacniKc * 100) / 100) }], open: false },
         },
