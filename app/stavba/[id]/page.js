@@ -734,13 +734,13 @@ export default function StavbaPage() {
       }
 
       // PM montážní a zemní hodiny — sečti přes všechny objekty
-      let hMont = 0
+      let hMont = 0, hZem = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if (col1 === 3 || col1 === '3') {
           if (popis.startsWith('51:') || popis.startsWith('pm:')) hMont += num(r[8])
-
+          if (popis.startsWith('52:') || popis.startsWith('pz:')) hZem  += num(r[8])
         }
       }
 
