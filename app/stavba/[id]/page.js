@@ -708,8 +708,8 @@ export default function StavbaPage() {
         const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
         for (const r of rowsSub) {
           const kod = String(r[3]||'').trim()
-          if (kod === '53001') zadlazbyKc = num(r[8])
-          if (kod === '54003') stavPraceKc = num(r[8])
+          if (kod === '53001') zadlazbyKc += num(r[8])
+          if (kod === '54003') stavPraceKc += num(r[8])
         }
       }
 
