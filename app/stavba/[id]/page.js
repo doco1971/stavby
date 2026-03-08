@@ -95,9 +95,10 @@ const stopEnter = (e) => { if (e.key === 'Enter') e.stopPropagation() }
 const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 
-// Materiál zhotovitele = mat_vlastni celkem − (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + asfalt + roura PE)
+// Materiál zhotovitele = mat_vlastni celkem − (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + roura PE)
+// Asfalt se NEodečítá — je to subdodávka, není součástí mat_vlastni
 function computeMatZhot(zemni, matVlastniCelkem) {
-  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','asfalt','roura_pe']
+  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','roura_pe']
     .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
   const matV = (matVlastniCelkem != null && matVlastniCelkem > 0) ? matVlastniCelkem : itemSum(zemni['mat_vlastni']?.rows || mkRows())
   return Math.max(0, matV - odecti)
@@ -640,19 +641,45 @@ export default function StavbaPage() {
       const cisloStavby = String(rowsGN[1]?.[7] || rowsPM[1]?.[7] || '')
 
       // Pomocník: najdi řádek v GN listu podle obsahu sloupce col[4] (Popis) nebo col[3] (Kód)
+      // Filtruj GN pouze na sekci 'Soutěžené výkony' (level=1)
+      let inSoutezene = false
+      const rowsGNSoutez = rowsGN.filter(r => {
+        if (r[1] === 1 || r[1] === '1') {
+          inSoutezene = String(r[4]||'').includes('Soutěžen')
+        }
+        return inSoutezene && r[1] == null && r[3] != null
+      })
+
       const findGN = (kody) => {
         const list = Array.isArray(kody) ? kody : [kody]
-        return rowsGN.find(r => list.some(k =>
+        return rowsGNSoutez.find(r => list.some(k =>
           String(r[4]||'').toLowerCase().includes(k.toLowerCase()) ||
           String(r[3]||'').toLowerCase().includes(k.toLowerCase())
         ))
       }
 
-      // GN hodnota: col[6] = Výměra (pro JV = cena přímo), col[8] = Celkem
+      // GN hodnota v celém listu (nesoutěžené výkony - 4.1)
+      const gnRowAll = (kody) => {
+        const list = Array.isArray(kody) ? kody : [kody]
+        const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
+        return rowsGN
+          .filter(r => r[1] == null && kodList.includes(String(r[3]||'').trim()))
+          .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
+      }
+
+      // GN hodnota: hledej primárně podle přesného kódu (col[3]), pak podle textu
       const gnRow = (kody) => {
-        const r = findGN(kody)
-        if (!r) return 0
-        return num(r[8]) || num(r[6])  // Celkem, fallback Výměra
+        const list = Array.isArray(kody) ? kody : [kody]
+        // Odděl kódy (číselné/alfanumerické bez mezer) od textových klíčů
+        const kodList  = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
+        const textList = list.filter(k => !(/^[0-9A-Za-z]+$/.test(k) && k.length <= 10))
+        // Nejdřív zkus přesný kód
+        const byKod = rowsGNSoutez.filter(r => kodList.includes(String(r[3]||'').trim()))
+        if (byKod.length > 0) return byKod.reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
+        // Fallback: textové vyhledávání
+        return rowsGNSoutez
+          .filter(r => textList.some(k => String(r[4]||'').toLowerCase().includes(k.toLowerCase())))
+          .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
       // Detekce sloupce ceny — hledej header řádek (obsahuje 'Ident' v col[2])
@@ -675,8 +702,8 @@ export default function StavbaPage() {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if (col1 === 3 || col1 === '3') {
-          if (popis.includes('pm:') || popis.includes('51:') || popis.includes('mont')) hMont += num(r[8])
-          if (popis.includes('pz:') || popis.includes('52:') || popis.includes('zemní'))   hZem  += num(r[8])
+          if (popis.startsWith('51:') || popis.startsWith('pm:')) hMont += num(r[8])
+          if (popis.startsWith('52:') || popis.startsWith('pz:')) hZem  += num(r[8])
         }
       }
 
@@ -717,22 +744,22 @@ export default function StavbaPage() {
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
-        if ((col1 === 3 || col1 === '3') && (popis.includes('pz:') || popis.includes('zemní'))) {
+        if ((col1 === 3 || col1 === '3') && (popis.startsWith('52:') || popis.startsWith('pz:'))) {
           zemniPraceKc += num(r[colCena]) || num(r[colCena+1])
         }
       }
 
-      // Materiál vlastní — col[8]=Cena, col[3]=Kód, col[4]=Popis
+      // Materiál vlastní — sečti podle kódu přes všechny výskyty
+      const matSum = {}
       let matVlastniCelkem = 0
-      let pisekD02 = 0
       for (const r of rowsMatV) {
         const popis = String(r[4]||'').toLowerCase()
-        const kod = String(r[3]||'')
+        const kod = String(r[3]||'').trim()
         if (popis.includes('celkem') && num(r[8]) > 0) {
           matVlastniCelkem = num(r[8])
         }
-        if (kod.includes('800000000301')) {
-          pisekD02 = num(r[8])
+        if (kod && num(r[8]) > 0) {
+          matSum[kod] = (matSum[kod] || 0) + num(r[8])
         }
       }
       if (!matVlastniCelkem) {
@@ -741,6 +768,9 @@ export default function StavbaPage() {
           if (mnozV > 0 && cenaV > 0) matVlastniCelkem += mnozV * cenaV
         }
       }
+      const pisekD02   = matSum['800000000301'] || 0
+      const betonKc    = (matSum['800000000323'] || 0) + (matSum['800000000325'] || 0)
+      const sterkKamen = (matSum['800000000306'] || 0) + (matSum['800000000308'] || 0)
 
       // Příspěvek na sklad — z listu Rekapitulace pro EBC col[7]=Příspěvek za sklad, řádky úrovně 1
       const wsRekap = wb.Sheets['Rekapitulace pro EBC']
@@ -763,13 +793,13 @@ export default function StavbaPage() {
         // Mechanizace
         mech: {
           jerab:    [{ id: uid(), popis: 'Autojeřáb',    castka: String(Math.round(stroje['120']  || 0)) }],
-          nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(Math.round((stroje['420']||0)+(stroje['440']||0))) }],
-          traktor:  [{ id: uid(), popis: 'Traktor',       castka: String(Math.round(stroje['640']  || 0)) }],
-          plosina:  [{ id: uid(), popis: 'Plošina',       castka: '0' }],
+          nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(Math.round((stroje['420']||0)+(stroje['440']||0)+(stroje['207']||0))) }],
+          traktor:  [{ id: uid(), popis: 'Traktor',       castka: String(Math.round((stroje['640']||0)+(stroje['620']||0))) }],
+          plosina:  [{ id: uid(), popis: 'Plošina',       castka: String(Math.round(stroje['340']  || 0)) }],
         },
         // Zemní práce (Kč)
         zemni: {
-          bagr:         [{ id: uid(), popis: 'Rypadlo do 0,5m³',       castka: String(Math.round(stroje['520']||0)) }, { id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '0' }],
+          bagr:         [{ id: uid(), popis: 'Ryp. kol. do 0,2m³',      castka: String(Math.round(stroje['520']||0)) }, { id: uid(), popis: 'Ryp. kol. do 0,5m³', castka: String(Math.round(stroje['540']||0)) }, { id: uid(), popis: 'Minirýpadlo do 3,5t', castka: String(Math.round(stroje['720']||0)) }],
           kompresor:    [{ id: uid(), popis: 'Kompresor',               castka: String(Math.round(stroje['740']||0)) }],
           rezac:        [{ id: uid(), popis: 'Řezač asfaltu',           castka: String(Math.round(stroje['260']||0)) }],
           mot_pech:     [{ id: uid(), popis: 'Motorový pěch',           castka: String(Math.round(stroje['240']||0)) }],
@@ -779,9 +809,9 @@ export default function StavbaPage() {
           // Ostatní položky zemních prací z EBC nejsou přímo dostupné — ponecháme 0
           zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: '0' }],
           zadlazby:     [{ id: uid(), popis: 'Def. zádlažba', castka: String(Math.round(zadlazbyKc)) }],
-          sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: '0' }],
-          beton:        [{ id: uid(), popis: 'Beton',        castka: '0' }],
-          asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: '0' }],
+          sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: String(Math.round(sterkKamen)) }],
+          beton:        [{ id: uid(), popis: 'Beton',        castka: String(Math.round(betonKc)) }],
+          asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: String(Math.round(asfaltKc)) }],
           optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: '0' }],
           nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
           stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
@@ -802,7 +832,8 @@ export default function StavbaPage() {
           pripl_ppn:      { rows: [{ id: uid(), popis: 'Přípl. PPN',                   castka: '0' }], open: false },
           ekolog_likv:    { rows: [{ id: uid(), popis: 'Ekologická likvidace odpadů',  castka: String(gnRow(['Ekolog','1101638'])) }], open: false },
           material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: '0' }], open: false },
-          doprava_mat:    { rows: [{ id: uid(), popis: 'Doprava materiálu na stavbu',  castka: String(gnRow(['Doprava materiálu','1102007'])) }], open: false },
+          doprava_mat:    { rows: [{ id: uid(), popis: 'Doprava materiálu na stavbu',  castka: String(gnRow(['Doprava materiálu','1102007','1102008'])) }], open: false },
+          material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: String(gnRow(['Materiál výnosového','1102001'])) }], open: false },
           popl_ver:       { rows: [{ id: uid(), popis: 'Popl. ver. prostranství',      castka: '0' }], open: false },
           pripl_capex:    { rows: [{ id: uid(), popis: 'Přípl. CAPEX',                 castka: '0' }], open: false },
           kolaudace:      { rows: [{ id: uid(), popis: 'Kolaudace',                    castka: '0' }], open: false },
@@ -810,9 +841,9 @@ export default function StavbaPage() {
         // DOF
         dof: {
           dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(gnRow(['Dopravní značení','1101929'])) }], open: false },
-          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(gnRow(['Vytyčení','Vytýčení','1101922'])) }], open: false },
+          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(gnRowAll(['1101922'])) }], open: false },
           neplanvykon:  { rows: [{ id: uid(), popis: 'Neplánovaný výkon',       castka: '0' }], open: false },
-          spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: '0' }], open: false },
+          spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: String(gnRowAll(['1101926'])) }], open: false },
           demontaz:     { rows: [{ id: uid(), popis: 'Demontáž',                castka: '0' }], open: false },
           spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
           omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
