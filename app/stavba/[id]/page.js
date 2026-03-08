@@ -173,8 +173,7 @@ function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
             { l:'Přirážka %', k:'prirazka' },
             { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
             { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
-            { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
-            { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
+
           ].map(({l,k}) => (
             <div key={k}>
               <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
@@ -1033,8 +1032,7 @@ export default function StavbaPage() {
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
                   { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
-                  { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
-                  { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
+
                 ].map(({l,k,span,isPct,isSelect,isStav})=>(
                   <div key={k} style={span?{gridColumn:'1/-1'}:{}}>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
