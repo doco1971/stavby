@@ -91,6 +91,7 @@ const onEnterNext = (e) => {
     if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
   }
 }
+const stopEnter = (e) => { if (e.key === 'Enter') e.stopPropagation() }
 const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
 const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 
@@ -1337,12 +1338,12 @@ export default function StavbaPage() {
 
       {/* Alert dialog */}
       {alertDialog && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }} tabIndex={-1} onKeyDown={e=>{ if(e.key==='Enter') setAlertDialog(null) }} ref={el=>el&&el.focus()}>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
           <div style={{ background:T.card, border:`1px solid ${alertDialog.color}40`, borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
             <div style={{ fontSize:18, fontWeight:800, color: alertDialog.color, marginBottom:12 }}>{alertDialog.title}</div>
             <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{alertDialog.text}</div>
             <div style={{ display:'flex', justifyContent:'flex-end' }}>
-              <button onClick={() => setAlertDialog(null)}
+              <button autoFocus onClick={() => setAlertDialog(null)} onKeyDown={e=>e.key==='Enter'&&setAlertDialog(null)}
                 style={{ padding:'9px 24px', background: alertDialog.color, border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
                 OK
               </button>
