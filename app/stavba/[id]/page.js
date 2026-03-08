@@ -220,44 +220,59 @@ function RozpisDialog({ T, c, s, fmt, itemSum, mkRows, onClose }) {
 // ── Dialog: sazby po EBC importu ────────────────────────────
 function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
   const [vals, setVals] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'' })
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
-      <div style={{ background:T.card, border:'1px solid #3b82f6', borderRadius:14, padding:28, maxWidth:440, width:'90%' }}>
-        <div style={{ color:'#3b82f6', fontWeight:800, fontSize:16, marginBottom:6 }}>⚙️ Zadej sazby pro stavbu</div>
-        <div style={{ color:T.muted, fontSize:12, marginBottom:18 }}>{nazev}</div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
-          {[
-            { l:'Přirážka %', k:'prirazka' },
-            { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
-            { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
-            { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
-            { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
+  const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth/2 - 220), y: 120 })
+  const drag = useRef(null)
 
-          ].map(({l,k}) => (
-            <div key={k}>
-              <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
-              <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    const isLast = k === 'zmes_zem'
-                    if (isLast) { onConfirm(vals) }
-                    else {
-                      const inputs = Array.from(document.querySelectorAll('input'))
-                      const idx = inputs.indexOf(e.target)
-                      if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
-                    }
-                  }
-                }}
-                style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-            </div>
-          ))}
+  const onMouseDown = (e) => {
+    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
+    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:2000 }}>
+      <div style={{ position:'fixed', left:pos.x, top:pos.y, width:420, background:T.card, border:'1px solid #3b82f6', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
+        <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(59,130,246,0.08)', borderRadius:'14px 14px 0 0' }}>
+          <span style={{ color:'#3b82f6', fontWeight:800, fontSize:14 }}>⚙️ Zadej sazby pro stavbu</span>
+          <button onClick={onCancel} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
         </div>
-        <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-          <button onClick={onCancel}
-            style={{ padding:'9px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
-          <button onClick={() => onConfirm(vals)}
-            style={{ padding:'9px 24px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>✓ Použít import</button>
+        <div style={{ padding:'16px 20px' }}>
+          <div style={{ color:T.muted, fontSize:12, marginBottom:16 }}>{nazev}</div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
+            {[
+              { l:'Přirážka %', k:'prirazka' },
+              { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
+              { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
+              { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
+              { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
+            ].map(({l,k}) => (
+              <div key={k}>
+                <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
+                <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const isLast = k === 'zmes_zem'
+                      if (isLast) { onConfirm(vals) }
+                      else {
+                        const inputs = Array.from(document.querySelectorAll('input'))
+                        const idx = inputs.indexOf(e.target)
+                        if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+                      }
+                    }
+                  }}
+                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+            <button onClick={onCancel}
+              style={{ padding:'9px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+            <button onClick={() => onConfirm(vals)}
+              style={{ padding:'9px 24px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>✓ Použít import</button>
+          </div>
         </div>
       </div>
     </div>
