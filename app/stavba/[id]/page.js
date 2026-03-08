@@ -72,7 +72,9 @@ const DOF = [
   { key:"spec_zadlazby",   label:"Speciální zádlažby" },
   { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
   { key:"rezerva",         label:"Rezerva" },
-  { key:"archeolog_dozor",  label:"Archeologický dozor" },
+  { key:"archeolog_dozor", label:"Archeologický dozor" },
+  { key:"gzs",             label:"GZS" },
+  { key:"stimul_prirazka", label:"Stimulační přirážka" },
 ]
 const SEC = {
   mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
