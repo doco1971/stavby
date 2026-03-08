@@ -801,7 +801,7 @@ export default function StavbaPage() {
         // Zemní práce (Kč)
         zemni: {
           bagr:         [{ id: uid(), popis: 'Ryp. kol. do 0,2m³',      castka: String(Math.round(stroje['520']||0)) }, { id: uid(), popis: 'Ryp. kol. do 0,5m³', castka: String(Math.round(stroje['540']||0)) }, { id: uid(), popis: 'Minirýpadlo do 3,5t', castka: String(Math.round(stroje['720']||0)) }],
-          kompresor:    [{ id: uid(), popis: 'Kompresor',               castka: String(Math.round(stroje['740']||0)) }],
+          kompresor:    [{ id: uid(), popis: 'Kompresor',               castka: String(Math.round(stroje['740']||0)) }, { id: uid(), popis: 'Ponorný vibrátor D50', castka: String(Math.round(stroje['750']||0)) }],
           rezac:        [{ id: uid(), popis: 'Řezač asfaltu',           castka: String(Math.round(stroje['260']||0)) }],
           mot_pech:     [{ id: uid(), popis: 'Motorový pěch',           castka: String(Math.round(stroje['240']||0)) }],
           uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska',           castka: String(Math.round(stroje['255']||0)) }],
@@ -1010,9 +1010,9 @@ export default function StavbaPage() {
     setAlertDialog({ title: '✅ Import dokončen', text: 'Všechny hodnoty byly načteny. Zkontroluj a ulož.', color: '#10b981' })
   }
 
-  const applySazby = (sazby) => {
+  const applySazby = async (sazby) => {
     const { parsedEBC, noveMzdy, noveMech, noveZemni, prispevekSklad } = sazbyDialog
-    setS(prev => ({
+    const newState = (prev) => ({
       ...prev,
       nazev: parsedEBC.nazev || prev.nazev,
       cislo: parsedEBC.cislo || prev.cislo,
@@ -1027,7 +1027,13 @@ export default function StavbaPage() {
       gn:    parsedEBC.gn,
       dof:   parsedEBC.dof,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : prev.prispevek_sklad,
-    }))
+    })
+    setS(prev => {
+      const updated = newState(prev)
+      // Uložit ihned po importu
+      save(updated)
+      return updated
+    })
     setSazbyDialog(null)
     setAlertDialog({ title: '✅ Import EBC dokončen', text: `Montáž: ${Math.round(sazbyDialog.hMont*10)/10} hod, Zemní práce: ${Math.round(sazbyDialog.zemniPraceKc).toLocaleString('cs')} Kč.`, color: '#10b981' })
   }
