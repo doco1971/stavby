@@ -171,6 +171,53 @@ function compute(s) {
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
 }
 
+// ── Dialog: rozpis bázové ceny (plovoucí, přetahovatelný) ────
+function RozpisDialog({ T, c, s, fmt, itemSum, mkRows, onClose }) {
+  const [pos, setPos] = useState({ x: window.innerWidth - 500, y: 100 })
+  const drag = useRef(null)
+
+  const onMouseDown = (e) => {
+    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
+    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const rows = [
+    { l:'Mzdy (HZS)',           v: c.mzdySumHzs },
+    { l:'Mechanizace',           v: c.mechSumBez },
+    { l:'Zemní práce',           v: c.zemniSumBez },
+    { l:'Globální náklady',      v: c.gnSumBez },
+    { l:'Ostatní náklady (DOF)', v: c.dofBez },
+    { l:'Materiál zhotovitele',  v: c.matZhot },
+    { l:'Příspěvek na sklad',    v: c.prispSklad },
+    { l:'GZS',                   v: itemSum(s.dof['gzs']?.rows || mkRows()) },
+    { l:'Stimulační přirážka',   v: itemSum(s.dof['stimul_prirazka']?.rows || mkRows()) },
+  ]
+
+  return (
+    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:3000, width:380, background:T.card, border:'1px solid #10b981', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
+      <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(16,185,129,0.08)', borderRadius:'14px 14px 0 0' }}>
+        <span style={{ color:'#10b981', fontWeight:800, fontSize:14 }}>🔍 Rozpis bázové ceny</span>
+        <button onClick={onClose} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
+      </div>
+      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+        {rows.map(({l,v}) => (
+          <div key={l} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'rgba(255,255,255,0.04)', borderRadius:6 }}>
+            <span style={{ color:T.muted, fontSize:12 }}>{l}</span>
+            <span style={{ color:T.text, fontFamily:'monospace', fontSize:12, fontWeight:600 }}>{fmt(v)} Kč</span>
+          </div>
+        ))}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 8px', background:'rgba(16,185,129,0.12)', borderRadius:6, borderTop:'1px solid #10b98140', marginTop:4 }}>
+          <span style={{ color:'#10b981', fontSize:13, fontWeight:800 }}>BÁZOVÁ CENA</span>
+          <span style={{ color:'#10b981', fontFamily:'monospace', fontSize:14, fontWeight:800 }}>{fmt(c.bazova)} Kč</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dialog: sazby po EBC importu ────────────────────────────
 function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
   const [vals, setVals] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'' })
@@ -491,7 +538,8 @@ export default function StavbaPage() {
   const [confirmDialog, setConfirmDialog] = useState(null) // { title, text, onConfirm }
   const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
   const [lastSaved, setLastSaved] = useState(null)
-  const [sazbyDialog, setSazbyDialog] = useState(null) // { parsedEBC, noveMzdy, noveMech, noveZemni }
+  const [sazbyDialog, setSazbyDialog] = useState(null)
+  const [rozpisDialog, setRozpisDialog] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
 
   const importFileRef = useRef(null)
   const autosaveRef = useRef(null)
@@ -1087,10 +1135,18 @@ export default function StavbaPage() {
             </div>
             <div>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
-              <button onClick={() => importFileRef.current?.click()}
-                style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                📂 Importovat z Excelu
-              </button>
+              <div style={{ display:'flex', gap:8 }}>
+                {profile?.role === 'admin' && (
+                  <button onClick={() => setRozpisDialog(true)}
+                    style={{ padding:'7px 16px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:7, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    🔍 Rozpis ceny
+                  </button>
+                )}
+                <button onClick={() => importFileRef.current?.click()}
+                  style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📂 Importovat z Excelu
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1390,6 +1446,8 @@ export default function StavbaPage() {
           </div>
         </div>
       )}
+
+      {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
 
       {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
 
