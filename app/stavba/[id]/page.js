@@ -155,7 +155,9 @@ function compute(s) {
   const matZhot = computeMatZhot(s.zemni, matVlastni)
   const matVlastniCelkem = itemSum(s.zemni['mat_vlastni']?.rows || mkRows())
   const prispSklad = num(s.prispevek_sklad)
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
+  const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
+  const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, bazova, celkemZisk }
