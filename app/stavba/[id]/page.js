@@ -41,7 +41,6 @@ const ZEMNI = [
   { key:"optotrubka",   label:"Optotrubka" },
   { key:"protlak",      label:"Protlak (zadej záporně)", isProtlak:true },
   { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
-  { key:"mat_vlastni",  label:"Materiál vlastní", noIdx:true },
   { key:"pisek_d02",    label:"Písek D0-2", noIdx:true },
   { key:"pisek_b04",    label:"Štěrkopísek B 0-4", noIdx:true },
   { key:"pisek_beton",  label:"Betonářský písek", noIdx:true },
