@@ -1,4 +1,4 @@
-// Build: 20260314_11
+// Build: 20260314_12
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -1255,7 +1255,7 @@ export default function StavbaPage() {
   const applySazby = async (sazby) => {
     const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad } = sazbyDialog
     const now = new Date()
-    const importDatum = `${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
+    const importDatum = `- (${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')})`
     const updated = {
       ...s,
       nazev: (parsedEBC.nazev || s.nazev) + ' ' + importDatum,
