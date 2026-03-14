@@ -1,4 +1,4 @@
-// Build: 20260314_9
+// Build: 20260314_10
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -1535,8 +1535,7 @@ export default function StavbaPage() {
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
               const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
               const matVlastniR = itemSum(s.zemni['mat_vlastni']?.rows||[])
-              const matVlastniR = itemSum(s.zemni['mat_vlastni']?.rows||[])
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matVlastniR+matVlastniR+prispSklad
+              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matVlastniR+prispSklad
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
