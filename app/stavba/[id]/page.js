@@ -1,4 +1,4 @@
-// Build: 20260314_7
+// Build: 20260314_8
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -17,8 +17,7 @@ const MZDY = [
   { key:"mont_vn",       label:"Montáž VN + TS",          isZem:false },
   { key:"mont_nn",       label:"Montáž NN",               isZem:false },
   { key:"mont_opto",     label:"Montáž Opto",             isZem:false },
-  { key:"zem_vn",        label:"Zemní VN",                isZem:true  },
-  { key:"zem_nn",        label:"Zemní NN",                isZem:true  },
+
   { key:"rezerv_mont",   label:"Rezerva montáž", editLabel:true, isZem:false },
 ]
 const MECH = [
@@ -1087,8 +1086,7 @@ export default function StavbaPage() {
       noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn    * 10) / 10) }], open: false }
       noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn    * 10) / 10) }], open: false }
       noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto  * 10) / 10) }], open: false }
-      noveMzdy['zem_vn']    = { rows: [{ id: uid(), popis: 'Zemní VN (EBC import)',        castka: String(Math.round(hZemVn * 10) / 10) }], open: false }
-      noveMzdy['zem_nn']    = { rows: [{ id: uid(), popis: 'Zemní NN (EBC import)',        castka: String(Math.round(hZemNn * 10) / 10) }], open: false }
+
 
       // Zemní práce — čistý objekt
       const noveZemni = mkSec(ZEMNI)
