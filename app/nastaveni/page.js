@@ -39,7 +39,8 @@ export default function NastaveniPage() {
   const [profPass2, setProfPass2] = useState('')
   const [profErr, setProfErr]   = useState('')
 
-  // s
+  // noví uživatelé
+  const [newEmail, setNewEmail] = useState('')
   const [newPass,  setNewPass]  = useState('')
   const [newRole,  setNewRole]  = useState('user')
   const [newOblast, setNewOblast] = useState('Třebíč')
