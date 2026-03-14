@@ -1,4 +1,4 @@
-// Build: 20260314_6
+// Build: 20260314_7
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -1035,6 +1035,7 @@ export default function StavbaPage() {
                          { id:uid(), popis:'Roura PE 160 (900000000086)',    castka:String(Math.round(rouraPE160)) },
                          { id:uid(), popis:'Roura PE 200 (900000000087)',    castka:String(Math.round(rouraPE200)) },
                          { id:uid(), popis:'Roura PE 225 (900000000088)',    castka:String(Math.round(rouraPE225)) }],
+          mat_vlastni:  [{ id:uid(), popis:'Materiál vlastní', castka:String(Math.round(matVlastniCelkem * 100) / 100) }],
           rezerv_zemni: [{ id:uid(), popis:'Rezerva zemní', castka:'0' }],
         },
         // GN — všechny kódy přes gnRowAll
