@@ -1,4 +1,4 @@
-// Build: 20260314_10
+// Build: 20260314_11
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -240,8 +240,8 @@ function RozpisDialog({ T, c, s, fmt, itemSum, mkRows, onClose }) {
 }
 
 // ── Dialog: sazby po EBC importu ────────────────────────────
-function SazbyDialog({ T, nazev, onConfirm, onCancel }) {
-  const [vals, setVals] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'' })
+function SazbyDialog({ T, nazev, defaultSazby, onConfirm, onCancel }) {
+  const [vals, setVals] = useState({ prirazka: defaultSazby?.prirazka||'', hzs_mont: defaultSazby?.hzs_mont||'', hzs_zem: defaultSazby?.hzs_zem||'', zmes_mont: defaultSazby?.zmes_mont||'', zmes_zem: defaultSazby?.zmes_zem||'' })
   const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth/2 - 220), y: 120 })
   const drag = useRef(null)
 
@@ -1108,7 +1108,10 @@ export default function StavbaPage() {
         else noveDof[k] = v  // gzs, stimul_prirazka, doprava_zam → vždy do dof
       }
 
-      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc })
+      // Načti výchozí sazby z profiles
+      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', (await supabase.auth.getUser()).data.user?.id).single()
+      const defaultSazby = profData?.default_sazby || {}
+      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc, defaultSazby })
       setImportDialog(null)
       return
     }
@@ -1251,9 +1254,11 @@ export default function StavbaPage() {
 
   const applySazby = async (sazby) => {
     const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad } = sazbyDialog
+    const now = new Date()
+    const importDatum = `${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
     const updated = {
       ...s,
-      nazev: parsedEBC.nazev || s.nazev,
+      nazev: (parsedEBC.nazev || s.nazev) + ' ' + importDatum,
       cislo: parsedEBC.cislo || s.cislo,
       prirazka: String(num(sazby.prirazka) / 100),
       hzs_mont: sazby.hzs_mont,
@@ -1646,7 +1651,7 @@ export default function StavbaPage() {
 
       {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
 
-      {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
+      {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} defaultSazby={sazbyDialog.defaultSazby} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
 
       {/* Dialog chybějící položky při importu */}
       {importDialog && (
