@@ -1,3 +1,79 @@
+// ============================================================
+// Build: 20260314_2
+// Kalkulace stavby – hlavní editor stavby
+// ============================================================
+// POPIS APLIKACE:
+// React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
+// Stack: Next.js 14 + Supabase + Vercel + GitHub
+// GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
+//
+// SEKCE KALKULAČKY:
+// MZDY:  mont_vn, mont_nn, mont_opto, zem_vn, zem_nn, rezerv_mont
+// MECH:  jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
+// ZEMNI: zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
+//        uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
+//        zaorkab, vez_ts, protlak, protlak_rizeny, roura_pe, pisek, sterk, beton,
+//        rezerv_zemni
+// GN:    inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
+//        ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
+//        pausal_bo_do150, pausal_bo_nad150
+// DOF:   dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
+//        popl_omez_zeleznice, archeolog_dozor, uhrady_zem_kultury, nahrady_maj_ujmy,
+//        popl_ver_prostranstvi, koordinator_bozp, zadl_mesto, proj_geod, inz_cinnost,
+//        zajisteni_pracoviste, manipulace_vedeni, zkousky_vn, odvody_zem_puda,
+//        mobilni_ts, doprava_zam, spec_zadlazby, rezerva
+//        + gzs a stimul_prirazka (mimo DOF pole, čteny přímo)
+//
+// EBC IMPORT – MAPOVÁNÍ:
+// Hodiny montáže (51:) + zemní (52:) podle kódu objektu CZD:
+//   CZD00040/CZD00004/CZD00005/CZD00007 → mont_vn / zem_vn
+//   CZD00010 → mont_nn / zem_nn | CZD00013 → mont_opto
+// Stroje (typ S): 120+160+170→jerab, 200+205+207+210+310+460+480+810+820+990→nakladni,
+//   620+640+645+970→traktor, 340+345+350+360+365→plosina, 520+540+220→bagr[0],
+//   540→bagr[1], 720+730+735→bagr[2], 740→kompresor[0], 750→kompresor[1],
+//   260→rezac, 240→mot_pech, 255→uhlova_bruska, 250→protlak[0],
+//   230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
+// Přirážky (PP/PPV): 9343+9223+9346+9347+9348→gzs,
+//   9349+9221+9321+9224+9344+9225+9345+9249+PPV-CZD*→stimul_prirazka,
+//   9222+9322→doprava_zam
+// GN kódy (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
+//   1101594→vychozi_revize, 1100167→pripl_ppn, 1101638→ekolog_likv,
+//   1102001→material_vyn, 1102004→kolaudace, 1102116→pripl_capex,
+//   1102005+1102006+1102007+1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
+// DOF kódy (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1101925→archeolog_dozor,
+//   1101926→spravni_popl, 1101927→omezeni_dopr, 1101928→popl_omez_zeleznice,
+//   1102213→neplanvykon, 1101923→uhrady_zem_kultury, 1101924→nahrady_maj_ujmy,
+//   1102003_→popl_ver_prostranstvi, 1102560→koordinator_bozp, 9491→zadl_mesto,
+//   9100→proj_geod, 9150→inz_cinnost, 9416→zajisteni_pracoviste,
+//   9417→manipulace_vedeni, 9418→zkousky_vn, 9425→odvody_zem_puda, 9465→mobilni_ts
+// Subdodávky: 53001+53011+530031+53020+53021+53032+53035+53036→asfalt (každý kód=řádek)
+//   53002–53031 mimo asfalt→zadlazby (každý kód=řádek)
+//   53041→nalosute, 54003+54005–54019+54051→def_fasady, 54001→def_str,
+//   DT56→stav_prace, PA90+PA91+QB05+QC01–QC12→optotrubka,
+//   4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
+// Materiál vlastní: 800000000301→pisek[0], 800000000303→pisek[1],
+//   800000000321→beton[0], 800000000323→beton[1], 800000000325→beton[2],
+//   800000000305→sterk[0], 800000000306→sterk[1], 800000000307→sterk[2], 800000000308→sterk[3],
+//   900000000085–088→roura_pe[0–3], M06→protlak_rizeny
+//
+// COMPUTE VZORCE:
+// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
+//          + matZhot + prispSklad + gzsKc + stimulKc
+// matZhot = matVlastni − (pisek+sterk+roura_pe+beton)
+// gzsKc a stimulKc jsou mimo DOF pole — čteny přímo z s.dof
+//
+// PENDING:
+// - Spustit fix_miniryadlo_castka.sql, fix_mat_vlastni.sql, create_sazby.sql v Supabase
+//
+// CHANGELOG:
+// 20260314_2 – kompletní přepis importu podle mapovací tabulky v2:
+//   nové MECH (pila, kango, dodavka, mech_sdok), nové ZEMNI (zaorkab, vez_ts, def_str,
+//   protlak_rizeny, pisek, sterk — víceřádkové), nové GN (pausal_bo_do150/nad150),
+//   nové DOF (14 nových položek), zem_vn+zem_nn z CZD kódů, kompletní přirážky
+// 20260312_1 – EBC rozdělení mont VN/NN/Opto, fix dio→gnRowAll, plovoucí SazbyDialog,
+//   protlak 250+EK, params grid 6 sloupců, logout potvrzení, dvě mazání stavby
+// ============================================================
+
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -21,58 +97,76 @@ const MZDY = [
   { key:"rezerv_mont",   label:"Rezerva montáž", editLabel:true, isZem:false },
 ]
 const MECH = [
-  { key:"jerab",    label:"Autojeřáb hydr. ruka" },
+  { key:"jerab",    label:"Autojeřáb" },
   { key:"nakladni", label:"Nákladní auto" },
   { key:"traktor",  label:"Traktor" },
   { key:"plosina",  label:"Plošina" },
-  // ponorný vibrátor patří do ZEMNI / kompresor
+  { key:"pila",     label:"Motorová pila" },
+  { key:"kango",    label:"Bourací kladivo (Kango)" },
+  { key:"dodavka",  label:"Dodávkové auto" },
+  { key:"mech_sdok",label:"Zařízení SDOK" },
 ]
 const ZEMNI = [
-  { key:"zemni_prace",  label:"Zemní práce" },
-  { key:"zadlazby",     label:"Zádlažby" },
-  { key:"bagr",         label:"Bagr" },
-  { key:"kompresor",    label:"Kompresor" },
-  { key:"rezac",        label:"Řezač asfaltu" },
-  { key:"uhlova_bruska",label:"Úhlová bruska" },
-  { key:"mot_pech",     label:"Motorový pěch" },
-  { key:"nalosute",     label:"Naložení a doprava sutě" },
-  { key:"stav_prace",   label:"Stav. práce m. rozsahu" },
-  { key:"def_fasady",    label:"Def. úprava fasád" },
-  { key:"optotrubka",   label:"Optotrubka" },
-  { key:"protlak",      label:"Protlak neřízený", isProtlak:true },
-  { key:"roura_pe",     label:"Roura PE – říz. protlaky", noIdx:true },
-  { key:"pisek_d02",    label:"Písek D0-2", noIdx:true },
-  { key:"pisek_b04",    label:"Štěrkopísek B 0-4", noIdx:true },
-  { key:"pisek_beton",  label:"Betonářský písek", noIdx:true },
-  { key:"sterk_032",    label:"Štěrkodrť 0-32", noIdx:true },
-  { key:"sterk_3264",   label:"Štěrkokamen 32-64", noIdx:true },
-  { key:"beton",        label:"Beton", noIdx:true },
-  { key:"asfalt",       label:"Asfalt" },
-  { key:"rezerv_zemni", label:"Rezerva zemní", editLabel:true },
+  { key:"zemni_prace",    label:"Zemní práce" },
+  { key:"zadlazby",       label:"Zádlažby" },
+  { key:"asfalt",         label:"Asfalt" },
+  { key:"nalosute",       label:"Naložení a doprava sutě" },
+  { key:"bagr",           label:"Bagr" },
+  { key:"kompresor",      label:"Kompresor" },
+  { key:"rezac",          label:"Řezač asfaltu" },
+  { key:"uhlova_bruska",  label:"Úhlová bruska" },
+  { key:"mot_pech",       label:"Motorový pěch" },
+  { key:"stav_prace",     label:"Stav. práce m. rozsahu" },
+  { key:"def_fasady",     label:"Def. úprava fasád" },
+  { key:"def_str",        label:"Def. úprava střechy" },
+  { key:"optotrubka",     label:"Optotrubka" },
+  { key:"zaorkab",        label:"Zaorání kabelů" },
+  { key:"vez_ts",         label:"Věžová transformovna" },
+  { key:"protlak",        label:"Protlak neřízený", isProtlak:true },
+  { key:"protlak_rizeny", label:"Protlak řízený", noIdx:true },
+  { key:"roura_pe",       label:"Roura PE", noIdx:true },
+  { key:"pisek",          label:"Písek", noIdx:true },
+  { key:"sterk",          label:"Štěrk / kamenivo", noIdx:true },
+  { key:"beton",          label:"Beton", noIdx:true },
+  { key:"rezerv_zemni",   label:"Rezerva zemní", editLabel:true },
 ]
 const GN = [
-  { key:"inzenyrska",     label:"Inženýrská činnost" },
-  { key:"geodetika",      label:"Geodetické práce" },
-  { key:"te_evidence",    label:"TE – tech. evidence" },
-  { key:"vychozi_revize", label:"Výchozí revize" },
-  { key:"pripl_ppn",      label:"Příplatek PPN NN" },
-  { key:"ekolog_likv",    label:"Ekolog. likv. odpadů" },
-  { key:"material_vyn",   label:"Materiál výnosový" },
-  { key:"doprava_mat",    label:"Doprava mat. na stavbu" },
-  { key:"popl_ver",       label:"Popl. za veřej. prostr." },
-  { key:"pripl_capex",    label:"Příplatek Capex / Opex" },
-  { key:"kolaudace",      label:"Kolaudace" },
+  { key:"inzenyrska",       label:"Inženýring zhotovitele CAPEX" },
+  { key:"geodetika",        label:"Geodetické práce" },
+  { key:"te_evidence",      label:"Dokumentace pro TE" },
+  { key:"vychozi_revize",   label:"Výchozí revize" },
+  { key:"pripl_ppn",        label:"Příplatek PPN" },
+  { key:"ekolog_likv",      label:"Ekologická likvidace odpadů" },
+  { key:"material_vyn",     label:"Materiál výnosový" },
+  { key:"doprava_mat",      label:"Doprava materiálu na stavbu" },
+  { key:"pripl_capex",      label:"Příplatek CAPEX" },
+  { key:"kolaudace",        label:"Kolaudace" },
+  { key:"pausal_bo_do150",  label:"Paušál BO OPEX do 150 tis." },
+  { key:"pausal_bo_nad150", label:"Paušál BO OPEX nad 150 tis." },
 ]
 const DOF = [
-  { key:"dio",             label:"DIO – Dopravní značení" },
-  { key:"vytyc_siti",      label:"Vytýčení sítí" },
-  { key:"neplanvykon",     label:"Neplánovaný výkon" },
-  { key:"spravni_popl",    label:"Správní poplatky" },
-  { key:"demontaz",        label:"Demontáž – nestandart" },
-  { key:"spec_zadlazby",   label:"Speciální zádlažby" },
-  { key:"omezeni_dopr",    label:"Omezení sil./žel. dopr." },
-  { key:"rezerva",         label:"Rezerva" },
-  { key:"archeolog_dozor", label:"Archeologický dozor" },
+  { key:"dio",                   label:"DIO – Dopravní značení" },
+  { key:"vytyc_siti",            label:"Vytýčení sítí" },
+  { key:"neplanvykon",           label:"Neplánovaný výkon" },
+  { key:"spravni_popl",          label:"Správní poplatky" },
+  { key:"omezeni_dopr",          label:"Omezení silniční dopravy" },
+  { key:"popl_omez_zeleznice",   label:"Omezení železniční dopravy" },
+  { key:"archeolog_dozor",       label:"Archeologický dozor" },
+  { key:"uhrady_zem_kultury",    label:"Úhrady za zemědělské kultury" },
+  { key:"nahrady_maj_ujmy",      label:"Náhrady majetkové újmy" },
+  { key:"popl_ver_prostranstvi", label:"Poplatky za veřejné prostranství" },
+  { key:"koordinator_bozp",      label:"Činnost koordinátora BOZP" },
+  { key:"zadl_mesto",            label:"Zádlažby subdodavatelsky městem" },
+  { key:"proj_geod",             label:"Projektové a geodetické práce" },
+  { key:"inz_cinnost",           label:"Inženýrská činnost EG.D" },
+  { key:"zajisteni_pracoviste",  label:"Zajištění pracoviště BO OPEX" },
+  { key:"manipulace_vedeni",     label:"Manipulace vedení" },
+  { key:"zkousky_vn",            label:"Zkoušky VN kabelu" },
+  { key:"odvody_zem_puda",       label:"Odvody za odnětí zemědělské půdy" },
+  { key:"mobilni_ts",            label:"Mobilní TS – zapůjčení" },
+  { key:"doprava_zam",           label:"Doprava zaměstnanců" },
+  { key:"spec_zadlazby",         label:"Speciální zádlažby" },
+  { key:"rezerva",               label:"Rezerva" },
 ]
 const SEC = {
   mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
@@ -98,7 +192,8 @@ const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
 // Materiál zhotovitele = mat_vlastni celkem − (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + roura PE)
 // Asfalt se NEodečítá — je to subdodávka, není součástí mat_vlastni
 function computeMatZhot(zemni, matVlastniCelkem) {
-  const odecti = ['pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264','roura_pe','beton']
+  // Odečíst položky materiálu které jsou součástí vlastního materiálu ale fakturovány zvlášť
+  const odecti = ['pisek','sterk','roura_pe','beton','pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264']
     .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
   const matV = (matVlastniCelkem != null && matVlastniCelkem > 0) ? matVlastniCelkem : itemSum(zemni['mat_vlastni']?.rows || mkRows())
   return Math.max(0, matV - odecti)
@@ -798,37 +893,55 @@ export default function StavbaPage() {
       const hZem  = hZemVn + hZemNn
 
       // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
-      // col[6]=množství, col[18]=jedn.cena, col[19]=cena celkem
       const stroje = {}
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'S') continue
         const kod  = String(r[3]||'').trim()
-        const cena = num(r[colCena]) || num(r[colCena+1])  // Cena celkem
-        stroje[kod] = (stroje[kod] || 0) + cena  // Sečti přes všechny objekty
+        const cena = num(r[colCena]) || num(r[colCena+1])
+        stroje[kod] = (stroje[kod] || 0) + cena
       }
 
-      // GZS a Stimulační přirážka — PP řádky, kód 9343 a 9349, cena = col[19]
-      let gzsKc = 0, stimulacniKc = 0
+      // Přirážky PP — GZS, Stimulační, Doprava zaměstnanců
+      let gzsKc = 0, stimulacniKc = 0, dopravaZamKc = 0
       for (const r of rowsPM) {
-        if (String(r[2]||'').trim() !== 'PP') continue
+        if (String(r[2]||'').trim() !== 'PP' && String(r[2]||'').trim() !== 'PPV') continue
         const kod = String(r[3]||'').trim()
-        if (kod === '9343' || kod === '9223') gzsKc += num(r[colCena])
-        if (kod === '9349') stimulacniKc += num(r[colCena])
+        // GZS
+        if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += num(r[colCena])
+        // Stimulační přirážka (PP i PPV)
+        if (['9349','9221','9321','9224','9344','9225','9345','9249'].includes(kod)) stimulacniKc += num(r[colCena])
+        if (String(r[2]||'').trim() === 'PPV') stimulacniKc += num(r[colCena])
+        // Doprava zaměstnanců
+        if (['9222','9322'].includes(kod)) dopravaZamKc += num(r[colCena])
       }
 
-      // Subdodávky — def. zádlažba (53001) a def. úprava fasád (54003)
+      // Subdodávky — kompletní mapování
       const wsSub = wb.Sheets['Subdodávky']
-      let zadlazbyKc = 0, asfaltKc = 0, stavPraceKc = 0, optotrubkaKc = 0
+      const subRows = {}  // kod → součet Kč
       if (wsSub) {
         const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
         for (const r of rowsSub) {
           const kod = String(r[3]||'').trim()
-          if (['53007','530071','530173','53025'].includes(kod)) zadlazbyKc += num(r[8])
-          if (kod === '53001') asfaltKc += num(r[8])
-          if (kod === '54003') stavPraceKc += num(r[8])
-          if (kod === 'PA90' || kod === 'PA91') optotrubkaKc += num(r[8])
+          if (!kod) continue
+          subRows[kod] = (subRows[kod] || 0) + num(r[8])
         }
       }
+      const subSum = (...kody) => kody.reduce((a, k) => a + (subRows[k] || 0), 0)
+
+      // Zádlažby — každý kód zvlášť (pro víceřádkovou strukturu)
+      const ZADL_KODY = ['53002','53003','530031','53004','53005','53007','530071','53008','53009',
+                         '53012','53013','53014','53015','53017','530171','530172','530173',
+                         '53018','53019','53022','53023','53024','53025','53026','53027','53030','53031']
+      // Asfalt — každý kód zvlášť
+      const ASFALT_KODY = ['53001','53011','530031','53020','53021','53032','53035','53036']
+      // Ostatní
+      const nalosute_kc   = subSum('53041')
+      const defFasady_kc  = subSum('54003','54005','54006','54007','54008','54010','54011','54012','54013','54014','54015','54016','54019','54051')
+      const defStr_kc     = subSum('54001')
+      const stavPrace_kc  = subSum('DT56')
+      const optotrubka_kc = subSum('PA90','PA91','QB05','QC01','QC02','QC05','QC09','QC10','QC11','QC12')
+      const zaorkab_kc    = subSum('4601','4611')
+      const vezTs_kc      = subSum('4110V','4111','4112','4901')
 
       // PZ zemní práce v Kč — hledám řádek kde col[4] obsahuje 'PZ:'
       let zemniPraceKc = 0
@@ -869,8 +982,19 @@ export default function StavbaPage() {
         }
       }
       const pisekD02   = matSum['800000000301'] || 0
-      const betonKc    = (matSum['800000000323'] || 0) + (matSum['800000000325'] || 0)
-      const sterkKamen = (matSum['800000000306'] || 0) + (matSum['800000000308'] || 0)
+      const pisekB04   = matSum['800000000303'] || 0
+      const betonC810  = matSum['800000000321'] || 0
+      const betonC1215 = matSum['800000000323'] || 0
+      const betonZhlavi= matSum['800000000325'] || 0
+      const sterk032   = matSum['800000000305'] || 0
+      const kamen48    = matSum['800000000306'] || 0
+      const sterk3264  = matSum['800000000307'] || 0
+      const kamen816   = matSum['800000000308'] || 0
+      const rouraPE110 = matSum['900000000085'] || 0
+      const rouraPE160 = matSum['900000000086'] || 0
+      const rouraPE200 = matSum['900000000087'] || 0
+      const rouraPE225 = matSum['900000000088'] || 0
+      const protlakM06 = matSum['M06'] || 0
 
       // Příspěvek na sklad — z listu Rekapitulace pro EBC col[7]=Příspěvek za sklad, řádky úrovně 1
       const wsRekap = wb.Sheets['Rekapitulace pro EBC']
@@ -884,6 +1008,12 @@ export default function StavbaPage() {
         }
       }
 
+      // Helper pro zádlažby/asfalt — vytvoř řádky pouze pro kódy s nenulovou hodnotou
+      const subRiadky = (kody, labely) => kody
+        .map((k, i) => ({ id: uid(), popis: labely[i] || k, castka: String(Math.round(subRows[k]||0)) }))
+        .filter(r => num(r.castka) > 0)
+        .concat([{ id: uid(), popis: 'Ostatní', castka: '0' }])
+
       // Sestavení parsed EBC
       const parsedEBC = {
         nazev: nazevStavby,
@@ -895,77 +1025,145 @@ export default function StavbaPage() {
         mzdy_ebc_hopto: hOpto,
         // Mechanizace
         mech: {
-          jerab:    [{ id: uid(), popis: 'Autojeřáb',    castka: String(Math.round(stroje['120']  || 0)) }],
-          nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(Math.round((stroje['420']||0)+(stroje['440']||0)+(stroje['207']||0))) }],
-          traktor:  [{ id: uid(), popis: 'Traktor',       castka: String(Math.round((stroje['640']||0)+(stroje['620']||0))) }],
-          plosina:  [{ id: uid(), popis: 'Plošina',       castka: String(Math.round(stroje['340']  || 0)) }],
+          jerab:    [{ id:uid(), popis:'Autojeřáb do 8t',     castka:String(Math.round((stroje['120']||0)+(stroje['160']||0)+(stroje['170']||0))) }],
+          nakladni: [{ id:uid(), popis:'Nákladní auto',       castka:String(Math.round((stroje['200']||0)+(stroje['205']||0)+(stroje['207']||0)+(stroje['210']||0)+(stroje['310']||0)+(stroje['460']||0)+(stroje['480']||0)+(stroje['810']||0)+(stroje['820']||0)+(stroje['990']||0))) }],
+          traktor:  [{ id:uid(), popis:'Traktor',             castka:String(Math.round((stroje['620']||0)+(stroje['640']||0)+(stroje['645']||0)+(stroje['970']||0))) }],
+          plosina:  [{ id:uid(), popis:'Plošina',             castka:String(Math.round((stroje['340']||0)+(stroje['345']||0)+(stroje['350']||0)+(stroje['360']||0)+(stroje['365']||0))) }],
+          pila:     [{ id:uid(), popis:'Motorová pila',       castka:String(Math.round(stroje['230']||0)) }],
+          kango:    [{ id:uid(), popis:'Bourací kladivo',     castka:String(Math.round(stroje['270']||0)) }],
+          dodavka:  [{ id:uid(), popis:'Dodávkové auto',      castka:String(Math.round(stroje['410']||0)) }],
+          mech_sdok:[{ id:uid(), popis:'Navíjecí zařízení',   castka:String(Math.round(stroje['995']||0)) },
+                     { id:uid(), popis:'Odvíjecí zařízení',   castka:String(Math.round(stroje['996']||0)) }],
         },
         // Zemní práce (Kč)
         zemni: {
-          bagr:         [{ id: uid(), popis: 'Ryp. kol. do 0,2m³',      castka: String(Math.round(stroje['520']||0)) }, { id: uid(), popis: 'Ryp. kol. do 0,5m³', castka: String(Math.round(stroje['540']||0)) }, { id: uid(), popis: 'Minirýpadlo do 3,5t', castka: String(Math.round(stroje['720']||0)) }],
-          kompresor:    [{ id: uid(), popis: 'Kompresor',               castka: String(Math.round(stroje['740']||0)) }, { id: uid(), popis: 'Ponorný vibrátor D50', castka: String(Math.round(stroje['750']||0)) }],
-          rezac:        [{ id: uid(), popis: 'Řezač asfaltu',           castka: String(Math.round(stroje['260']||0)) }],
-          mot_pech:     [{ id: uid(), popis: 'Motorový pěch',           castka: String(Math.round(stroje['240']||0)) }],
-          uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska',           castka: String(Math.round(stroje['255']||0)) }],
-          mat_vlastni:  [{ id: uid(), popis: 'Materiál vlastní', castka: String(Math.round(matVlastniCelkem * 100) / 100) }],
-          pisek_d02:    [{ id: uid(), popis: 'Písek D0-2',              castka: String(Math.round(pisekD02)) }],
-          // Ostatní položky zemních prací z EBC nejsou přímo dostupné — ponecháme 0
-          zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: '0' }],
-          zadlazby:     [{ id: uid(), popis: 'Def. zádlažba', castka: String(Math.round(zadlazbyKc)) }],
-          sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: String(Math.round(sterkKamen)) }],
-          beton:        [{ id: uid(), popis: 'Beton',        castka: String(Math.round(betonKc)) }],
-          asfalt:       [{ id: uid(), popis: 'Asfalt',       castka: String(Math.round(asfaltKc)) }],
-          optotrubka:   [{ id: uid(), popis: 'Optotrubka',   castka: String(Math.round(optotrubkaKc)) }],
-          nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: '0' }],
-          stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: '0' }],
-          def_fasady:   [{ id: uid(), popis: 'Def. úprava fasád', castka: String(Math.round(stavPraceKc)) }],
-          rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: '0' }],
-          pisek_b04:    [{ id: uid(), popis: 'Písek B0-4',   castka: '0' }],
-          pisek_beton:  [{ id: uid(), popis: 'Písek pro beton', castka: '0' }],
-          sterk_032:    [{ id: uid(), popis: 'Štěrk 0-32',   castka: '0' }],
-          protlak:      [{ id: uid(), popis: 'Protlak neřízený (stroj)', castka: String(Math.round(stroje['250']||0)) }, { id: uid(), popis: 'Protlak neřízený (PZ)', castka: String(Math.round(protlakPzKc)) }],
-          roura_pe:     [{ id: uid(), popis: 'Roura PE',      castka: '0' }],
+          bagr:         [{ id:uid(), popis:'Ryp. kol. do 0,2m³',    castka:String(Math.round((stroje['520']||0)+(stroje['220']||0))) },
+                         { id:uid(), popis:'Ryp. kol. do 0,5m³',    castka:String(Math.round(stroje['540']||0)) },
+                         { id:uid(), popis:'Minirýpadlo do 3,5t',   castka:String(Math.round((stroje['720']||0)+(stroje['730']||0)+(stroje['735']||0))) }],
+          kompresor:    [{ id:uid(), popis:'Kompresor do 5,4m³',    castka:String(Math.round(stroje['740']||0)) },
+                         { id:uid(), popis:'Ponorný vibrátor D50',  castka:String(Math.round(stroje['750']||0)) }],
+          rezac:        [{ id:uid(), popis:'Řezač asfaltu',         castka:String(Math.round(stroje['260']||0)) }],
+          mot_pech:     [{ id:uid(), popis:'Motorový pěch',         castka:String(Math.round(stroje['240']||0)) }],
+          uhlova_bruska:[{ id:uid(), popis:'Úhlová bruska',         castka:String(Math.round(stroje['255']||0)) }],
+          nalosute:     [{ id:uid(), popis:'Naložení sutě (53041)', castka:String(Math.round(nalosute_kc)) }],
+          def_fasady:   [{ id:uid(), popis:'Def. úprava fasád',     castka:String(Math.round(defFasady_kc)) }],
+          def_str:      [{ id:uid(), popis:'Def. úprava střechy',   castka:String(Math.round(defStr_kc)) }],
+          stav_prace:   [{ id:uid(), popis:'Stav. práce m. rozsahu',castka:String(Math.round(stavPrace_kc)) }],
+          optotrubka:   [{ id:uid(), popis:'Optotrubka / SDOK',     castka:String(Math.round(optotrubka_kc)) }],
+          zaorkab:      [{ id:uid(), popis:'Zaorání kabelů VN (4601)',  castka:String(Math.round(subRows['4601']||0)) },
+                         { id:uid(), popis:'Zaorání kabelů NN (4611)',  castka:String(Math.round(subRows['4611']||0)) }],
+          vez_ts:       [{ id:uid(), popis:'Věž. transf. stavební (4111)',  castka:String(Math.round(subRows['4111']||0)) },
+                         { id:uid(), popis:'Věž. transf. technol. (4112)',  castka:String(Math.round(subRows['4112']||0)) },
+                         { id:uid(), popis:'Úprava stáv. konstrukce (4110V)',castka:String(Math.round(subRows['4110V']||0)) },
+                         { id:uid(), popis:'Demontáž tech. části TS (4901)',castka:String(Math.round(subRows['4901']||0)) }],
+          zadlazby:     [{ id:uid(), popis:'Def. zádl. komunikace betonová (53002)',     castka:String(Math.round(subRows['53002']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace štěrková (53003)',     castka:String(Math.round(subRows['53003']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace malé kostky (53004)',  castka:String(Math.round(subRows['53004']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace velké kostky (53005)', castka:String(Math.round(subRows['53005']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace panelová (53007)',     castka:String(Math.round(subRows['53007']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace panelová dem. (530071)',castka:String(Math.round(subRows['530071']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace zámková st. (53008)',  castka:String(Math.round(subRows['53008']||0)) },
+                         { id:uid(), popis:'Def. zádl. komunikace zámková nová (53009)', castka:String(Math.round(subRows['53009']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník betonový (53012)',        castka:String(Math.round(subRows['53012']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník mozaika st. (53013)',     castka:String(Math.round(subRows['53013']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník malé kostky (53014)',     castka:String(Math.round(subRows['53014']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník mozaika nová (53015)',    castka:String(Math.round(subRows['53015']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník bet.desky 300 st. (53017)',castka:String(Math.round(subRows['53017']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník bet.desky 300 nová (530171)',castka:String(Math.round(subRows['530171']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník bet.desky 500 st. (530172)',castka:String(Math.round(subRows['530172']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník bet.desky 500 nová (530173)',castka:String(Math.round(subRows['530173']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník zámková st. (53018)',     castka:String(Math.round(subRows['53018']||0)) },
+                         { id:uid(), popis:'Def. zádl. chodník zámková nová (53019)',    castka:String(Math.round(subRows['53019']||0)) },
+                         { id:uid(), popis:'Obrubník ke komunikaci st. (53022)',         castka:String(Math.round(subRows['53022']||0)) },
+                         { id:uid(), popis:'Obrubník ke komunikaci nový (53023)',        castka:String(Math.round(subRows['53023']||0)) },
+                         { id:uid(), popis:'Obrubník k trávníku st. (53024)',            castka:String(Math.round(subRows['53024']||0)) },
+                         { id:uid(), popis:'Obrubník k trávníku nový (53025)',           castka:String(Math.round(subRows['53025']||0)) },
+                         { id:uid(), popis:'Odvodňovací žlab nový (53026)',              castka:String(Math.round(subRows['53026']||0)) },
+                         { id:uid(), popis:'Odvodňovací žlab oprava (53027)',            castka:String(Math.round(subRows['53027']||0)) },
+                         { id:uid(), popis:'Speciální zádlažby (53030)',                 castka:String(Math.round(subRows['53030']||0)) },
+                         { id:uid(), popis:'Oprava zádlažba zámková (53031)',            castka:String(Math.round(subRows['53031']||0)) }],
+          asfalt:       [{ id:uid(), popis:'Def. zádl. asfalt komunikace (53001)',       castka:String(Math.round(subRows['53001']||0)) },
+                         { id:uid(), popis:'Def. zádl. asfalt chodník (53011)',          castka:String(Math.round(subRows['53011']||0)) },
+                         { id:uid(), popis:'Def. zádl. lesní cesta recyklát (530031)',   castka:String(Math.round(subRows['530031']||0)) },
+                         { id:uid(), popis:'Zálivka asfaltová (53020)',                  castka:String(Math.round(subRows['53020']||0)) },
+                         { id:uid(), popis:'Příplatek asfaltový beton (53021)',          castka:String(Math.round(subRows['53021']||0)) },
+                         { id:uid(), popis:'Frézování chodník (53032)',                  castka:String(Math.round(subRows['53032']||0)) },
+                         { id:uid(), popis:'Frézování komunikace (53035)',               castka:String(Math.round(subRows['53035']||0)) },
+                         { id:uid(), popis:'Lesní cesta recyklát oprava (53036)',        castka:String(Math.round(subRows['53036']||0)) }],
+          protlak:      [{ id:uid(), popis:'Podtunelovač (stroj 250)',  castka:String(Math.round(stroje['250']||0)) },
+                         { id:uid(), popis:'Protlak PZ (EK152+EK25+EK41)', castka:String(Math.round(protlakPzKc)) }],
+          protlak_rizeny:[{ id:uid(), popis:'Protlak řízený (M06)',     castka:String(Math.round(protlakM06)) }],
+          pisek:        [{ id:uid(), popis:'Písek D0-2 (800000000301)', castka:String(Math.round(pisekD02)) },
+                         { id:uid(), popis:'Písek B0-4 (800000000303)', castka:String(Math.round(pisekB04)) }],
+          beton:        [{ id:uid(), popis:'Beton C8/10 (800000000321)',     castka:String(Math.round(betonC810)) },
+                         { id:uid(), popis:'Beton C12/15 (800000000323)',    castka:String(Math.round(betonC1215)) },
+                         { id:uid(), popis:'Beton C12/15 zhlaví (800000000325)',castka:String(Math.round(betonZhlavi)) }],
+          sterk:        [{ id:uid(), popis:'Štěrkodrť 0-32 (800000000305)',  castka:String(Math.round(sterk032)) },
+                         { id:uid(), popis:'Kamenivo 4/8 (800000000306)',    castka:String(Math.round(kamen48)) },
+                         { id:uid(), popis:'Štěrkokamen 32-64 (800000000307)',castka:String(Math.round(sterk3264)) },
+                         { id:uid(), popis:'Kamenivo 8/16 (800000000308)',   castka:String(Math.round(kamen816)) }],
+          roura_pe:     [{ id:uid(), popis:'Roura PE 110 (900000000085)',    castka:String(Math.round(rouraPE110)) },
+                         { id:uid(), popis:'Roura PE 160 (900000000086)',    castka:String(Math.round(rouraPE160)) },
+                         { id:uid(), popis:'Roura PE 200 (900000000087)',    castka:String(Math.round(rouraPE200)) },
+                         { id:uid(), popis:'Roura PE 225 (900000000088)',    castka:String(Math.round(rouraPE225)) }],
+          rezerv_zemni: [{ id:uid(), popis:'Rezerva zemní', castka:'0' }],
         },
-        // GN
+        // GN — všechny kódy přes gnRowAll
         gn: {
-          inzenyrska:     { rows: [{ id: uid(), popis: 'Inženýring zhotovitele CAPEX', castka: String(gnRow(['Inženýring zhotovitele','1101999'])) }], open: false },
-          geodetika:      { rows: [{ id: uid(), popis: 'Geodetické práce',             castka: String(gnRow(['Geodetick','1102000'])) }], open: false },
-          te_evidence:    { rows: [{ id: uid(), popis: 'Dokumentace pro TE',           castka: String(gnRow(['Dokumentace pro TE','1102010'])) }], open: false },
-          vychozi_revize: { rows: [{ id: uid(), popis: 'Výchozí revize',               castka: String(gnRow(['Výchozí revize','1101594'])) }], open: false },
-          pripl_ppn:      { rows: [{ id: uid(), popis: 'Přípl. PPN',                   castka: '0' }], open: false },
-          ekolog_likv:    { rows: [{ id: uid(), popis: 'Ekologická likvidace odpadů',  castka: String(gnRow(['Ekolog','1101638'])) }], open: false },
-          doprava_mat:    { rows: [{ id: uid(), popis: 'Doprava materiálu na stavbu',  castka: String(gnRow(['Doprava materiálu','1102007','1102008'])) }], open: false },
-          material_vyn:   { rows: [{ id: uid(), popis: 'Materiál výnosový',            castka: String(gnRow(['Materiál výnosového','1102001'])) }], open: false },
-          popl_ver:       { rows: [{ id: uid(), popis: 'Popl. ver. prostranství',      castka: '0' }], open: false },
-          pripl_capex:    { rows: [{ id: uid(), popis: 'Přípl. CAPEX',                 castka: '0' }], open: false },
-          kolaudace:      { rows: [{ id: uid(), popis: 'Kolaudace',                    castka: '0' }], open: false },
+          inzenyrska:       { rows:[{ id:uid(), popis:'Inženýring zhotovitele CAPEX', castka:String(gnRowAll(['1101999'])) }], open:false },
+          geodetika:        { rows:[{ id:uid(), popis:'Geodetické práce',             castka:String(gnRowAll(['1102000'])) }], open:false },
+          te_evidence:      { rows:[{ id:uid(), popis:'Dokumentace pro TE',           castka:String(gnRowAll(['1102010'])) }], open:false },
+          vychozi_revize:   { rows:[{ id:uid(), popis:'Výchozí revize',               castka:String(gnRowAll(['1101594'])) }], open:false },
+          pripl_ppn:        { rows:[{ id:uid(), popis:'Příplatek PPN',                castka:String(gnRowAll(['1100167'])) }], open:false },
+          ekolog_likv:      { rows:[{ id:uid(), popis:'Ekologická likvidace odpadů',  castka:String(gnRowAll(['1101638'])) }], open:false },
+          doprava_mat:      { rows:[{ id:uid(), popis:'Doprava materiálu na stavbu',  castka:String(gnRowAll(['1102005','1102006','1102007','1102008'])) }], open:false },
+          material_vyn:     { rows:[{ id:uid(), popis:'Materiál výnosový',            castka:String(gnRowAll(['1102001'])) }], open:false },
+          pripl_capex:      { rows:[{ id:uid(), popis:'Příplatek CAPEX',              castka:String(gnRowAll(['1102116'])) }], open:false },
+          kolaudace:        { rows:[{ id:uid(), popis:'Kolaudace',                    castka:String(gnRowAll(['1102004'])) }], open:false },
+          pausal_bo_do150:  { rows:[{ id:uid(), popis:'Paušál BO OPEX do 150 tis.',  castka:String(gnRowAll(['9404'])) }], open:false },
+          pausal_bo_nad150: { rows:[{ id:uid(), popis:'Paušál BO OPEX nad 150 tis.', castka:String(gnRowAll(['9405'])) }], open:false },
         },
         // DOF
         dof: {
-          dio:          { rows: [{ id: uid(), popis: 'DIO',                    castka: String(gnRowAll(['1101929'])) }], open: false },
-          vytyc_siti:   { rows: [{ id: uid(), popis: 'Vytýčení sítí',          castka: String(gnRowAll(['1101922'])) }], open: false },
-          neplanvykon:  { rows: [{ id: uid(), popis: 'Neplánovaný výkon',       castka: '0' }], open: false },
-          spravni_popl: { rows: [{ id: uid(), popis: 'Správní poplatky',        castka: String(gnRowAll(['1101926'])) }], open: false },
-          demontaz:     { rows: [{ id: uid(), popis: 'Demontáž',                castka: '0' }], open: false },
-          spec_zadlazby:{ rows: [{ id: uid(), popis: 'Speciální zádlažby',      castka: '0' }], open: false },
-          omezeni_dopr: { rows: [{ id: uid(), popis: 'Omezení sil. provozu',    castka: '0' }], open: false },
-          rezerva:      { rows: [{ id: uid(), popis: 'Rezerva',                 castka: '0' }], open: false },
-          archeolog_dozor: { rows: [{ id: uid(), popis: 'Archeologický dozor',    castka: String(gnRowAll(['1101925'])) }], open: false },
-          gzs:          { rows: [{ id: uid(), popis: 'GZS (SO)',                  castka: String(Math.round(gzsKc * 100) / 100) }], open: false },
-          stimul_prirazka: { rows: [{ id: uid(), popis: 'Stimulační přirážka',   castka: String(Math.round(stimulacniKc * 100) / 100) }], open: false },
+          dio:                   { rows:[{ id:uid(), popis:'DIO – Dopravní značení',            castka:String(gnRowAll(['1101929'])) }], open:false },
+          vytyc_siti:            { rows:[{ id:uid(), popis:'Vytýčení sítí',                     castka:String(gnRowAll(['1101922'])) }], open:false },
+          neplanvykon:           { rows:[{ id:uid(), popis:'Neplánovaný výkon',                  castka:String(gnRowAll(['1102213'])) }], open:false },
+          spravni_popl:          { rows:[{ id:uid(), popis:'Správní poplatky',                   castka:String(gnRowAll(['1101926'])) }], open:false },
+          omezeni_dopr:          { rows:[{ id:uid(), popis:'Omezení silniční dopravy',           castka:String(gnRowAll(['1101927'])) }], open:false },
+          popl_omez_zeleznice:   { rows:[{ id:uid(), popis:'Omezení železniční dopravy',         castka:String(gnRowAll(['1101928'])) }], open:false },
+          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(gnRowAll(['1101925'])) }], open:false },
+          uhrady_zem_kultury:    { rows:[{ id:uid(), popis:'Úhrady za zemědělské kultury',       castka:String(gnRowAll(['1101923'])) }], open:false },
+          nahrady_maj_ujmy:      { rows:[{ id:uid(), popis:'Náhrady majetkové újmy',             castka:String(gnRowAll(['1101924'])) }], open:false },
+          popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003_'])) }], open:false },
+          koordinator_bozp:      { rows:[{ id:uid(), popis:'Koordinátor BOZP',                   castka:String(gnRowAll(['1102560'])) }], open:false },
+          zadl_mesto:            { rows:[{ id:uid(), popis:'Zádlažby subdodavatelsky městem',    castka:String(gnRowAll(['9491'])) }], open:false },
+          proj_geod:             { rows:[{ id:uid(), popis:'Projektové a geodetické práce',      castka:String(gnRowAll(['9100'])) }], open:false },
+          inz_cinnost:           { rows:[{ id:uid(), popis:'Inženýrská činnost EG.D',            castka:String(gnRowAll(['9150'])) }], open:false },
+          zajisteni_pracoviste:  { rows:[{ id:uid(), popis:'Zajištění pracoviště BO OPEX',       castka:String(gnRowAll(['9416'])) }], open:false },
+          manipulace_vedeni:     { rows:[{ id:uid(), popis:'Manipulace vedení',                  castka:String(gnRowAll(['9417'])) }], open:false },
+          zkousky_vn:            { rows:[{ id:uid(), popis:'Zkoušky VN kabelu',                  castka:String(gnRowAll(['9418'])) }], open:false },
+          odvody_zem_puda:       { rows:[{ id:uid(), popis:'Odvody za odnětí zemědělské půdy',   castka:String(gnRowAll(['9425'])) }], open:false },
+          mobilni_ts:            { rows:[{ id:uid(), popis:'Mobilní TS – zapůjčení',             castka:String(gnRowAll(['9465'])) }], open:false },
+          doprava_zam:           { rows:[{ id:uid(), popis:'Doprava zaměstnanců',                castka:String(Math.round(dopravaZamKc)) }], open:false },
+          spec_zadlazby:         { rows:[{ id:uid(), popis:'Speciální zádlažby',                 castka:'0' }], open:false },
+          rezerva:               { rows:[{ id:uid(), popis:'Rezerva',                            castka:'0' }], open:false },
+          gzs:                   { rows:[{ id:uid(), popis:'GZS (SO)',                           castka:String(Math.round(gzsKc)) }], open:false },
+          stimul_prirazka:       { rows:[{ id:uid(), popis:'Stimulační přirážka',                castka:String(Math.round(stimulacniKc)) }], open:false },
         },
       }
 
       // Mzdy — rozdělení podle kódů objektů z EBC
       const noveMzdy = mkSec(MZDY)
-      noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn   * 10) / 10) }], open: false }
-      noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn   * 10) / 10) }], open: false }
-      noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto * 10) / 10) }], open: false }
+      noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn    * 10) / 10) }], open: false }
+      noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn    * 10) / 10) }], open: false }
+      noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto  * 10) / 10) }], open: false }
+      noveMzdy['zem_vn']    = { rows: [{ id: uid(), popis: 'Zemní VN (EBC import)',        castka: String(Math.round(hZemVn * 10) / 10) }], open: false }
+      noveMzdy['zem_nn']    = { rows: [{ id: uid(), popis: 'Zemní NN (EBC import)',        castka: String(Math.round(hZemNn * 10) / 10) }], open: false }
 
       // Zemní práce — čistý objekt
       const noveZemni = mkSec(ZEMNI)
       for (const [k, rows] of Object.entries(parsedEBC.zemni)) noveZemni[k] = { rows, open: false }
-      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc + protlakPzKc)) }], open: false }
+      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc)) }], open: false }
 
       // Mech — čistý objekt
       const noveMech = mkSec(MECH)
