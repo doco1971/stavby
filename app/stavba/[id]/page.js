@@ -1,4 +1,4 @@
-// Build: 20260314_4
+// Build: 20260314_6
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -187,7 +187,7 @@ function compute(s) {
   const prispSklad = num(s.prispevek_sklad)
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofAllBez + matZhot + prispSklad + gzsKc + stimulKc
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
@@ -1106,6 +1106,7 @@ export default function StavbaPage() {
       for (const [k, v] of Object.entries(parsedEBC.dof)) {
         if (DOF.find(it => it.key === k)) noveDof[k] = v
         else if (DOFEGD.find(it => it.key === k)) noveDofegd[k] = v
+        else noveDof[k] = v  // gzs, stimul_prirazka, doprava_zam → vždy do dof
       }
 
       setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc })
@@ -1534,7 +1535,7 @@ export default function StavbaPage() {
               const dofSP = dofAllBez*(1+pri)
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
               const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofAllBez
+              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
