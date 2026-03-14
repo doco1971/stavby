@@ -1,67 +1,4 @@
-// ============================================================
-// Build: 20260314_3
-// Kalkulace stavby – hlavní editor stavby
-// ============================================================
-// POPIS APLIKACE:
-// React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
-// Stack: Next.js 14 + Supabase + Vercel + GitHub
-// GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
-//
-// SEKCE KALKULAČKY:
-// MZDY:    mont_vn, mont_nn, mont_opto, zem_vn, zem_nn, rezerv_mont
-// MECH:    jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
-// ZEMNI:   zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
-//          uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
-//          zaorkab, vez_ts, protlak, protlak_rizeny, roura_pe, pisek, sterk, beton,
-//          rezerv_zemni
-// GN:      inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
-//          ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
-//          pausal_bo_do150, pausal_bo_nad150
-// DOF:     dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
-//          popl_omez_zeleznice, popl_ver_prostranstvi
-// DOFEGD:  archeolog_dozor, uhrady_zem_kultury, nahrady_maj_ujmy, koordinator_bozp,
-//          zadl_mesto, proj_geod, inz_cinnost, zajisteni_pracoviste, manipulace_vedeni,
-//          zkousky_vn, odvody_zem_puda, mobilni_ts, rezerva
-//          + gzs a stimul_prirazka (mimo pole, čteny přímo z s.dof)
-//
-// EBC IMPORT – MAPOVÁNÍ:
-// Hodiny (51:/52:) podle CZD: CZD00040/04/05/07→mont_vn/zem_vn, CZD00010→mont_nn/zem_nn, CZD00013→mont_opto
-// Stroje (S): 120+160+170→jerab, 200+205+207+210+310+460+480+810+820+990→nakladni,
-//   620+640+645+970→traktor, 340+345+350+360+365→plosina, 520+540+220→bagr[0-2],
-//   740+750→kompresor, 260→rezac, 240→mot_pech, 255→uhlova_bruska, 250→protlak[0],
-//   230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
-// PP/PPV: 9343+9223+9346+9347+9348→gzs, 9349+9221+9321+9224+9344+9225+9345+9249+PPV-CZD*→stimul, 9222+9322→doprava_zam
-// GN (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
-//   1101594→vychozi_revize, 1100167→pripl_ppn, 1101638→ekolog_likv,
-//   1102001→material_vyn, 1102004→kolaudace, 1102116→pripl_capex,
-//   1102005-1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
-// DOF (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1101925→archeolog_dozor,
-//   1101926→spravni_popl, 1101927→omezeni_dopr, 1101928→popl_omez_zeleznice,
-//   1102213→neplanvykon, 1101923→uhrady_zem_kultury, 1101924→nahrady_maj_ujmy,
-//   1102003_→popl_ver_prostranstvi, 1102560→koordinator_bozp, 9491→zadl_mesto,
-//   9100→proj_geod, 9150→inz_cinnost, 9416→zajisteni_pracoviste,
-//   9417→manipulace_vedeni, 9418→zkousky_vn, 9425→odvody_zem_puda, 9465→mobilni_ts
-// Subdodávky: 53001+53011+530031+53020+53021+53032+53035+53036→asfalt (každý kód=řádek)
-//   53002-53031 mimo asfalt→zadlazby (každý kód=řádek), 53041→nalosute,
-//   54003+54005-54019+54051→def_fasady, 54001→def_str, DT56→stav_prace,
-//   PA90+PA91+QB05+QC01-QC12→optotrubka, 4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
-// Materiál: 800000000301→pisek[0], 800000000303→pisek[1], 800000000321/323/325→beton[0-2],
-//   800000000305/306/307/308→sterk[0-3], 900000000085-088→roura_pe[0-3], M06→protlak_rizeny
-//
-// COMPUTE:
-// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofAllBez + matZhot + prispSklad + gzsKc + stimulKc
-// dofAllBez = dofBez + dofegdBez
-// matZhot = matVlastni − (pisek+sterk+roura_pe+beton)
-//
-// PENDING:
-// - Spustit fix_miniryadlo_castka.sql, fix_mat_vlastni.sql, create_sazby.sql v Supabase
-//
-// CHANGELOG:
-// 20260314_3 – DOF rozděleno na Zhotovitel + EGD, spec_zadlazby smazána, 53030→zadlazby
-// 20260314_2 – kompletní přepis importu: nové MECH/ZEMNI/GN/DOF položky, víceřádkové struktury
-// 20260312_1 – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog, params grid, logout/delete confirm
-// ============================================================
-
+// Build: 20260314_4
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -1018,7 +955,7 @@ export default function StavbaPage() {
         // Mechanizace
         mech: {
           jerab:    [{ id:uid(), popis:'Autojeřáb do 8t',     castka:String(Math.round((stroje['120']||0)+(stroje['160']||0)+(stroje['170']||0))) }],
-          nakladni: [{ id:uid(), popis:'Nákladní auto',       castka:String(Math.round((stroje['200']||0)+(stroje['205']||0)+(stroje['207']||0)+(stroje['210']||0)+(stroje['310']||0)+(stroje['460']||0)+(stroje['480']||0)+(stroje['810']||0)+(stroje['820']||0)+(stroje['990']||0))) }],
+          nakladni: [{ id:uid(), popis:'Nákladní auto',       castka:String(Math.round((stroje['200']||0)+(stroje['205']||0)+(stroje['207']||0)+(stroje['210']||0)+(stroje['310']||0)+(stroje['420']||0)+(stroje['440']||0)+(stroje['460']||0)+(stroje['480']||0)+(stroje['810']||0)+(stroje['820']||0)+(stroje['990']||0))) }],
           traktor:  [{ id:uid(), popis:'Traktor',             castka:String(Math.round((stroje['620']||0)+(stroje['640']||0)+(stroje['645']||0)+(stroje['970']||0))) }],
           plosina:  [{ id:uid(), popis:'Plošina',             castka:String(Math.round((stroje['340']||0)+(stroje['345']||0)+(stroje['350']||0)+(stroje['360']||0)+(stroje['365']||0))) }],
           pila:     [{ id:uid(), popis:'Motorová pila',       castka:String(Math.round(stroje['230']||0)) }],
