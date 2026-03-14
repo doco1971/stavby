@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260314_2
+// Build: 20260314_3
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -8,70 +8,58 @@
 // GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
 //
 // SEKCE KALKULAČKY:
-// MZDY:  mont_vn, mont_nn, mont_opto, zem_vn, zem_nn, rezerv_mont
-// MECH:  jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
-// ZEMNI: zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
-//        uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
-//        zaorkab, vez_ts, protlak, protlak_rizeny, roura_pe, pisek, sterk, beton,
-//        rezerv_zemni
-// GN:    inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
-//        ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
-//        pausal_bo_do150, pausal_bo_nad150
-// DOF:   dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
-//        popl_omez_zeleznice, archeolog_dozor, uhrady_zem_kultury, nahrady_maj_ujmy,
-//        popl_ver_prostranstvi, koordinator_bozp, zadl_mesto, proj_geod, inz_cinnost,
-//        zajisteni_pracoviste, manipulace_vedeni, zkousky_vn, odvody_zem_puda,
-//        mobilni_ts, doprava_zam, spec_zadlazby, rezerva
-//        + gzs a stimul_prirazka (mimo DOF pole, čteny přímo)
+// MZDY:    mont_vn, mont_nn, mont_opto, zem_vn, zem_nn, rezerv_mont
+// MECH:    jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
+// ZEMNI:   zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
+//          uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
+//          zaorkab, vez_ts, protlak, protlak_rizeny, roura_pe, pisek, sterk, beton,
+//          rezerv_zemni
+// GN:      inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
+//          ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
+//          pausal_bo_do150, pausal_bo_nad150
+// DOF:     dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
+//          popl_omez_zeleznice, popl_ver_prostranstvi
+// DOFEGD:  archeolog_dozor, uhrady_zem_kultury, nahrady_maj_ujmy, koordinator_bozp,
+//          zadl_mesto, proj_geod, inz_cinnost, zajisteni_pracoviste, manipulace_vedeni,
+//          zkousky_vn, odvody_zem_puda, mobilni_ts, rezerva
+//          + gzs a stimul_prirazka (mimo pole, čteny přímo z s.dof)
 //
 // EBC IMPORT – MAPOVÁNÍ:
-// Hodiny montáže (51:) + zemní (52:) podle kódu objektu CZD:
-//   CZD00040/CZD00004/CZD00005/CZD00007 → mont_vn / zem_vn
-//   CZD00010 → mont_nn / zem_nn | CZD00013 → mont_opto
-// Stroje (typ S): 120+160+170→jerab, 200+205+207+210+310+460+480+810+820+990→nakladni,
-//   620+640+645+970→traktor, 340+345+350+360+365→plosina, 520+540+220→bagr[0],
-//   540→bagr[1], 720+730+735→bagr[2], 740→kompresor[0], 750→kompresor[1],
-//   260→rezac, 240→mot_pech, 255→uhlova_bruska, 250→protlak[0],
+// Hodiny (51:/52:) podle CZD: CZD00040/04/05/07→mont_vn/zem_vn, CZD00010→mont_nn/zem_nn, CZD00013→mont_opto
+// Stroje (S): 120+160+170→jerab, 200+205+207+210+310+460+480+810+820+990→nakladni,
+//   620+640+645+970→traktor, 340+345+350+360+365→plosina, 520+540+220→bagr[0-2],
+//   740+750→kompresor, 260→rezac, 240→mot_pech, 255→uhlova_bruska, 250→protlak[0],
 //   230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
-// Přirážky (PP/PPV): 9343+9223+9346+9347+9348→gzs,
-//   9349+9221+9321+9224+9344+9225+9345+9249+PPV-CZD*→stimul_prirazka,
-//   9222+9322→doprava_zam
-// GN kódy (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
+// PP/PPV: 9343+9223+9346+9347+9348→gzs, 9349+9221+9321+9224+9344+9225+9345+9249+PPV-CZD*→stimul, 9222+9322→doprava_zam
+// GN (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
 //   1101594→vychozi_revize, 1100167→pripl_ppn, 1101638→ekolog_likv,
 //   1102001→material_vyn, 1102004→kolaudace, 1102116→pripl_capex,
-//   1102005+1102006+1102007+1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
-// DOF kódy (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1101925→archeolog_dozor,
+//   1102005-1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
+// DOF (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1101925→archeolog_dozor,
 //   1101926→spravni_popl, 1101927→omezeni_dopr, 1101928→popl_omez_zeleznice,
 //   1102213→neplanvykon, 1101923→uhrady_zem_kultury, 1101924→nahrady_maj_ujmy,
 //   1102003_→popl_ver_prostranstvi, 1102560→koordinator_bozp, 9491→zadl_mesto,
 //   9100→proj_geod, 9150→inz_cinnost, 9416→zajisteni_pracoviste,
 //   9417→manipulace_vedeni, 9418→zkousky_vn, 9425→odvody_zem_puda, 9465→mobilni_ts
 // Subdodávky: 53001+53011+530031+53020+53021+53032+53035+53036→asfalt (každý kód=řádek)
-//   53002–53031 mimo asfalt→zadlazby (každý kód=řádek)
-//   53041→nalosute, 54003+54005–54019+54051→def_fasady, 54001→def_str,
-//   DT56→stav_prace, PA90+PA91+QB05+QC01–QC12→optotrubka,
-//   4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
-// Materiál vlastní: 800000000301→pisek[0], 800000000303→pisek[1],
-//   800000000321→beton[0], 800000000323→beton[1], 800000000325→beton[2],
-//   800000000305→sterk[0], 800000000306→sterk[1], 800000000307→sterk[2], 800000000308→sterk[3],
-//   900000000085–088→roura_pe[0–3], M06→protlak_rizeny
+//   53002-53031 mimo asfalt→zadlazby (každý kód=řádek), 53041→nalosute,
+//   54003+54005-54019+54051→def_fasady, 54001→def_str, DT56→stav_prace,
+//   PA90+PA91+QB05+QC01-QC12→optotrubka, 4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
+// Materiál: 800000000301→pisek[0], 800000000303→pisek[1], 800000000321/323/325→beton[0-2],
+//   800000000305/306/307/308→sterk[0-3], 900000000085-088→roura_pe[0-3], M06→protlak_rizeny
 //
-// COMPUTE VZORCE:
-// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
-//          + matZhot + prispSklad + gzsKc + stimulKc
+// COMPUTE:
+// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofAllBez + matZhot + prispSklad + gzsKc + stimulKc
+// dofAllBez = dofBez + dofegdBez
 // matZhot = matVlastni − (pisek+sterk+roura_pe+beton)
-// gzsKc a stimulKc jsou mimo DOF pole — čteny přímo z s.dof
 //
 // PENDING:
 // - Spustit fix_miniryadlo_castka.sql, fix_mat_vlastni.sql, create_sazby.sql v Supabase
 //
 // CHANGELOG:
-// 20260314_2 – kompletní přepis importu podle mapovací tabulky v2:
-//   nové MECH (pila, kango, dodavka, mech_sdok), nové ZEMNI (zaorkab, vez_ts, def_str,
-//   protlak_rizeny, pisek, sterk — víceřádkové), nové GN (pausal_bo_do150/nad150),
-//   nové DOF (14 nových položek), zem_vn+zem_nn z CZD kódů, kompletní přirážky
-// 20260312_1 – EBC rozdělení mont VN/NN/Opto, fix dio→gnRowAll, plovoucí SazbyDialog,
-//   protlak 250+EK, params grid 6 sloupců, logout potvrzení, dvě mazání stavby
+// 20260314_3 – DOF rozděleno na Zhotovitel + EGD, spec_zadlazby smazána, 53030→zadlazby
+// 20260314_2 – kompletní přepis importu: nové MECH/ZEMNI/GN/DOF položky, víceřádkové struktury
+// 20260312_1 – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog, params grid, logout/delete confirm
 // ============================================================
 
 'use client'
@@ -151,10 +139,12 @@ const DOF = [
   { key:"spravni_popl",          label:"Správní poplatky" },
   { key:"omezeni_dopr",          label:"Omezení silniční dopravy" },
   { key:"popl_omez_zeleznice",   label:"Omezení železniční dopravy" },
+  { key:"popl_ver_prostranstvi", label:"Poplatky za veřejné prostranství" },
+]
+const DOFEGD = [
   { key:"archeolog_dozor",       label:"Archeologický dozor" },
   { key:"uhrady_zem_kultury",    label:"Úhrady za zemědělské kultury" },
   { key:"nahrady_maj_ujmy",      label:"Náhrady majetkové újmy" },
-  { key:"popl_ver_prostranstvi", label:"Poplatky za veřejné prostranství" },
   { key:"koordinator_bozp",      label:"Činnost koordinátora BOZP" },
   { key:"zadl_mesto",            label:"Zádlažby subdodavatelsky městem" },
   { key:"proj_geod",             label:"Projektové a geodetické práce" },
@@ -164,16 +154,15 @@ const DOF = [
   { key:"zkousky_vn",            label:"Zkoušky VN kabelu" },
   { key:"odvody_zem_puda",       label:"Odvody za odnětí zemědělské půdy" },
   { key:"mobilni_ts",            label:"Mobilní TS – zapůjčení" },
-  { key:"doprava_zam",           label:"Doprava zaměstnanců" },
-  { key:"spec_zadlazby",         label:"Speciální zádlažby" },
   { key:"rezerva",               label:"Rezerva" },
 ]
 const SEC = {
-  mzdy:  { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
-  mech:  { color:'#f59e0b', icon:'🚜', label:'Mechanizace' },
-  zemni: { color:'#ef4444', icon:'⛏️', label:'Zemní práce' },
-  gn:    { color:'#10b981', icon:'📋', label:'Globální náklady' },
-  dof:   { color:'#8b5cf6', icon:'🧾', label:'Ostatní náklady' },
+  mzdy:    { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
+  mech:    { color:'#f59e0b', icon:'🚜', label:'Mechanizace' },
+  zemni:   { color:'#ef4444', icon:'⛏️', label:'Zemní práce' },
+  gn:      { color:'#10b981', icon:'📋', label:'Globální náklady' },
+  dof:     { color:'#8b5cf6', icon:'🧾', label:'Ostatní náklady zhotovitel' },
+  dofegd:  { color:'#6366f1', icon:'🏢', label:'Ostatní náklady EGD' },
 }
 
 const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
@@ -250,8 +239,10 @@ function compute(s) {
   const gnSumS = gnSumBez * (1 + pri)
   const gnZisk = gnSumS - num(s.vypl_gn)
 
-  const dofBez = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
-  const dofSumS = dofBez * (1 + pri)
+  const dofBez    = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
+  const dofegdBez = DOFEGD.reduce((a, it) => a + itemSum(s.dofegd[it.key]?.rows || mkRows()), 0)
+  const dofAllBez = dofBez + dofegdBez
+  const dofSumS   = dofAllBez * (1 + pri)
 
   // Materiál vlastní a zhotovitele = automatické výpočty
   const matVlastni = computeMatVlastni(s.zemni)
@@ -259,10 +250,10 @@ function compute(s) {
   const prispSklad = num(s.prispevek_sklad)
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad + gzsKc + stimulKc
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofAllBez + matZhot + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
-  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
+  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
 }
 
 // ── Dialog: rozpis bázové ceny (plovoucí, přetahovatelný) ────
@@ -687,8 +678,9 @@ export default function StavbaPage() {
       const zemni = data.zemni || {}; for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
 
       const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
-      const dof   = data.dof   || {}; for (const it of DOF)   if (!dof[it.key])   dof[it.key]   = { rows: mkRows(), open: false }
-      setS({ ...data, mzdy, mech, zemni, gn, dof })
+      const dof    = data.dof    || {}; for (const it of DOF)    if (!dof[it.key])    dof[it.key]    = { rows: mkRows(), open: false }
+      const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
+      setS({ ...data, mzdy, mech, zemni, gn, dof, dofegd })
       if (data.updated_at) setLastSaved(new Date(data.updated_at))
       // Načti profil uživatele
       const { data: { user } } = await supabase.auth.getUser()
@@ -750,7 +742,7 @@ export default function StavbaPage() {
   if (!s) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', color:'#64748b' }}>Načítám…</div>
 
   const c = compute(s)
-  const mzdyH = makeH('mzdy'), mechH = makeH('mech'), zemniH = makeH('zemni'), gnH = makeH('gn'), dofH = makeH('dof')
+  const mzdyH = makeH('mzdy'), mechH = makeH('mech'), zemniH = makeH('zemni'), gnH = makeH('gn'), dofH = makeH('dof'), dofegdH = makeH('dofegd')
 
   // Protlaky hodnota pro rozbor (kladná)
   const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
@@ -1173,9 +1165,13 @@ export default function StavbaPage() {
       const noveGn = mkSec(GN)
       for (const [k, v] of Object.entries(parsedEBC.gn)) noveGn[k] = v
       const noveDof = mkSec(DOF)
-      for (const [k, v] of Object.entries(parsedEBC.dof)) noveDof[k] = v
+      const noveDofegd = mkSec(DOFEGD)
+      for (const [k, v] of Object.entries(parsedEBC.dof)) {
+        if (DOF.find(it => it.key === k)) noveDof[k] = v
+        else if (DOFEGD.find(it => it.key === k)) noveDofegd[k] = v
+      }
 
-      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad, hMont, zemniPraceKc })
+      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc })
       setImportDialog(null)
       return
     }
@@ -1307,15 +1303,17 @@ export default function StavbaPage() {
       const gn = mkSec(GN)
       for (const [k, v] of Object.entries(parsed.gn)) gn[k] = v
       const dof = mkSec(DOF)
-      for (const [k, v] of Object.entries(parsed.dof)) dof[k] = v
-      return { ...next, mzdy, mech, zemni, gn, dof }
+      for (const [k, v] of Object.entries(parsed.dof || {})) dof[k] = v
+      const dofegd = mkSec(DOFEGD)
+      for (const [k, v] of Object.entries(parsed.dofegd || {})) dofegd[k] = v
+      return { ...next, mzdy, mech, zemni, gn, dof, dofegd }
     })
     setImportDialog(null)
     setAlertDialog({ title: '✅ Import dokončen', text: 'Všechny hodnoty byly načteny. Zkontroluj a ulož.', color: '#10b981' })
   }
 
   const applySazby = async (sazby) => {
-    const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, prispevekSklad } = sazbyDialog
+    const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad } = sazbyDialog
     const updated = {
       ...s,
       nazev: parsedEBC.nazev || s.nazev,
@@ -1329,7 +1327,8 @@ export default function StavbaPage() {
       mech:  noveMech,
       zemni: noveZemni,
       gn:    noveGn,
-      dof:   noveDof,
+      dof:    noveDof,
+      dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
     }
     setS(updated)
@@ -1449,7 +1448,8 @@ export default function StavbaPage() {
             </div>
 
             <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    sumBez={c.gnSumBez}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="dof"   items={DOF}   data={s.dof}   T={T} color={SEC.dof.color}   icon={SEC.dof.icon}   label={SEC.dof.label}   sumS={c.dofSumS}   sumBez={c.dofBez}                     handlers={dofH}   onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="dof"    items={DOF}    data={s.dof}    T={T} color={SEC.dof.color}    icon={SEC.dof.icon}    label={SEC.dof.label}    sumS={c.dofSumS}   sumBez={c.dofBez}    handlers={dofH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
+            <Sekce secKey="dofegd" items={DOFEGD} data={s.dofegd} T={T} color={SEC.dofegd.color} icon={SEC.dofegd.icon} label={SEC.dofegd.label} sumS={c.dofegdBez} sumBez={c.dofegdBez} handlers={dofegdH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumHzs}  sumBez={c.mzdySumHzs}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
             <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  sumBez={c.mechSumBez}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
             <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} sumBez={c.zemniSumBez} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
@@ -1591,11 +1591,13 @@ export default function StavbaPage() {
               const gnBez = gnRows.reduce((a,r)=>a+r.bez,0)
               const gnSP = gnBez*(1+pri)
 
-              const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
-              const dofSP = dofBez*(1+pri)
+              const dofBez    = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
+              const dofegdBez = DOFEGD.reduce((a,it)=>a+itemSum(s.dofegd[it.key]?.rows||[]),0)
+              const dofAllBez = dofBez + dofegdBez
+              const dofSP = dofAllBez*(1+pri)
               const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
               const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez
+              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofAllBez
 
               return (
                 <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
