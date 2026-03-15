@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_17
+// Build: 20260315_18
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -78,6 +78,8 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_18    – fix dvojité počítání stroje 250: protlak neřízený vyloučen ze zemniSumBez
+//                  stroj 250 se počítá pouze přes protlakStrojKc
 // 20260315_17    – fix zemní práce (52:): brala se col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
 //                  fix protlak neřízený: nově se počítá do zemniSumBez (součást bázové ceny)
 //                  fix protlak neřízený PZ kódy: EK152/EK25/EK41 → EK21-EK26
@@ -268,9 +270,9 @@ function compute(s) {
     const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
     const sP  = bez * (1 + pri)
     zemniT[it.key] = { bez, sP }
-    // noIdx položky (písek, štěrk, beton, roura_pe) jsou součástí matVlastni — nezapočítávat do zemniSumBez
-    // isProtlak (protlak neřízený) se DO zemniSumBez počítá — je součástí bázové ceny
-    if (!it.noIdx) { zemniSumBez += bez; zemniSumS += sP }
+    // noIdx (písek, štěrk, beton, roura_pe) jsou v matVlastni — nezapočítávat
+    // isProtlak (protlak neřízený) — stroj 250 se přičítá samostatně jako protlakStrojKc
+    if (!it.noIdx && !it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
   }
   const zemniZisk = zemniSumS - num(s.vypl_zemni)
 
@@ -1474,7 +1476,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: '20260315_17',
+      import_build: `20260315_17 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     await save(updated)
