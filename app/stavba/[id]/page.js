@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_22
+// Build: 20260315_23
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1277,7 +1277,7 @@ export default function StavbaPage() {
           spravni_popl:          { rows:[{ id:uid(), popis:'Správní poplatky',                   castka:String(gnRowAll(['1101926'])) }], open:false },
           omezeni_dopr:          { rows:[{ id:uid(), popis:'Omezení silniční dopravy',           castka:String(gnRowAll(['1101927'])) }], open:false },
           popl_omez_zeleznice:   { rows:[{ id:uid(), popis:'Omezení železniční dopravy',         castka:String(gnRowAll(['1101928'])) }], open:false },
-          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(Math.round(pmRowAll(['1101925']))) }], open:false },
+          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(Math.round(gnRowAll(['1101925']) || rowsGN.filter(r=>String(r[4]||'').toLowerCase().includes('archeolog')).reduce((a,r)=>a+(num(r[8])||num(r[6])),0))) }], open:false },
           uhrady_zem_kultury:    { rows:[{ id:uid(), popis:'Úhrady za zemědělské kultury',       castka:String(gnRowAll(['1101923'])) }], open:false },
           nahrady_maj_ujmy:      { rows:[{ id:uid(), popis:'Náhrady majetkové újmy',             castka:String(gnRowAll(['1101924'])) }], open:false },
           popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003_'])) }], open:false },
