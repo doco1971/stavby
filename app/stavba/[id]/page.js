@@ -73,9 +73,11 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260315_17    – fix zemní práce (52:): cena se brala z col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
-//                  fix protlak (EK152/EK25/EK41): stejný problém, opraveno stejně
-//                  vrácena detekce colCena pouze pro level=3 řádky (S stroje zůstávají "poslední nenulová hodnota")
+// 20260315_17    – fix zemní práce (52:): brala se col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
+//                  fix protlak (EK152/EK25/EK41): stejný problém
+//                  fix PP/PPV (GZS, stimulační): stejný problém — GZS=0, stimulační=15 Kč
+//                  nová robustní detekce colCena: header Ident → fallback PP řádek (od col[9] odzadu)
+//                  S stroje zůstávají "poslední nenulová hodnota v řádku" — tam funguje správně
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -859,33 +861,36 @@ export default function StavbaPage() {
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
-      // Detekce sloupce ceny pro level=3 řádky (součtové řádky sekcí)
-      // Stroje (S) používají "poslední nenulová hodnota" — tam je struktura jiná
-      // U level=3 řádků: col[8]=celkem hodin, cena je v jiném sloupci (colCena)
-      let colCena = 19  // default
+      // Detekce sloupce ceny (colCena) pro PM/PP/PPV/PZ řádky
+      // Hledá header řádek kde col[2]='Ident' a najde sloupec 'Cena' nebo 'Cena celkem'
+      // Stroje (S) mají kratší řádky a používají vlastní metodu (poslední nenulová hodnota)
+      let colCena = -1
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() === 'Ident') {
-          for (let ci = 8; ci < 25; ci++) {
+          for (let ci = 6; ci < 30; ci++) {
             const h = String(r[ci]||'').toLowerCase().trim()
             if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
           }
           break
         }
       }
-      // Fallback: pokud header nenalezen, zkus najít colCena podle prvního S řádku
-      // (u S řádků víme správnou cenu z "poslední nenulová hodnota")
-      if (colCena === 19) {
+      // Fallback: zkus najít colCena z PP řádku — cena je poslední nenulová hodnota
+      // a zároveň víme že col[8] jsou hodiny (ne cena)
+      if (colCena === -1) {
         for (const r of rowsPM) {
-          if (String(r[2]||'').trim() !== 'S') continue
+          if (String(r[2]||'').trim() !== 'PP') continue
           const kod = String(r[3]||'').trim()
           if (!kod) continue
-          let posledni = 0, posIdx = 0
-          for (let ci = r.length - 1; ci >= 4; ci--) {
-            const v = num(r[ci]); if (v !== 0) { posledni = v; posIdx = ci; break }
+          // Hledej odzadu ale přeskoč col[8] a dříve (to jsou hodiny/výměry)
+          for (let ci = r.length - 1; ci >= 9; ci--) {
+            const v = num(r[ci])
+            if (v !== 0) { colCena = ci; break }
           }
-          if (posIdx > 0) { colCena = posIdx; break }
+          if (colCena !== -1) break
         }
       }
+      // Absolutní fallback
+      if (colCena === -1) colCena = 19
 
       // PM montážní a zemní hodiny — rozdělení podle kódu objektu
       // Mapování kódů objektů na kategorii mzdy:
@@ -977,16 +982,13 @@ export default function StavbaPage() {
       }
 
       // Přirážky PP — GZS, Stimulační, Doprava zaměstnanců
-      // Cena = poslední nenulová hodnota v řádku (fix colCena + fix dvojitého počítání PPV)
+      // Používá colCena — PP/PPV řádky mají stejnou strukturu jako ostatní řádky PM listu
       let gzsKc = 0, stimulacniKc = 0, dopravaZamKc = 0
       for (const r of rowsPM) {
         const typPP = String(r[2]||'').trim()
         if (typPP !== 'PP' && typPP !== 'PPV') continue
         const kod = String(r[3]||'').trim()
-        let cena = 0
-        for (let ci = r.length - 1; ci >= 4; ci--) {
-          const v = num(r[ci]); if (v !== 0) { cena = v; break }
-        }
+        const cena = num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         // GZS
         if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += cena
         // Stimulační přirážka — PPV vše, PP pouze vybrané kódy (ne obojí najednou = fix dvojitého počítání)
