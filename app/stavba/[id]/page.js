@@ -1,4 +1,4 @@
-// Build: 20260314_12
+// Build: 20260315_13
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -951,17 +951,37 @@ export default function StavbaPage() {
         mzdy_ebc_hvn:   hVn,
         mzdy_ebc_hnn:   hNn,
         mzdy_ebc_hopto: hOpto,
-        // Mechanizace
+        // Mechanizace — každý kód = samostatný řádek
         mech: {
-          jerab:    [{ id:uid(), popis:'Autojeřáb do 8t',     castka:String(Math.round((stroje['120']||0)+(stroje['160']||0)+(stroje['170']||0))) }],
-          nakladni: [{ id:uid(), popis:'Nákladní auto',       castka:String(Math.round((stroje['200']||0)+(stroje['205']||0)+(stroje['207']||0)+(stroje['210']||0)+(stroje['310']||0)+(stroje['420']||0)+(stroje['440']||0)+(stroje['460']||0)+(stroje['480']||0)+(stroje['810']||0)+(stroje['820']||0)+(stroje['990']||0))) }],
-          traktor:  [{ id:uid(), popis:'Traktor',             castka:String(Math.round((stroje['620']||0)+(stroje['640']||0)+(stroje['645']||0)+(stroje['970']||0))) }],
-          plosina:  [{ id:uid(), popis:'Plošina',             castka:String(Math.round((stroje['340']||0)+(stroje['345']||0)+(stroje['350']||0)+(stroje['360']||0)+(stroje['365']||0))) }],
-          pila:     [{ id:uid(), popis:'Motorová pila',       castka:String(Math.round(stroje['230']||0)) }],
-          kango:    [{ id:uid(), popis:'Bourací kladivo',     castka:String(Math.round(stroje['270']||0)) }],
-          dodavka:  [{ id:uid(), popis:'Dodávkové auto',      castka:String(Math.round(stroje['410']||0)) }],
-          mech_sdok:[{ id:uid(), popis:'Navíjecí zařízení',   castka:String(Math.round(stroje['995']||0)) },
-                     { id:uid(), popis:'Odvíjecí zařízení',   castka:String(Math.round(stroje['996']||0)) }],
+          jerab:    [{ id:uid(), popis:'Autojeřáb do 8t (120)',     castka:String(Math.round(stroje['120']||0)) },
+                     { id:uid(), popis:'Autojeřáb 16t (160)',       castka:String(Math.round(stroje['160']||0)) },
+                     { id:uid(), popis:'Doprava autojeřábu (170)',  castka:String(Math.round(stroje['170']||0)) }],
+          nakladni: [{ id:uid(), popis:'Nákl. auto 3,5t SH (200)',  castka:String(Math.round(stroje['200']||0)) },
+                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
+                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
+                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
+                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
+                     { id:uid(), popis:'Nákl. auto 3,5t KM (420)',  castka:String(Math.round(stroje['420']||0)) },
+                     { id:uid(), popis:'Nákl. auto 6t KM (440)',    castka:String(Math.round(stroje['440']||0)) },
+                     { id:uid(), popis:'Nákl. auto 8t KM (460)',    castka:String(Math.round(stroje['460']||0)) },
+                     { id:uid(), popis:'Nákl. auto 10t KM (480)',   castka:String(Math.round(stroje['480']||0)) },
+                     { id:uid(), popis:'Tahač návěsu (810)',         castka:String(Math.round(stroje['810']||0)) },
+                     { id:uid(), popis:'Návěs (820)',                castka:String(Math.round(stroje['820']||0)) },
+                     { id:uid(), popis:'Brzdná souprava (990)',      castka:String(Math.round(stroje['990']||0)) }],
+          traktor:  [{ id:uid(), popis:'Traktor kol. s mech. (620)', castka:String(Math.round(stroje['620']||0)) },
+                     { id:uid(), popis:'Traktor kol. bez mech. (640)',castka:String(Math.round(stroje['640']||0)) },
+                     { id:uid(), popis:'Doprava traktoru (645)',     castka:String(Math.round(stroje['645']||0)) },
+                     { id:uid(), popis:'Traktor pásový (970)',       castka:String(Math.round(stroje['970']||0)) }],
+          plosina:  [{ id:uid(), popis:'Plošina MP 13m (340)',       castka:String(Math.round(stroje['340']||0)) },
+                     { id:uid(), popis:'Plošina MP 20m (345)',       castka:String(Math.round(stroje['345']||0)) },
+                     { id:uid(), popis:'Přeprava plošiny 20m (350)', castka:String(Math.round(stroje['350']||0)) },
+                     { id:uid(), popis:'Plošina MP 27m (360)',       castka:String(Math.round(stroje['360']||0)) },
+                     { id:uid(), popis:'Přeprava plošiny 27m (365)', castka:String(Math.round(stroje['365']||0)) }],
+          pila:     [{ id:uid(), popis:'Motorová pila (230)',        castka:String(Math.round(stroje['230']||0)) }],
+          kango:    [{ id:uid(), popis:'Bourací kladivo Kango (270)',castka:String(Math.round(stroje['270']||0)) }],
+          dodavka:  [{ id:uid(), popis:'Dodávkové auto (410)',       castka:String(Math.round(stroje['410']||0)) }],
+          mech_sdok:[{ id:uid(), popis:'Navíjecí zařízení (995)',    castka:String(Math.round(stroje['995']||0)) },
+                     { id:uid(), popis:'Odvíjecí zařízení (996)',    castka:String(Math.round(stroje['996']||0)) }],
         },
         // Zemní práce (Kč)
         zemni: {
