@@ -35,7 +35,9 @@
 // Stroje (S): 120+160+170→jerab (3 řádky), 200+205+207+210+310+420+440+460+480+810+820+990→nakladni (12 řádků),
 //   620+640+645+970→traktor (4 řádky), 340+345+350+360+365→plosina (5 řádků),
 //   520+540+220→bagr[0-2], 740+750→kompresor, 260→rezac, 240→mot_pech,
-//   255→uhlova_bruska, 250→protlak[0], 230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
+//   255→uhlova_bruska, 250→protlak_nerizeny[0], 230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
+// Protlak neřízený: stroj 250 + PZ kódy EK21+EK22+EK23+EK24+EK25+EK26
+// Protlak řízený: subdodávky 4760V+47622+47623+47624+47625+47626+47627+47628+47629 (každý kód=řádek)
 // PP/PPV: 9343+9223+9346+9347+9348→gzs,
 //   PPV vše + PP kódy 9349+9221+9321+9224+9344+9225+9345+9249→stimul_prirazka (ne obojí = žádné dvojité počítání),
 //   9222+9322→doprava_zam (DOF)
@@ -75,12 +77,12 @@
 //
 // CHANGELOG:
 // 20260315_17    – fix zemní práce (52:): brala se col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
-//                  fix protlak (EK152/EK25/EK41): stejný problém
-//                  fix PP/PPV (GZS, stimulační): stejný problém — GZS=0, stimulační=15 Kč
-//                  nová robustní detekce colCena: header Ident → fallback PP řádek (od col[9] odzadu)
+//                  fix protlak (EK152/EK25/EK41): špatné kódy → opraveno na EK21-EK26
+//                  fix protlak řízený: byl M06 → opraveno na subdodávky 4760V+47622-47629 (každý kód=řádek)
+//                  fix PP/PPV (GZS, stimulační): GZS=0, stimulační=15 Kč → opraveno colCena
 //                  fix bazova: písek/štěrk/beton/roura_pe (noIdx) se NEzapočítávají do zemniSumBez
-//                  → matVlastni zůstává v bazové ceně, noIdx položky se evidují ale nesčítají se dvakrát
-//                  S stroje zůstávají "poslední nenulová hodnota v řádku" — tam funguje správně
+//                  protlak_rizeny odstraněn noIdx → správně se počítá do zemniSumBez
+//                  nová robustní detekce colCena: header Ident → fallback PP řádek — tam funguje správně
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -149,7 +151,7 @@ const ZEMNI = [
   { key:"zaorkab",        label:"Zaorání kabelů" },
   { key:"vez_ts",         label:"Věžová transformovna" },
   { key:"protlak",        label:"Protlak neřízený", isProtlak:true },
-  { key:"protlak_rizeny", label:"Protlak řízený", noIdx:true },
+  { key:"protlak_rizeny", label:"Protlak řízený" },
   { key:"roura_pe",       label:"Roura PE", noIdx:true },
   { key:"pisek",          label:"Písek", noIdx:true },
   { key:"sterk",          label:"Štěrk / kamenivo", noIdx:true },
@@ -1042,9 +1044,8 @@ export default function StavbaPage() {
         }
       }
 
-      // Protlak neřízený — PZ položky EK152, EK25, EK41 sečti přes všechny objekty
-      // Používá colCena — detailní PZ řádky mají stejnou strukturu jako level=3
-      const PROTLAK_KODY = ['EK152','EK25','EK41']
+      // Protlak neřízený — PZ položky EK21-EK26 + stroj 250 (stroj je v parsedEBC.zemni.protlak[0])
+      const PROTLAK_KODY = ['EK21','EK22','EK23','EK24','EK25','EK26']
       let protlakPzKc = 0
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PZ') continue
@@ -1053,6 +1054,9 @@ export default function StavbaPage() {
           protlakPzKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         }
       }
+
+      // Protlak řízený — subdodávky kódy 4760V, 47622-47629 (každý kód = samostatný řádek)
+      const PROTLAK_RIZ_KODY = ['4760V','47622','47623','47624','47625','47626','47627','47628','47629']
 
       // Materiál vlastní — sečti podle kódu přes všechny výskyty
       const matSum = {}
@@ -1204,7 +1208,15 @@ export default function StavbaPage() {
                          { id:uid(), popis:'Lesní cesta recyklát oprava (53036)',        castka:String(Math.round(subRows['53036']||0)) }],
           protlak:      [{ id:uid(), popis:'Podtunelovač (stroj 250)',  castka:String(Math.round(stroje['250']||0)) },
                          { id:uid(), popis:'Protlak PZ (EK152+EK25+EK41)', castka:String(Math.round(protlakPzKc)) }],
-          protlak_rizeny:[{ id:uid(), popis:'Protlak řízený (M06)',     castka:String(Math.round(protlakM06)) }],
+          protlak_rizeny:[{ id:uid(), popis:'Protlak řízený HDD (4760V)',  castka:String(Math.round(subRows['4760V']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47622)',       castka:String(Math.round(subRows['47622']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47623)',       castka:String(Math.round(subRows['47623']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47624)',       castka:String(Math.round(subRows['47624']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47625)',       castka:String(Math.round(subRows['47625']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47626)',       castka:String(Math.round(subRows['47626']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47627)',       castka:String(Math.round(subRows['47627']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47628)',       castka:String(Math.round(subRows['47628']||0)) },
+                         { id:uid(), popis:'Protlak řízený (47629)',       castka:String(Math.round(subRows['47629']||0)) }],
           pisek:        [{ id:uid(), popis:'Písek D0-2 (800000000301)', castka:String(Math.round(pisekD02)) },
                          { id:uid(), popis:'Písek B0-4 (800000000303)', castka:String(Math.round(pisekB04)) }],
           beton:        [{ id:uid(), popis:'Beton C8/10 (800000000321)',     castka:String(Math.round(betonC810)) },
