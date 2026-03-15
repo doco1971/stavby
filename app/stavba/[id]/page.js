@@ -60,7 +60,8 @@
 //
 // COMPUTE:
 // bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
-//          + matVlastni + prispSklad + gzsKc + stimulKc
+//          + matZhot + prispSklad + gzsKc + stimulKc
+// matZhot = matVlastni − (písek + štěrk + beton + roura_pe) — odečteny položky které jsou už v zemniSumBez
 // dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
 // matVlastni = itemSum(zemni['mat_vlastni'].rows)
 //
@@ -77,6 +78,7 @@
 //                  fix protlak (EK152/EK25/EK41): stejný problém
 //                  fix PP/PPV (GZS, stimulační): stejný problém — GZS=0, stimulační=15 Kč
 //                  nová robustní detekce colCena: header Ident → fallback PP řádek (od col[9] odzadu)
+//                  fix bazova: matVlastni → matZhot (písek/štěrk/beton jsou už v zemniSumBez = dvojité počítání +40433 Kč)
 //                  S stroje zůstávají "poslední nenulová hodnota v řádku" — tam funguje správně
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
@@ -285,7 +287,8 @@ function compute(s) {
   const prispSklad = num(s.prispevek_sklad)
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastni + prispSklad + gzsKc + stimulKc
+  // matZhot místo matVlastni — písek/štěrk/beton jsou už v zemniSumBez, nesmí se počítat dvakrát
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matZhot + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
