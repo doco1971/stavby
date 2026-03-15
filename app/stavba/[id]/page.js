@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_16
+// Build: 20260315_17
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -61,6 +61,7 @@
 // COMPUTE:
 // bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
 //          + matVlastni + prispSklad + gzsKc + stimulKc
+// zemniSumBez NEzahrnuje noIdx položky (písek, štěrk, beton, roura_pe) — ty jsou v matVlastni
 // dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
 // matVlastni = itemSum(zemni['mat_vlastni'].rows)
 //
@@ -73,6 +74,13 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_17    – fix zemní práce (52:): brala se col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
+//                  fix protlak (EK152/EK25/EK41): stejný problém
+//                  fix PP/PPV (GZS, stimulační): stejný problém — GZS=0, stimulační=15 Kč
+//                  nová robustní detekce colCena: header Ident → fallback PP řádek (od col[9] odzadu)
+//                  fix bazova: písek/štěrk/beton/roura_pe (noIdx) se NEzapočítávají do zemniSumBez
+//                  → matVlastni zůstává v bazové ceně, noIdx položky se evidují ale nesčítají se dvakrát
+//                  S stroje zůstávají "poslední nenulová hodnota v řádku" — tam funguje správně
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -255,7 +263,8 @@ function compute(s) {
     const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
     const sP  = bez * (1 + pri)
     zemniT[it.key] = { bez, sP }
-    if (!it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
+    // noIdx položky (písek, štěrk, beton, roura_pe) jsou součástí matVlastni — nezapočítávat do zemniSumBez
+    if (!it.isProtlak && !it.noIdx) { zemniSumBez += bez; zemniSumS += sP }
   }
   const zemniZisk = zemniSumS - num(s.vypl_zemni)
 
@@ -280,6 +289,7 @@ function compute(s) {
   const prispSklad = num(s.prispevek_sklad)
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
+  // matVlastni do bazové ceny — písek/štěrk/beton/roura_pe jsou noIdx a NEjsou v zemniSumBez
   const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastni + prispSklad + gzsKc + stimulKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
@@ -446,18 +456,20 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 // ── komponenty ───────────────────────────────────────────
 function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
   const [open, setOpen] = useState(false)
+  const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
   const val = row.popis || ''
   const suggestions = katalogItems
     ? katalogItems.filter(k => k.sekce === secKey && k.popis.toLowerCase().includes(val.toLowerCase()) && k.popis !== val)
     : []
 
   const handleBlur = () => {
-    // Po opuštění pole — pokud je nový popis který není v katalogu, nabídneme zařazení
     setTimeout(() => {
       setOpen(false)
-      if (val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
+      // Dialog katalogu jen když uživatel skutečně editoval text (ne kopírování/označování)
+      if (userEdited.current && val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
         onNewPopis && onNewPopis(val.trim(), secKey)
       }
+      userEdited.current = false
     }, 200)
   }
 
@@ -465,7 +477,7 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, s
     <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 28px', gap:6, marginBottom:5, position:'relative' }}>
       <div style={{ position:'relative' }}>
         <input value={val} placeholder="Popis…"
-          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true) }}
+          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true); userEdited.current = true }}
           onFocus={() => setOpen(true)}
           onBlur={handleBlur}
           style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color:T.text, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'system-ui', boxSizing:'border-box' }} />
@@ -854,7 +866,36 @@ export default function StavbaPage() {
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
-      // Detekce sloupce ceny — již není potřeba, všude používáme poslední nenulovou hodnotu v řádku
+      // Detekce sloupce ceny (colCena) pro PM/PP/PPV/PZ řádky
+      // Hledá header řádek kde col[2]='Ident' a najde sloupec 'Cena' nebo 'Cena celkem'
+      // Stroje (S) mají kratší řádky a používají vlastní metodu (poslední nenulová hodnota)
+      let colCena = -1
+      for (const r of rowsPM) {
+        if (String(r[2]||'').trim() === 'Ident') {
+          for (let ci = 6; ci < 30; ci++) {
+            const h = String(r[ci]||'').toLowerCase().trim()
+            if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
+          }
+          break
+        }
+      }
+      // Fallback: zkus najít colCena z PP řádku — cena je poslední nenulová hodnota
+      // a zároveň víme že col[8] jsou hodiny (ne cena)
+      if (colCena === -1) {
+        for (const r of rowsPM) {
+          if (String(r[2]||'').trim() !== 'PP') continue
+          const kod = String(r[3]||'').trim()
+          if (!kod) continue
+          // Hledej odzadu ale přeskoč col[8] a dříve (to jsou hodiny/výměry)
+          for (let ci = r.length - 1; ci >= 9; ci--) {
+            const v = num(r[ci])
+            if (v !== 0) { colCena = ci; break }
+          }
+          if (colCena !== -1) break
+        }
+      }
+      // Absolutní fallback
+      if (colCena === -1) colCena = 19
 
       // PM montážní a zemní hodiny — rozdělení podle kódu objektu
       // Mapování kódů objektů na kategorii mzdy:
@@ -946,16 +987,13 @@ export default function StavbaPage() {
       }
 
       // Přirážky PP — GZS, Stimulační, Doprava zaměstnanců
-      // Cena = poslední nenulová hodnota v řádku (fix colCena + fix dvojitého počítání PPV)
+      // Používá colCena — PP/PPV řádky mají stejnou strukturu jako ostatní řádky PM listu
       let gzsKc = 0, stimulacniKc = 0, dopravaZamKc = 0
       for (const r of rowsPM) {
         const typPP = String(r[2]||'').trim()
         if (typPP !== 'PP' && typPP !== 'PPV') continue
         const kod = String(r[3]||'').trim()
-        let cena = 0
-        for (let ci = r.length - 1; ci >= 4; ci--) {
-          const v = num(r[ci]); if (v !== 0) { cena = v; break }
-        }
+        const cena = num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         // GZS
         if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += cena
         // Stimulační přirážka — PPV vše, PP pouze vybrané kódy (ne obojí najednou = fix dvojitého počítání)
@@ -994,33 +1032,25 @@ export default function StavbaPage() {
       const vezTs_kc      = subSum('4110V','4111','4112','4901')
 
       // PZ zemní práce v Kč — součtový řádek level=3 sekce 52:/PZ:
-      // Cena = poslední nenulová hodnota v řádku
+      // Používá colCena — na level=3 řádku col[8]=celkem hodin, cena je v colCena
       let zemniPraceKc = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if ((col1 === 3 || col1 === '3') && (popis.startsWith('52:') || popis.startsWith('pz:'))) {
-          let cena = 0
-          for (let ci = r.length - 1; ci >= 4; ci--) {
-            const v = num(r[ci]); if (v !== 0) { cena = v; break }
-          }
-          zemniPraceKc += cena
+          zemniPraceKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         }
       }
 
       // Protlak neřízený — PZ položky EK152, EK25, EK41 sečti přes všechny objekty
-      // Cena = poslední nenulová hodnota v řádku
+      // Používá colCena — detailní PZ řádky mají stejnou strukturu jako level=3
       const PROTLAK_KODY = ['EK152','EK25','EK41']
       let protlakPzKc = 0
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PZ') continue
         const kod = String(r[3]||'').trim()
         if (PROTLAK_KODY.includes(kod)) {
-          let cena = 0
-          for (let ci = r.length - 1; ci >= 4; ci--) {
-            const v = num(r[ci]); if (v !== 0) { cena = v; break }
-          }
-          protlakPzKc += cena
+          protlakPzKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         }
       }
 
@@ -1091,14 +1121,14 @@ export default function StavbaPage() {
                      { id:uid(), popis:'Autojeřáb 16t (160)',       castka:String(Math.round(stroje['160']||0)) },
                      { id:uid(), popis:'Doprava autojeřábu (170)',  castka:String(Math.round(stroje['170']||0)) }],
           nakladni: [{ id:uid(), popis:'Nákl. auto 3,5t SH (200)',  castka:String(Math.round(stroje['200']||0)) },
-                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
-                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
-                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
-                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
                      { id:uid(), popis:'Nákl. auto 3,5t KM (420)',  castka:String(Math.round(stroje['420']||0)) },
+                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
                      { id:uid(), popis:'Nákl. auto 6t KM (440)',    castka:String(Math.round(stroje['440']||0)) },
+                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
                      { id:uid(), popis:'Nákl. auto 8t KM (460)',    castka:String(Math.round(stroje['460']||0)) },
                      { id:uid(), popis:'Nákl. auto 10t KM (480)',   castka:String(Math.round(stroje['480']||0)) },
+                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
+                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
                      { id:uid(), popis:'Tahač návěsu (810)',         castka:String(Math.round(stroje['810']||0)) },
                      { id:uid(), popis:'Návěs (820)',                castka:String(Math.round(stroje['820']||0)) },
                      { id:uid(), popis:'Brzdná souprava (990)',      castka:String(Math.round(stroje['990']||0)) }],
