@@ -1,4 +1,98 @@
-// Build: 20260315_15
+// ============================================================
+// Build: 20260315_16
+// Kalkulace stavby – hlavní editor stavby
+// ============================================================
+// POPIS APLIKACE:
+// React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
+// Stack: Next.js 14 + Supabase + Vercel + GitHub
+// GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
+// Supabase: https://khvnaiokxvnbdogaphlw.supabase.co
+// Anon key: sb_publishable_WSrjfJhMNxxzfwRCPYBfYA_0LcCoNXq
+// Admin: doco@seznam.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
+//
+// SEKCE KALKULAČKY:
+// MZDY:    mont_vn, mont_nn, mont_opto, rezerv_mont
+// MECH:    jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
+// ZEMNI:   zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
+//          uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
+//          zaorkab, vez_ts, protlak, protlak_rizeny, roura_pe, pisek, sterk, beton,
+//          mat_vlastni, rezerv_zemni
+// GN:      inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
+//          ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
+//          pausal_bo_do150, pausal_bo_nad150
+// DOF:     dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
+//          popl_omez_zeleznice, popl_ver_prostranstvi
+//          + gzs, stimul_prirazka (mimo pole, čteny přímo z s.dof)
+// DOFEGD:  archeolog_dozor, uhrady_zem_kultury, nahrady_maj_ujmy, koordinator_bozp,
+//          zadl_mesto, proj_geod, inz_cinnost, zajisteni_pracoviste, manipulace_vedeni,
+//          zkousky_vn, odvody_zem_puda, mobilni_ts, rezerva
+//          DOFEGD se NEZAPOČÍTÁVÁ do bázové ceny — pouze evidenční
+//
+// EBC IMPORT – MAPOVÁNÍ:
+// Hodiny (51:/52:) podle CZD: CZD00040/04/05/07→mont_vn, CZD00010→mont_nn, CZD00013→mont_opto
+//   Fallback: když level=3 vrátí 0 (vzorec SUBTOTAL), sečte detailní PM/PZ řádky
+//   Funguje pro .xls i .xlsx
+// Stroje (S): 120+160+170→jerab (3 řádky), 200+205+207+210+310+420+440+460+480+810+820+990→nakladni (12 řádků),
+//   620+640+645+970→traktor (4 řádky), 340+345+350+360+365→plosina (5 řádků),
+//   520+540+220→bagr[0-2], 740+750→kompresor, 260→rezac, 240→mot_pech,
+//   255→uhlova_bruska, 250→protlak[0], 230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
+// PP/PPV: 9343+9223+9346+9347+9348→gzs,
+//   PPV vše + PP kódy 9349+9221+9321+9224+9344+9225+9345+9249→stimul_prirazka (ne obojí = žádné dvojité počítání),
+//   9222+9322→doprava_zam (DOF)
+// Cena z PM listu: vždy poslední nenulová hodnota v řádku (funguje pro všechny formáty EBC)
+// GN (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
+//   1101594→vychozi_revize, 1100167→pripl_ppn, 1101638→ekolog_likv,
+//   1102001→material_vyn, 1102004→kolaudace, 1102116→pripl_capex,
+//   1102005-1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
+// DOF (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1101925→archeolog_dozor,
+//   1101926→spravni_popl, 1101927→omezeni_dopr, 1101928→popl_omez_zeleznice,
+//   1102213→neplanvykon, 1101923→uhrady_zem_kultury, 1101924→nahrady_maj_ujmy,
+//   1102003_→popl_ver_prostranstvi, 1102560→koordinator_bozp, 9491→zadl_mesto,
+//   9100→proj_geod, 9150→inz_cinnost, 9416→zajisteni_pracoviste,
+//   9417→manipulace_vedeni, 9418→zkousky_vn, 9425→odvody_zem_puda, 9465→mobilni_ts
+// Subdodávky: 53001+53011+530031+53020+53021+53032+53035+53036→asfalt (každý kód=řádek)
+//   53002-53031 mimo asfalt→zadlazby (každý kód=řádek), 53041→nalosute,
+//   54003+54005-54019+54051→def_fasady, 54001→def_str, DT56→stav_prace,
+//   PA90+PA91+QB05+QC01-QC12→optotrubka, 4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
+// Materiál: 800000000301→pisek[0], 800000000303→pisek[1],
+//   800000000321/323/325→beton[0-2], 800000000305/306/307/308→sterk[0-3],
+//   900000000085-088→roura_pe[0-3], M06→protlak_rizeny
+//
+// COMPUTE:
+// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
+//          + matVlastni + prispSklad + gzsKc + stimulKc
+// dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
+// matVlastni = itemSum(zemni['mat_vlastni'].rows)
+//
+// NASTAVENÍ:
+// Tab Výchozí sazby ukládá do profiles.default_sazby (jsonb)
+// Předvyplní SazbyDialog při EBC importu
+//
+// SUPABASE — potřebné SQL migrace (již spuštěno):
+// ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
+// ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
+//
+// CHANGELOG:
+// 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
+//                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
+//                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
+//                  Bonus fix: stimulační přirážka se nepočítala dvakrát pro PPV řádky s PP kódem
+// 20260315_15    – export s opravenými cestami nastaveni, všechny fixy z 14/15.03.2026
+// 20260315_14 – fix hodiny: fallback PM/PZ detailní řádky pro xls/xlsx
+// 20260315_13 – MECH import: každý kód = samostatný řádek (nakladni 12x, jerab 3x atd.)
+// 20260314_12 – formát data "- (DD.MM.RRRR HH:MM)", fix newEmail v nastaveni
+// 20260314_11 – nastaveni: tab Výchozí sazby, SazbyDialog předvyplnění, datum importu
+// 20260314_10 – fix duplikát matVlastniR
+// 20260314_9  – bazova: matZhot → matVlastni
+// 20260314_8  – smazány zem_vn/zem_nn z MZDY
+// 20260314_7  – fix mat_vlastni přidán zpět do importu
+// 20260314_6  – fix gzs+stimul_prirazka fallback do s.dof po importu
+// 20260314_5  – DOFEGD vyjmuty z bazové ceny
+// 20260314_4  – fix kódy 420+440 do nakladni
+// 20260314_3  – DOF rozděleno na Zhotovitel + EGD, spec_zadlazby smazána
+// 20260314_2  – kompletní přepis importu podle mapovací tabulky v2
+// 20260312_1  – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog
+// ============================================================
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
@@ -760,19 +854,7 @@ export default function StavbaPage() {
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
-      // Detekce sloupce ceny — hledej header řádek (obsahuje 'Ident' v col[2])
-      // Jemnice: col[19]='Cena celkem', Chlístov: col[10]='Cena'
-      let colCena = 19  // default Jemnice
-      for (const r of rowsPM) {
-        if (String(r[2]||'').trim() === 'Ident') {
-          // Najdi sloupec kde je 'Cena' nebo 'Cena celkem'
-          for (let ci = 8; ci < 22; ci++) {
-            const h = String(r[ci]||'').toLowerCase()
-            if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
-          }
-          break
-        }
-      }
+      // Detekce sloupce ceny — již není potřeba, všude používáme poslední nenulovou hodnotu v řádku
 
       // PM montážní a zemní hodiny — rozdělení podle kódu objektu
       // Mapování kódů objektů na kategorii mzdy:
@@ -848,26 +930,39 @@ export default function StavbaPage() {
       const hZem  = hZemVn + hZemNn
 
       // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
+      // Cena = poslední nenulová hodnota v řádku (nezávisle na colCena, funguje pro všechny formáty EBC)
       const stroje = {}
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'S') continue
-        const kod  = String(r[3]||'').trim()
-        const cena = num(r[colCena]) || num(r[colCena+1])
+        const kod = String(r[3]||'').trim()
+        if (!kod) continue
+        // Najdi poslední nenulovou číselnou hodnotu v řádku — to je vždy Cena celkem
+        let cena = 0
+        for (let ci = r.length - 1; ci >= 4; ci--) {
+          const v = num(r[ci])
+          if (v !== 0) { cena = v; break }
+        }
         stroje[kod] = (stroje[kod] || 0) + cena
       }
 
       // Přirážky PP — GZS, Stimulační, Doprava zaměstnanců
+      // Cena = poslední nenulová hodnota v řádku (fix colCena + fix dvojitého počítání PPV)
       let gzsKc = 0, stimulacniKc = 0, dopravaZamKc = 0
       for (const r of rowsPM) {
-        if (String(r[2]||'').trim() !== 'PP' && String(r[2]||'').trim() !== 'PPV') continue
+        const typPP = String(r[2]||'').trim()
+        if (typPP !== 'PP' && typPP !== 'PPV') continue
         const kod = String(r[3]||'').trim()
+        let cena = 0
+        for (let ci = r.length - 1; ci >= 4; ci--) {
+          const v = num(r[ci]); if (v !== 0) { cena = v; break }
+        }
         // GZS
-        if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += num(r[colCena])
-        // Stimulační přirážka (PP i PPV)
-        if (['9349','9221','9321','9224','9344','9225','9345','9249'].includes(kod)) stimulacniKc += num(r[colCena])
-        if (String(r[2]||'').trim() === 'PPV') stimulacniKc += num(r[colCena])
+        if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += cena
+        // Stimulační přirážka — PPV vše, PP pouze vybrané kódy (ne obojí najednou = fix dvojitého počítání)
+        if (typPP === 'PPV') stimulacniKc += cena
+        else if (['9349','9221','9321','9224','9344','9225','9345','9249'].includes(kod)) stimulacniKc += cena
         // Doprava zaměstnanců
-        if (['9222','9322'].includes(kod)) dopravaZamKc += num(r[colCena])
+        if (['9222','9322'].includes(kod)) dopravaZamKc += cena
       }
 
       // Subdodávky — kompletní mapování
@@ -898,23 +993,35 @@ export default function StavbaPage() {
       const zaorkab_kc    = subSum('4601','4611')
       const vezTs_kc      = subSum('4110V','4111','4112','4901')
 
-      // PZ zemní práce v Kč — hledám řádek kde col[4] obsahuje 'PZ:'
+      // PZ zemní práce v Kč — součtový řádek level=3 sekce 52:/PZ:
+      // Cena = poslední nenulová hodnota v řádku
       let zemniPraceKc = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if ((col1 === 3 || col1 === '3') && (popis.startsWith('52:') || popis.startsWith('pz:'))) {
-          zemniPraceKc += num(r[colCena]) || num(r[colCena+1])
+          let cena = 0
+          for (let ci = r.length - 1; ci >= 4; ci--) {
+            const v = num(r[ci]); if (v !== 0) { cena = v; break }
+          }
+          zemniPraceKc += cena
         }
       }
 
       // Protlak neřízený — PZ položky EK152, EK25, EK41 sečti přes všechny objekty
+      // Cena = poslední nenulová hodnota v řádku
       const PROTLAK_KODY = ['EK152','EK25','EK41']
       let protlakPzKc = 0
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PZ') continue
         const kod = String(r[3]||'').trim()
-        if (PROTLAK_KODY.includes(kod)) protlakPzKc += num(r[colCena]) || num(r[colCena+1])
+        if (PROTLAK_KODY.includes(kod)) {
+          let cena = 0
+          for (let ci = r.length - 1; ci >= 4; ci--) {
+            const v = num(r[ci]); if (v !== 0) { cena = v; break }
+          }
+          protlakPzKc += cena
+        }
       }
 
       // Materiál vlastní — sečti podle kódu přes všechny výskyty
