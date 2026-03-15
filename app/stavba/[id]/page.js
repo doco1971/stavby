@@ -63,7 +63,9 @@
 // COMPUTE:
 // bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
 //          + matVlastni + prispSklad + gzsKc + stimulKc
-// zemniSumBez NEzahrnuje noIdx položky (písek, štěrk, beton, roura_pe) — ty jsou v matVlastni
+// zemniSumBez zahrnuje: zemni_prace, zádlažby, asfalt, bagr, kompresor, rezac, bruska, mot_pech,
+//   stav_prace, def_fasady, def_str, optotrubka, zaorkab, vez_ts, protlak_nerizeny, protlak_rizeny, rezerv_zemni
+// zemniSumBez NEzahrnuje: písek, štěrk, beton, roura_pe (noIdx=true) — jsou součástí matVlastni
 // dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
 // matVlastni = itemSum(zemni['mat_vlastni'].rows)
 //
@@ -77,12 +79,13 @@
 //
 // CHANGELOG:
 // 20260315_17    – fix zemní práce (52:): brala se col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
-//                  fix protlak (EK152/EK25/EK41): špatné kódy → opraveno na EK21-EK26
+//                  fix protlak neřízený: nově se počítá do zemniSumBez (součást bázové ceny)
+//                  fix protlak neřízený PZ kódy: EK152/EK25/EK41 → EK21-EK26
 //                  fix protlak řízený: byl M06 → opraveno na subdodávky 4760V+47622-47629 (každý kód=řádek)
 //                  fix PP/PPV (GZS, stimulační): GZS=0, stimulační=15 Kč → opraveno colCena
 //                  fix bazova: písek/štěrk/beton/roura_pe (noIdx) se NEzapočítávají do zemniSumBez
-//                  protlak_rizeny odstraněn noIdx → správně se počítá do zemniSumBez
-//                  nová robustní detekce colCena: header Ident → fallback PP řádek — tam funguje správně
+//                  nová robustní detekce colCena: header Ident → fallback PP řádek
+//                  UI: bázová cena + zisk přesunuty vedle názvu stavby (název celý viditelný)
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -150,7 +153,7 @@ const ZEMNI = [
   { key:"optotrubka",     label:"Optotrubka" },
   { key:"zaorkab",        label:"Zaorání kabelů" },
   { key:"vez_ts",         label:"Věžová transformovna" },
-  { key:"protlak",        label:"Protlak neřízený", isProtlak:true },
+  { key:"protlak",        label:"Protlak neřízený" },
   { key:"protlak_rizeny", label:"Protlak řízený" },
   { key:"roura_pe",       label:"Roura PE", noIdx:true },
   { key:"pisek",          label:"Písek", noIdx:true },
@@ -266,7 +269,8 @@ function compute(s) {
     const sP  = bez * (1 + pri)
     zemniT[it.key] = { bez, sP }
     // noIdx položky (písek, štěrk, beton, roura_pe) jsou součástí matVlastni — nezapočítávat do zemniSumBez
-    if (!it.isProtlak && !it.noIdx) { zemniSumBez += bez; zemniSumS += sP }
+    // isProtlak (protlak neřízený) se DO zemniSumBez počítá — je součástí bázové ceny
+    if (!it.noIdx) { zemniSumBez += bez; zemniSumS += sP }
   }
   const zemniZisk = zemniSumS - num(s.vypl_zemni)
 
@@ -1485,8 +1489,20 @@ export default function StavbaPage() {
             <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
-              <div style={{ fontSize:16, fontWeight:800, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
+              <div style={{ display:'flex', alignItems:'baseline', gap:16, flexWrap:'wrap' }}>
+                <div style={{ fontSize:16, fontWeight:800, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:400 }}>
+                  {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
+                </div>
+                <div style={{ display:'flex', gap:16, flexShrink:0 }}>
+                  <div>
+                    <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
+                    <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{fmt(c.bazova)} Kč</div>
+                  </div>
+                  <div>
+                    <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
+                    <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{fmt(c.celkemZisk)} Kč</div>
+                  </div>
+                </div>
               </div>
               {lastSaved && (
                 <div style={{ fontSize:10, color:'#10b981', marginTop:2 }}>
@@ -1494,16 +1510,13 @@ export default function StavbaPage() {
                 </div>
               )}
             </div>
-            <div style={{ display:'flex', gap:18, flexShrink:0 }}>
-              {[
-                { l:'Bázová cena', v:c.bazova,     col:'#3b82f6' },
-                { l:'Zisk',        v:c.celkemZisk, col:c.celkemZisk>=0?'#10b981':'#ef4444' },
-              ].map(({l,v,col})=>(
-                <div key={l} style={{ textAlign:'right' }}>
-                  <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
-                  <div style={{ color:col, fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{fmt(v)} Kč</div>
-                </div>
-              ))}
+            <div style={{ display:'flex', gap:12, flexShrink:0, alignItems:'center' }}>
+              {profile?.role === 'admin' && (
+                <button onClick={() => setRozpisDialog(true)}
+                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  🔍 Rozpis
+                </button>
+              )}
             </div>
             <button onClick={toggleTheme} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'5px 8px', color:T.muted, fontSize:12, cursor:'pointer' }}>{dark?'☀️':'🌙'}</button>
             {profile?.role === 'admin' && (
@@ -1524,12 +1537,6 @@ export default function StavbaPage() {
             <div>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
               <div style={{ display:'flex', gap:8 }}>
-                {profile?.role === 'admin' && (
-                  <button onClick={() => setRozpisDialog(true)}
-                    style={{ padding:'7px 16px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:7, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                    🔍 Rozpis ceny
-                  </button>
-                )}
                 <button onClick={() => importFileRef.current?.click()}
                   style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   📂 Importovat z Excelu
