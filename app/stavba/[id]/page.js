@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_21
+// Build: 20260315_22
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1503,31 +1503,39 @@ export default function StavbaPage() {
       {/* HEADER */}
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:1060, margin:'0 auto' }}>
-          {/* Horní řádek: zpět | název | tlačítka */}
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
+            {/* Zpět */}
             <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
+
+            {/* Název + import info */}
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
               <div style={{ fontSize:16, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, marginTop:2 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:3, flexWrap:'wrap' }}>
                 {profile?.role === 'admin' && s.import_build && (
-                  <div style={{ fontSize:10, color:'#94a3b8', fontFamily:'monospace' }}>📦 {s.import_build}</div>
+                  <div style={{ fontSize:11, color:T.muted }}>
+                    📦 <span style={{ fontFamily:'monospace', color:'#94a3b8' }}>{s.import_build}</span>
+                  </div>
                 )}
                 {lastSaved && (
-                  <div style={{ fontSize:10, color:'#10b981' }}>🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}</div>
+                  <div style={{ fontSize:10, color:'#10b981' }}>
+                    🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+                  </div>
                 )}
               </div>
             </div>
-            {/* Tlačítka vpravo */}
+
+            {/* Tlačítka */}
             <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
               {profile?.role === 'admin' && (
                 <button onClick={() => setRozpisDialog(true)}
-                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🔍 Rozpis
                 </button>
               )}
+              {/* Den/Noc vedle sebe */}
               <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
                 <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
                 <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
@@ -1543,15 +1551,14 @@ export default function StavbaPage() {
             </div>
           </div>
 
-          {/* Spodní lišta: taby | bázová cena + zisk | import */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:8 }}>
+          {/* Tabs + Bázová cena + Import */}
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
                 <button key={t.k} onClick={()=>setTab(t.k)} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
               ))}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-              {/* Bázová cena + Zisk */}
               <div style={{ textAlign:'right' }}>
                 <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
                 <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.bazova)} Kč</div>
@@ -1560,7 +1567,6 @@ export default function StavbaPage() {
                 <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
                 <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.celkemZisk)} Kč</div>
               </div>
-              {/* Import */}
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
               <button onClick={() => importFileRef.current?.click()}
                 style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
