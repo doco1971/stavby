@@ -1,3 +1,21 @@
+// ============================================================
+// Build: 20260315_28
+// Kalkulace stavby – Dashboard
+// ============================================================
+// Cesty: app/dashboard/page.js
+//   import supabase: '../../lib/supabase'
+//   import layout:   '../layout'
+//
+// FUNKCE:
+// - Seznam staveb s filtrem podle oblasti
+// - Vyhledávání podle názvu stavby (ignoruje datum verze)
+// - Seskupení verzí stejné stavby při aktivním hledání
+// - Přepínač motivu ☀️🌙 vedle sebe
+//
+// CHANGELOG:
+// 20260315_28 – přidáno vyhledávání + seskupení verzí
+// 20260315_24 – přepínač ☀️🌙 vedle sebe
+// ============================================================
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
@@ -14,8 +32,10 @@ export default function Dashboard() {
   const [profile, setProfile] = useState(null)
   const [stavby, setStavby]   = useState([])
   const [filter, setFilter]   = useState('vse')
+  const [search, setSearch]   = useState('')
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
+  const [logoutConfirm, setLogoutConfirm] = useState(false)
 
   useEffect(() => {
     const init = async () => {
@@ -23,7 +43,6 @@ export default function Dashboard() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) { router.push('/login'); return }
         setUser(user)
-
         let { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
         if (!prof) {
           const { data: newProf } = await supabase.from('profiles')
@@ -32,7 +51,6 @@ export default function Dashboard() {
           prof = newProf
         }
         setProfile(prof)
-
         let q = supabase.from('stavby').select('*').order('updated_at', { ascending: false })
         if (prof?.role !== 'admin') q = q.eq('user_id', user.id)
         const { data, error } = await q
@@ -47,32 +65,71 @@ export default function Dashboard() {
     init()
   }, [])
 
-  const [logoutConfirm, setLogoutConfirm] = useState(false)
-
-  const logout = async () => {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
+  const logout = async () => { await supabase.auth.signOut(); router.push('/login') }
 
   const novaStavba = async () => {
     const { data } = await supabase.from('stavby').insert({
-      user_id: user.id,
-      oblast: profile?.oblast || 'Třebíč',
-      nazev: 'Nová stavba',
-      mzdy: {}, mech: {}, zemni: {}, gn: {}, dof: {}
+      user_id: user.id, oblast: profile?.oblast || 'Třebíč',
+      nazev: 'Nová stavba', mzdy: {}, mech: {}, zemni: {}, gn: {}, dof: {}
     }).select().single()
     if (data) router.push(`/stavba/${data.id}`)
   }
 
-  const filtered = filter === 'vse' ? stavby : stavby.filter(s => s.oblast === filter)
+  // Odstraní časové razítko z názvu: "Název - (15.03.2026 23:00)" → "Název"
+  const baseNazev = (nazev) => String(nazev || '').replace(/\s*-\s*\(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}\)\s*$/, '').trim()
+
+  const filtered = stavby
+    .filter(s => filter === 'vse' || s.oblast === filter)
+    .filter(s => search === '' || baseNazev(s.nazev).toLowerCase().includes(search.toLowerCase()))
+
+  const renderStavba = (s) => (
+    <div key={s.id} onClick={() => router.push(`/stavba/${s.id}`)}
+      style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '16px 18px', cursor: 'pointer', marginBottom: 8 }}
+      onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
+      onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.nazev}</div>
+          <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{s.cislo && `č. ${s.cislo} · `}{s.oblast}</div>
+          <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>🕐 Záloha: {new Date(s.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
+          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
+        </div>
+      </div>
+      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
+        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.12)', color: T.accent }}>{s.oblast}</span>
+      </div>
+    </div>
+  )
+
+  // Seskupení podle základního názvu (bez data)
+  const renderGrouped = () => {
+    const skupiny = {}
+    filtered.forEach(s => {
+      const base = baseNazev(s.nazev)
+      if (!skupiny[base]) skupiny[base] = []
+      skupiny[base].push(s)
+    })
+    return Object.entries(skupiny).map(([base, verze]) => (
+      <div key={base} style={{ marginBottom: 20 }}>
+        <div style={{ color: T.accent, fontSize: 12, fontWeight: 700, marginBottom: 8, padding: '6px 10px', background: 'rgba(59,130,246,0.08)', borderRadius: 6, borderLeft: `3px solid ${T.accent}`, display: 'flex', justifyContent: 'space-between' }}>
+          <span>{base}</span>
+          <span style={{ color: T.muted, fontWeight: 400 }}>{verze.length} {verze.length === 1 ? 'verze' : verze.length < 5 ? 'verze' : 'verzí'}</span>
+        </div>
+        {verze.map(s => renderStavba(s))}
+      </div>
+    ))
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg }}>
+      {/* HEADER */}
       <div style={{ background: T.header, borderBottom: `1px solid ${T.border}`, padding: '0 24px', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, height: 58 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#2563eb,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏗️</div>
           <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: T.text }}>Kalkulace stavby</div>
-          {/* Den/Noc přepínač — stejný jako na stránce stavby */}
           <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
             <button onClick={() => dark && toggle()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
             <button onClick={() => !dark && toggle()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
@@ -85,7 +142,8 @@ export default function Dashboard() {
       </div>
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
+        {/* Filtry oblasti */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
           <button onClick={novaStavba} style={{ padding: '9px 18px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Nová stavba</button>
           {['vse', ...OBLASTI].map(o => (
             <button key={o} onClick={() => setFilter(o)}
@@ -96,37 +154,29 @@ export default function Dashboard() {
           <div style={{ marginLeft: 'auto', color: T.muted, fontSize: 12, alignSelf: 'center' }}>{filtered.length} staveb</div>
         </div>
 
+        {/* Vyhledávání */}
+        <div style={{ marginBottom: 20, position: 'relative' }}>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Hledat stavbu… (ignoruje datum verze)"
+            style={{ width: '100%', padding: '10px 36px 10px 14px', background: T.card, border: `1px solid ${search ? T.accent : T.border}`, borderRadius: 8, color: T.text, fontSize: 13, outline: 'none', boxSizing: 'border-box', fontFamily: 'system-ui' }} />
+          {search && (
+            <button onClick={() => setSearch('')}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: T.muted, cursor: 'pointer', fontSize: 16 }}>✕</button>
+          )}
+        </div>
+
         {err && <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, padding: '10px 14px', color: '#ef4444', fontSize: 12, marginBottom: 16 }}>⚠ {err}</div>}
 
         {loading ? (
           <div style={{ textAlign: 'center', color: T.muted, padding: 60 }}>Načítám…</div>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', color: T.muted, padding: 60 }}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-            <div>Žádné stavby. Vytvořte první kliknutím na "+ Nová stavba".</div>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>{search ? '🔍' : '📋'}</div>
+            <div>{search ? `Žádná stavba neodpovídá hledání "${search}"` : 'Žádné stavby. Vytvořte první kliknutím na "+ Nová stavba".'}</div>
           </div>
-        ) : filtered.map(s => (
-          <div key={s.id} onClick={() => router.push(`/stavba/${s.id}`)}
-            style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '16px 18px', cursor: 'pointer', marginBottom: 10 }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
-            onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.nazev}</div>
-                <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{s.cislo && `č. ${s.cislo} · `}{s.oblast}</div>
-                <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>🕐 Záloha: {new Date(s.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
-                <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
-              </div>
-            </div>
-            <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.12)', color: T.accent }}>{s.oblast}</span>
-            </div>
-          </div>
-        ))}
+        ) : search ? renderGrouped() : filtered.map(s => renderStavba(s))}
       </div>
+
       {logoutConfirm && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
           <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:380, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
