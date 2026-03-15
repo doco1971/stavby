@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_24
+// Build: 20260315_25
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -86,6 +86,7 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_25    – fix: tlačítko ← zpět varuje pokud je otevřený SazbyDialog (import nedokončen)
 // 20260315_24    – dashboard: přepínač ☀️🌙 vedle sebe (stejný styl jako stavba)
 //                  import: kontrola duplicitní stavby podle čísla → dotaz uživateli
 //                  UI: build info vždy viditelný pro admina (i bez importu)
@@ -1533,7 +1534,13 @@ export default function StavbaPage() {
         <div style={{ maxWidth:1060, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
             {/* Zpět */}
-            <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
+            <button onClick={async () => {
+              if (sazbyDialog) {
+                if (!window.confirm('Import nebyl dokončen — sazby nebyly potvrzeny. Opravdu odejít?')) return
+                setSazbyDialog(null)
+              }
+              await save(s); router.push('/dashboard')
+            }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
 
             {/* Název + import info */}
             <div style={{ flex:1, minWidth:0 }}>
