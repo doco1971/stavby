@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_16
+// Build: 20260315_17
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -73,6 +73,8 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_17    – fix dialog katalogu: spouští se pouze při skutečném psaní uživatele (ne při kopírování/označování textu)
+//                  nakladni: přeskupeny SH+KM páry u sebe (3,5t SH+KM, 6t SH+KM, 8t SH+KM...)
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -446,18 +448,20 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 // ── komponenty ───────────────────────────────────────────
 function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
   const [open, setOpen] = useState(false)
+  const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
   const val = row.popis || ''
   const suggestions = katalogItems
     ? katalogItems.filter(k => k.sekce === secKey && k.popis.toLowerCase().includes(val.toLowerCase()) && k.popis !== val)
     : []
 
   const handleBlur = () => {
-    // Po opuštění pole — pokud je nový popis který není v katalogu, nabídneme zařazení
     setTimeout(() => {
       setOpen(false)
-      if (val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
+      // Dialog katalogu jen když uživatel skutečně editoval text (ne kopírování/označování)
+      if (userEdited.current && val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
         onNewPopis && onNewPopis(val.trim(), secKey)
       }
+      userEdited.current = false
     }, 200)
   }
 
@@ -465,7 +469,7 @@ function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, s
     <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 28px', gap:6, marginBottom:5, position:'relative' }}>
       <div style={{ position:'relative' }}>
         <input value={val} placeholder="Popis…"
-          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true) }}
+          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true); userEdited.current = true }}
           onFocus={() => setOpen(true)}
           onBlur={handleBlur}
           style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color:T.text, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'system-ui', boxSizing:'border-box' }} />
@@ -1091,14 +1095,14 @@ export default function StavbaPage() {
                      { id:uid(), popis:'Autojeřáb 16t (160)',       castka:String(Math.round(stroje['160']||0)) },
                      { id:uid(), popis:'Doprava autojeřábu (170)',  castka:String(Math.round(stroje['170']||0)) }],
           nakladni: [{ id:uid(), popis:'Nákl. auto 3,5t SH (200)',  castka:String(Math.round(stroje['200']||0)) },
-                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
-                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
-                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
-                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
                      { id:uid(), popis:'Nákl. auto 3,5t KM (420)',  castka:String(Math.round(stroje['420']||0)) },
+                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
                      { id:uid(), popis:'Nákl. auto 6t KM (440)',    castka:String(Math.round(stroje['440']||0)) },
+                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
                      { id:uid(), popis:'Nákl. auto 8t KM (460)',    castka:String(Math.round(stroje['460']||0)) },
                      { id:uid(), popis:'Nákl. auto 10t KM (480)',   castka:String(Math.round(stroje['480']||0)) },
+                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
+                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
                      { id:uid(), popis:'Tahač návěsu (810)',         castka:String(Math.round(stroje['810']||0)) },
                      { id:uid(), popis:'Návěs (820)',                castka:String(Math.round(stroje['820']||0)) },
                      { id:uid(), popis:'Brzdná souprava (990)',      castka:String(Math.round(stroje['990']||0)) }],
