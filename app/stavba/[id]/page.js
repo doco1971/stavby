@@ -62,10 +62,10 @@
 //
 // COMPUTE:
 // bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
-//          + matVlastni + prispSklad + gzsKc + stimulKc
-// zemniSumBez zahrnuje: zemni_prace, zádlažby, asfalt, bagr, kompresor, rezac, bruska, mot_pech,
-//   stav_prace, def_fasady, def_str, optotrubka, zaorkab, vez_ts, protlak_nerizeny, protlak_rizeny, rezerv_zemni
-// zemniSumBez NEzahrnuje: písek, štěrk, beton, roura_pe (noIdx=true) — jsou součástí matVlastni
+//          + matVlastni + prispSklad + gzsKc + stimulKc + protlakStrojKc
+// protlakStrojKc = první řádek protlak sekce (stroj 250) — přičítá se samostatně
+// zemniSumBez NEzahrnuje: isProtlak (protlak neřízený), noIdx (písek, štěrk, beton, roura_pe)
+// PZ práce protlaku jsou součástí zemniPraceKc (sekce 52:) → již v zemniSumBez
 // dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
 // matVlastni = itemSum(zemni['mat_vlastni'].rows)
 //
@@ -153,7 +153,7 @@ const ZEMNI = [
   { key:"optotrubka",     label:"Optotrubka" },
   { key:"zaorkab",        label:"Zaorání kabelů" },
   { key:"vez_ts",         label:"Věžová transformovna" },
-  { key:"protlak",        label:"Protlak neřízený" },
+  { key:"protlak",        label:"Protlak neřízený", isProtlak:true },
   { key:"protlak_rizeny", label:"Protlak řízený" },
   { key:"roura_pe",       label:"Roura PE", noIdx:true },
   { key:"pisek",          label:"Písek", noIdx:true },
@@ -296,7 +296,9 @@ function compute(s) {
   const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
   const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
   // matVlastni do bazové ceny — písek/štěrk/beton/roura_pe jsou noIdx a NEjsou v zemniSumBez
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastni + prispSklad + gzsKc + stimulKc
+  // Protlak neřízený stroj (první řádek protlak sekce = stroj 250) se přičítá samostatně
+  const protlakStrojKc = num(s.zemni['protlak']?.rows?.[0]?.castka || 0)
+  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastni + prispSklad + gzsKc + stimulKc + protlakStrojKc
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
@@ -1472,6 +1474,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
+      import_build: '20260315_17',
     }
     setS(updated)
     await save(updated)
@@ -1489,26 +1492,29 @@ export default function StavbaPage() {
             <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
-              <div style={{ display:'flex', alignItems:'baseline', gap:16, flexWrap:'wrap' }}>
-                <div style={{ fontSize:16, fontWeight:800, color:T.text, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:400 }}>
-                  {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
-                </div>
-                <div style={{ display:'flex', gap:16, flexShrink:0 }}>
-                  <div>
-                    <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
-                    <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{fmt(c.bazova)} Kč</div>
-                  </div>
-                  <div>
-                    <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
-                    <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{fmt(c.celkemZisk)} Kč</div>
-                  </div>
-                </div>
+              <div style={{ fontSize:16, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
-              {lastSaved && (
-                <div style={{ fontSize:10, color:'#10b981', marginTop:2 }}>
-                  🕐 Poslední záloha: {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+              <div style={{ display:'flex', alignItems:'center', gap:16, marginTop:2, flexWrap:'wrap' }}>
+                <div>
+                  <span style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena </span>
+                  <span style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{fmt(c.bazova)} Kč</span>
                 </div>
-              )}
+                <div>
+                  <span style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk </span>
+                  <span style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{fmt(c.celkemZisk)} Kč</span>
+                </div>
+                {profile?.role === 'admin' && s.import_build && (
+                  <div style={{ color:T.muted, fontSize:9 }}>
+                    📦 Import: <span style={{ fontFamily:'monospace', color:T.muted }}>{s.import_build}</span>
+                  </div>
+                )}
+                {lastSaved && (
+                  <div style={{ fontSize:9, color:'#10b981' }}>
+                    🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ display:'flex', gap:12, flexShrink:0, alignItems:'center' }}>
               {profile?.role === 'admin' && (
