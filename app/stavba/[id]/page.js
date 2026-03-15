@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_18
+// Build: 20260315_19
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -69,7 +69,10 @@
 // dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
 // matVlastni = itemSum(zemni['mat_vlastni'].rows)
 //
-// NASTAVENÍ:
+// EXPORT PRAVIDLA:
+// Vždy exportovat: page_XXXXXXXX_XX.js + changelog_XXXXXXXX_XX.txt
+// nastaveni_XXXXXXXX_XX.js exportovat POUZE při změně kódu v nastaveni
+//
 // Tab Výchozí sazby ukládá do profiles.default_sazby (jsonb)
 // Předvyplní SazbyDialog při EBC importu
 //
@@ -185,9 +188,9 @@ const DOF = [
   { key:"omezeni_dopr",          label:"Omezení silniční dopravy" },
   { key:"popl_omez_zeleznice",   label:"Omezení železniční dopravy" },
   { key:"popl_ver_prostranstvi", label:"Poplatky za veřejné prostranství" },
+  { key:"archeolog_dozor",       label:"Archeologický dozor" },
 ]
 const DOFEGD = [
-  { key:"archeolog_dozor",       label:"Archeologický dozor" },
   { key:"uhrady_zem_kultury",    label:"Úhrady za zemědělské kultury" },
   { key:"nahrady_maj_ujmy",      label:"Náhrady majetkové újmy" },
   { key:"koordinator_bozp",      label:"Činnost koordinátora BOZP" },
@@ -1491,51 +1494,66 @@ export default function StavbaPage() {
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:1060, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
-            <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
+            {/* Zpět */}
+            <button onClick={async () => { await save(s); router.push('/dashboard') }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
+
+            {/* Název + import info */}
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
               <div style={{ fontSize:16, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:16, marginTop:2, flexWrap:'wrap' }}>
-                <div>
-                  <span style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena </span>
-                  <span style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{fmt(c.bazova)} Kč</span>
-                </div>
-                <div>
-                  <span style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk </span>
-                  <span style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:12, fontWeight:700 }}>{fmt(c.celkemZisk)} Kč</span>
-                </div>
+              <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:3, flexWrap:'wrap' }}>
                 {profile?.role === 'admin' && s.import_build && (
-                  <div style={{ color:T.muted, fontSize:9 }}>
-                    📦 Import: <span style={{ fontFamily:'monospace', color:T.muted }}>{s.import_build}</span>
+                  <div style={{ fontSize:11, color:T.muted }}>
+                    📦 <span style={{ fontFamily:'monospace', color:'#94a3b8' }}>{s.import_build}</span>
                   </div>
                 )}
                 {lastSaved && (
-                  <div style={{ fontSize:9, color:'#10b981' }}>
+                  <div style={{ fontSize:10, color:'#10b981' }}>
                     🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
                   </div>
                 )}
               </div>
             </div>
-            <div style={{ display:'flex', gap:12, flexShrink:0, alignItems:'center' }}>
+
+            {/* Bázová cena + Zisk — větší, vedle tlačítek */}
+            <div style={{ display:'flex', gap:20, flexShrink:0, alignItems:'center' }}>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ color:T.muted, fontSize:10, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
+                <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:16, fontWeight:800 }}>{fmt(c.bazova)} Kč</div>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ color:T.muted, fontSize:10, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
+                <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:16, fontWeight:800 }}>{fmt(c.celkemZisk)} Kč</div>
+              </div>
+            </div>
+
+            {/* Tlačítka */}
+            <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
               {profile?.role === 'admin' && (
                 <button onClick={() => setRozpisDialog(true)}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🔍 Rozpis
                 </button>
               )}
-            </div>
-            <button onClick={toggleTheme} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'5px 8px', color:T.muted, fontSize:12, cursor:'pointer' }}>{dark?'☀️':'🌙'}</button>
-            {profile?.role === 'admin' && (
-              <button onClick={deleteStavba} style={{ padding:'6px 14px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                🗑️ Smazat
+              {/* Den/Noc vedle sebe */}
+              <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
+                <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
+                <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
+              </div>
+              {profile?.role === 'admin' && (
+                <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  🗑️ Smazat
+                </button>
+              )}
+              <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
               </button>
-            )}
-            <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-              {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
-            </button>
+            </div>
           </div>
+
+          {/* Tabs + Import */}
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
@@ -1544,12 +1562,10 @@ export default function StavbaPage() {
             </div>
             <div>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
-              <div style={{ display:'flex', gap:8 }}>
-                <button onClick={() => importFileRef.current?.click()}
-                  style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📂 Importovat z Excelu
-                </button>
-              </div>
+              <button onClick={() => importFileRef.current?.click()}
+                style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                📂 Importovat z Excelu
+              </button>
             </div>
           </div>
         </div>
