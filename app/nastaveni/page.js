@@ -1,3 +1,11 @@
+// Build: 20260314_12
+// Nastavení – profil, výchozí sazby, správa uživatelů
+// ============================================================
+// Tab Výchozí sazby: ukládá prirazka, hzs_mont, hzs_zem, zmes_mont, zmes_zem
+//   do profiles.default_sazby (jsonb)
+//   Tyto hodnoty se předvyplní v SazbyDialog při EBC importu
+// SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
+// ============================================================
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
