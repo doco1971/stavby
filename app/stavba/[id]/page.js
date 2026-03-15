@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_27
+// Build: 20260315_28
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -84,8 +84,11 @@
 // SUPABASE — potřebné SQL migrace (již spuštěno):
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
+// ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text;
 //
 // CHANGELOG:
+// 20260315_28    – SQL migrace: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
+//                  přidána do poznámek v hlavičce
 // 20260315_27    – fix save: explicitní user_id v update (RLS), chybová hláška při selhání uložení
 //                  debug: console.log v applySazby pro sledování co se ukládá
 // 20260315_26    – fix: nová stavba po importu prázdná — sRef.current drží aktuální stav po importu
@@ -1531,7 +1534,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260315_27 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260315_28 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
