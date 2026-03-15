@@ -72,7 +72,11 @@ export default function Dashboard() {
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, height: 58 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#2563eb,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏗️</div>
           <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: T.text }}>Kalkulace stavby</div>
-          <button onClick={toggle} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 10px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>{dark ? '☀️' : '🌙'}</button>
+          {/* Den/Noc přepínač — stejný jako na stránce stavby */}
+          <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
+            <button onClick={() => dark && toggle()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
+            <button onClick={() => !dark && toggle()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
+          </div>
           <div style={{ color: T.muted, fontSize: 12 }}>{user?.email}</div>
           {profile?.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 4 }}>ADMIN</span>}
           <button onClick={() => router.push('/nastaveni')} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>⚙️ Nastavení</button>
