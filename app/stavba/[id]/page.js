@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_26
+// Build: 20260315_27
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -86,6 +86,8 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_27    – fix save: explicitní user_id v update (RLS), chybová hláška při selhání uložení
+//                  debug: console.log v applySazby pro sledování co se ukládá
 // 20260315_26    – fix: nová stavba po importu prázdná — sRef.current drží aktuální stav po importu
 //                  tlačítko ← zpět používá sRef.current místo zastaralého React state s
 // 20260315_25    – fix: tlačítko ← zpět varuje pokud je otevřený SazbyDialog (import nedokončen)
@@ -766,7 +768,14 @@ export default function StavbaPage() {
 
   const save = async (data = s) => {
     setSaving(true)
-    await supabase.from('stavby').update({ ...data, updated_at: new Date().toISOString() }).eq('id', params.id)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('stavby')
+      .update({ ...data, user_id: user?.id || data.user_id, updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+    if (error) {
+      console.error('Save error:', error)
+      setAlertDialog({ title: '⚠️ Chyba uložení', text: error.message, color: '#ef4444' })
+    }
     setSaving(false); setSaved(true)
     setLastSaved(new Date())
     setTimeout(() => setSaved(false), 2000)
@@ -1522,10 +1531,11 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260315_26 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260315_27 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
+    console.log('applySazby saving:', { id: params.id, nazev: updated.nazev, mechKeys: Object.keys(updated.mech||{}) })
     await save(updated)
     setSazbyDialog(null)
     const { hMont: hm, zemniPraceKc: zp, parsedEBC: p } = sazbyDialog
