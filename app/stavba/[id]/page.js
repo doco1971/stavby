@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_19
+// Build: 20260315_20
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -910,6 +910,16 @@ export default function StavbaPage() {
       // Absolutní fallback
       if (colCena === -1) colCena = 19
 
+      // PM hodnota — hledej podle kódu v listu Práce, mechanizace
+      // Používá colCena (musí být definováno před voláním)
+      const pmRowAll = (kody) => {
+        const list = Array.isArray(kody) ? kody : [kody]
+        const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
+        return rowsPM
+          .filter(r => kodList.includes(String(r[3]||'').trim()))
+          .reduce((a, r) => a + (num(r[colCena]) || num(r[colCena-1]) || num(r[colCena+1])), 0)
+      }
+
       // PM montážní a zemní hodiny — rozdělení podle kódu objektu
       // Mapování kódů objektů na kategorii mzdy:
       // CZD00040 = TS technologie → mont_vn
@@ -1267,7 +1277,7 @@ export default function StavbaPage() {
           spravni_popl:          { rows:[{ id:uid(), popis:'Správní poplatky',                   castka:String(gnRowAll(['1101926'])) }], open:false },
           omezeni_dopr:          { rows:[{ id:uid(), popis:'Omezení silniční dopravy',           castka:String(gnRowAll(['1101927'])) }], open:false },
           popl_omez_zeleznice:   { rows:[{ id:uid(), popis:'Omezení železniční dopravy',         castka:String(gnRowAll(['1101928'])) }], open:false },
-          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(gnRowAll(['1101925'])) }], open:false },
+          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(Math.round(pmRowAll(['1101925']))) }], open:false },
           uhrady_zem_kultury:    { rows:[{ id:uid(), popis:'Úhrady za zemědělské kultury',       castka:String(gnRowAll(['1101923'])) }], open:false },
           nahrady_maj_ujmy:      { rows:[{ id:uid(), popis:'Náhrady majetkové újmy',             castka:String(gnRowAll(['1101924'])) }], open:false },
           popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003_'])) }], open:false },
