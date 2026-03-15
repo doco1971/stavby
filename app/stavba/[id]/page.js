@@ -73,8 +73,9 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260315_17    – fix dialog katalogu: spouští se pouze při skutečném psaní uživatele (ne při kopírování/označování textu)
-//                  nakladni: přeskupeny SH+KM páry u sebe (3,5t SH+KM, 6t SH+KM, 8t SH+KM...)
+// 20260315_17    – fix zemní práce (52:): cena se brala z col[8]=hodiny místo colCena → zobrazovalo 1976 hod místo Kč
+//                  fix protlak (EK152/EK25/EK41): stejný problém, opraveno stejně
+//                  vrácena detekce colCena pouze pro level=3 řádky (S stroje zůstávají "poslední nenulová hodnota")
 // 20260315_16    – fix import EBC: odstraněna nespolehlivá detekce colCena
 //                  VŠECHNA načítání cen z PM listu nyní používají "poslední nenulová hodnota v řádku"
 //                  Opraveno: S stroje, PP/PPV přirážky, zemní práce (52:), protlak (EK152/EK25/EK41)
@@ -858,7 +859,33 @@ export default function StavbaPage() {
           .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
       }
 
-      // Detekce sloupce ceny — již není potřeba, všude používáme poslední nenulovou hodnotu v řádku
+      // Detekce sloupce ceny pro level=3 řádky (součtové řádky sekcí)
+      // Stroje (S) používají "poslední nenulová hodnota" — tam je struktura jiná
+      // U level=3 řádků: col[8]=celkem hodin, cena je v jiném sloupci (colCena)
+      let colCena = 19  // default
+      for (const r of rowsPM) {
+        if (String(r[2]||'').trim() === 'Ident') {
+          for (let ci = 8; ci < 25; ci++) {
+            const h = String(r[ci]||'').toLowerCase().trim()
+            if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
+          }
+          break
+        }
+      }
+      // Fallback: pokud header nenalezen, zkus najít colCena podle prvního S řádku
+      // (u S řádků víme správnou cenu z "poslední nenulová hodnota")
+      if (colCena === 19) {
+        for (const r of rowsPM) {
+          if (String(r[2]||'').trim() !== 'S') continue
+          const kod = String(r[3]||'').trim()
+          if (!kod) continue
+          let posledni = 0, posIdx = 0
+          for (let ci = r.length - 1; ci >= 4; ci--) {
+            const v = num(r[ci]); if (v !== 0) { posledni = v; posIdx = ci; break }
+          }
+          if (posIdx > 0) { colCena = posIdx; break }
+        }
+      }
 
       // PM montážní a zemní hodiny — rozdělení podle kódu objektu
       // Mapování kódů objektů na kategorii mzdy:
@@ -998,33 +1025,25 @@ export default function StavbaPage() {
       const vezTs_kc      = subSum('4110V','4111','4112','4901')
 
       // PZ zemní práce v Kč — součtový řádek level=3 sekce 52:/PZ:
-      // Cena = poslední nenulová hodnota v řádku
+      // Používá colCena — na level=3 řádku col[8]=celkem hodin, cena je v colCena
       let zemniPraceKc = 0
       for (const r of rowsPM) {
         const col1 = r[1]
         const popis = String(r[4]||'').toLowerCase()
         if ((col1 === 3 || col1 === '3') && (popis.startsWith('52:') || popis.startsWith('pz:'))) {
-          let cena = 0
-          for (let ci = r.length - 1; ci >= 4; ci--) {
-            const v = num(r[ci]); if (v !== 0) { cena = v; break }
-          }
-          zemniPraceKc += cena
+          zemniPraceKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         }
       }
 
       // Protlak neřízený — PZ položky EK152, EK25, EK41 sečti přes všechny objekty
-      // Cena = poslední nenulová hodnota v řádku
+      // Používá colCena — detailní PZ řádky mají stejnou strukturu jako level=3
       const PROTLAK_KODY = ['EK152','EK25','EK41']
       let protlakPzKc = 0
       for (const r of rowsPM) {
         if (String(r[2]||'').trim() !== 'PZ') continue
         const kod = String(r[3]||'').trim()
         if (PROTLAK_KODY.includes(kod)) {
-          let cena = 0
-          for (let ci = r.length - 1; ci >= 4; ci--) {
-            const v = num(r[ci]); if (v !== 0) { cena = v; break }
-          }
-          protlakPzKc += cena
+          protlakPzKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
         }
       }
 
