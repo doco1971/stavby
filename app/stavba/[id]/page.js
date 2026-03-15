@@ -845,6 +845,22 @@ export default function StavbaPage() {
       const nazevStavby = String(rowsGN[1]?.[4] || rowsPM[1]?.[4] || '')
       const cisloStavby = String(rowsGN[1]?.[7] || rowsPM[1]?.[7] || '')
 
+      // Kontrola duplicitní stavby podle čísla stavby
+      if (cisloStavby) {
+        const { data: existing } = await supabase.from('stavby').select('id, nazev, updated_at').eq('cislo', cisloStavby).neq('id', params.id)
+        if (existing && existing.length > 0) {
+          const existujici = existing[0]
+          const datum = new Date(existujici.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
+          const pokracovat = window.confirm(
+            `⚠️ Stavba s číslem ${cisloStavby} již existuje v databázi:\n\n"${existujici.nazev}"\nZáloha: ${datum}\n\nChcete přesto importovat do aktuální stavby?`
+          )
+          if (!pokracovat) {
+            e.target.value = ''
+            return
+          }
+        }
+      }
+
       // Pomocník: najdi řádek v GN listu podle obsahu sloupce col[4] (Popis) nebo col[3] (Kód)
       // Filtruj GN pouze na sekci 'Soutěžené výkony' (level=1)
       let inSoutezene = false
