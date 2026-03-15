@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_25
+// Build: 20260315_26
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -86,6 +86,8 @@
 // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260315_26    – fix: nová stavba po importu prázdná — sRef.current drží aktuální stav po importu
+//                  tlačítko ← zpět používá sRef.current místo zastaralého React state s
 // 20260315_25    – fix: tlačítko ← zpět varuje pokud je otevřený SazbyDialog (import nedokončen)
 // 20260315_24    – dashboard: přepínač ☀️🌙 vedle sebe (stejný styl jako stavba)
 //                  import: kontrola duplicitní stavby podle čísla → dotaz uživateli
@@ -706,6 +708,7 @@ export default function StavbaPage() {
   const [rozpisDialog, setRozpisDialog] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
 
   const importFileRef = useRef(null)
+  const sRef = useRef(null)  // vždy aktuální stav pro save při navigaci
   // Načti katalog položek
   useEffect(() => {
     const loadKatalog = async () => {
@@ -749,6 +752,7 @@ export default function StavbaPage() {
       const dof    = data.dof    || {}; for (const it of DOF)    if (!dof[it.key])    dof[it.key]    = { rows: mkRows(), open: false }
       const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
       setS({ ...data, mzdy, mech, zemni, gn, dof, dofegd })
+      sRef.current = { ...data, mzdy, mech, zemni, gn, dof, dofegd }
       if (data.updated_at) setLastSaved(new Date(data.updated_at))
       // Načti profil uživatele
       const { data: { user } } = await supabase.auth.getUser()
@@ -1518,9 +1522,10 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260315_17 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260315_26 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
+    sRef.current = updated
     await save(updated)
     setSazbyDialog(null)
     const { hMont: hm, zemniPraceKc: zp, parsedEBC: p } = sazbyDialog
@@ -1539,7 +1544,12 @@ export default function StavbaPage() {
                 if (!window.confirm('Import nebyl dokončen — sazby nebyly potvrzeny. Opravdu odejít?')) return
                 setSazbyDialog(null)
               }
-              await save(s); router.push('/dashboard')
+              // Použij sRef.current pokud existuje (po importu je s zastaralý kvůli async setState)
+              const dataToSave = sRef.current || s
+              setSaving(true)
+              await supabase.from('stavby').update({ ...dataToSave, updated_at: new Date().toISOString() }).eq('id', params.id)
+              setSaving(false)
+              router.push('/dashboard')
             }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
 
             {/* Název + import info */}
