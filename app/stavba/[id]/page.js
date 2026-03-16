@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_01
+// Build: 20260316_02
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,14 +488,16 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
-// Input pro rozbor — neztratí focus při psaní, ukládá do state až při onBlur
+// Input pro rozbor — neztratí focus při psaní, ukládá do state až při onBlur nebo Enter
 function RbInput({ value, onChange, placeholder, style }) {
   const [local, setLocal] = useState(String(value || ''))
   useEffect(() => { setLocal(String(value || '')) }, [value])
+  const commit = (val) => onChange(val)
   return (
     <input value={local} placeholder={placeholder}
       onChange={e => setLocal(e.target.value)}
-      onBlur={e => onChange(e.target.value)}
+      onBlur={e => commit(e.target.value)}
+      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(local); e.target.blur() } }}
       style={style} />
   )
 }
