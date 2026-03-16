@@ -1,9 +1,10 @@
-// Build: 20260314_12
+// Build: 20260316_13
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
-// Tab Výchozí sazby: ukládá prirazka, hzs_mont, hzs_zem, zmes_mont, zmes_zem
+// Tab Výchozí sazby: ukládá prirazka, hzs_mont, hzs_zem, zmes_mont, zmes_zem, index_rozbor
 //   do profiles.default_sazby (jsonb)
 //   Tyto hodnoty se předvyplní v SazbyDialog při EBC importu
+//   index_rozbor = výchozí index pro záložku Rozbor (např. -15)
 // SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 // ============================================================
 'use client'
@@ -38,7 +39,7 @@ export default function NastaveniPage() {
   const [saved, setSaved]   = useState('')
 
   // sazby form
-  const [sazby, setSazby] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'' })
+  const [sazby, setSazby] = useState({ prirazka:'', hzs_mont:'', hzs_zem:'', zmes_mont:'', zmes_zem:'', index_rozbor:'-15' })
   const [sazbyLoaded, setSazbyLoaded] = useState(false)
 
   // profil form
@@ -67,7 +68,7 @@ export default function NastaveniPage() {
       }
       // Načti výchozí sazby z profiles
       const sazbyData = prof?.default_sazby
-      if (sazbyData) setSazby(sazbyData)
+      if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
       setSazbyLoaded(true)
       setLoading(false)
     }
@@ -164,8 +165,6 @@ export default function NastaveniPage() {
         {/* ── PROFIL ── */}
         {tab === 'profil' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Info karta */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
               <SecHead color="#60a5fa">Informace o účtu</SecHead>
               <div style={{ display: 'flex', alignItems: 'center', gap: 18, marginBottom: 18 }}>
@@ -188,7 +187,6 @@ export default function NastaveniPage() {
               </div>
             </div>
 
-            {/* Změna hesla */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
               <SecHead color="#a78bfa">Změna hesla</SecHead>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -207,7 +205,6 @@ export default function NastaveniPage() {
               </button>
             </div>
 
-            {/* Vzhled */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
               <SecHead color="#34d399">Vzhled aplikace</SecHead>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -248,7 +245,22 @@ export default function NastaveniPage() {
                   </div>
                 ))}
               </div>
-              <button onClick={saveSazby} style={{ padding: '9px 22px', background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+
+              {/* Index rozboru — oddělená sekce */}
+              <div style={{ borderTop: `1px solid ${T.border}`, paddingTop: 16, marginTop: 4 }}>
+                <SecHead color="#a78bfa">Výchozí index pro záložku Rozbor</SecHead>
+                <div style={{ color: T.muted, fontSize: 12, marginBottom: 12 }}>
+                  Předvyplní se do sloupce Index v sekci Mzdy montáže. Lze upravit ručně pro každý řádek.
+                </div>
+                <div style={{ maxWidth: 220 }}>
+                  <Lbl T={T}>Index ZMES/HZS (%)</Lbl>
+                  <input type="text" value={sazby.index_rozbor ?? '-15'} onChange={e => setSazby(v => ({ ...v, index_rozbor: e.target.value }))}
+                    placeholder="-15"
+                    style={{ ...inputSx(T), fontFamily: 'monospace' }} />
+                </div>
+              </div>
+
+              <button onClick={saveSazby} style={{ marginTop: 20, padding: '9px 22px', background: 'linear-gradient(135deg,#d97706,#b45309)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Uložit sazby
               </button>
             </div>
@@ -258,8 +270,6 @@ export default function NastaveniPage() {
         {/* ── UŽIVATELÉ (jen admin) ── */}
         {tab === 'uzivatele' && isAdmin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-
-            {/* Přidat uživatele */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
               <SecHead color="#60a5fa">Přidat uživatele</SecHead>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 140px 160px', gap: 12, marginBottom: 12 }}>
@@ -291,7 +301,6 @@ export default function NastaveniPage() {
               </button>
             </div>
 
-            {/* Seznam uživatelů */}
             <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '20px 22px' }}>
               <SecHead color="#f472b6">Seznam uživatelů ({users.length})</SecHead>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -310,14 +319,12 @@ export default function NastaveniPage() {
                         </div>
                         <div style={{ color: T.muted, fontSize: 11, marginTop: 2 }}>ID: {u.id?.slice(0, 8)}…</div>
                       </div>
-                      {/* Oblast select */}
                       <select value={u.oblast || ''} onChange={e => changeOblast(u.id, e.target.value)}
                         disabled={isMe}
                         style={{ padding: '4px 8px', background: T.card, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontSize: 12, cursor: isMe ? 'default' : 'pointer', opacity: isMe ? 0.5 : 1 }}>
                         <option value="">– oblast –</option>
                         {OBLASTI.map(o => <option key={o}>{o}</option>)}
                       </select>
-                      {/* Role badge / select */}
                       {isMe ? (
                         <span style={{ padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, background: rl.bg, color: rl.color }}>{rl.label}</span>
                       ) : (
