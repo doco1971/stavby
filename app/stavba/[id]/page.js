@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_03
+// Build: 20260316_04
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,27 +488,35 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
-// Input pro rozbor — neztratí focus, neresetnuje při překreslení, Enter přeskočí na další
-function RbInput({ value, onChange, placeholder, style }) {
-  const [local, setLocal] = useState(String(value || ''))
+// Input pro rozbor — neztratí focus, formátuje tisíce, Enter přeskočí na další
+function RbInput({ value, onChange, placeholder, style, numeric=false }) {
+  const raw = String(value || '')
+  const [local, setLocal] = useState(raw)
+  const [focused, setFocused] = useState(false)
   const editing = useRef(false)
-  // Aktualizuj local pouze pokud zrovna needitujeme
+
   useEffect(() => {
-    if (!editing.current) setLocal(String(value || ''))
+    if (!editing.current) setLocal(raw)
   }, [value])
+
   const commit = (val) => {
     editing.current = false
-    onChange(val)
+    onChange(val.replace(/\s/g, '').replace(',', '.'))
   }
+
+  // Formátuj pro zobrazení (ne při editaci)
+  const display = focused ? local : (numeric && num(local) > 0 ? num(local).toLocaleString('cs-CZ', {minimumFractionDigits:0, maximumFractionDigits:2}) : local)
+
   return (
-    <input value={local} placeholder={placeholder}
+    <input value={display} placeholder={placeholder}
       onChange={e => { editing.current = true; setLocal(e.target.value) }}
-      onBlur={e => commit(e.target.value)}
+      onFocus={e => { setFocused(true); setLocal(raw) }}
+      onBlur={e => { setFocused(false); commit(e.target.value) }}
       onKeyDown={e => {
         if (e.key === 'Enter') {
           e.preventDefault()
           commit(local)
-          // Přeskoč na další input
+          setFocused(false)
           const inputs = Array.from(document.querySelectorAll('input'))
           const idx = inputs.indexOf(e.target)
           if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
@@ -1658,7 +1666,7 @@ export default function StavbaPage() {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
-                <button key={t.k} onClick={()=>setTab(t.k)} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
+                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ await save(s); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
               ))}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -1830,7 +1838,7 @@ export default function StavbaPage() {
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{idx!==undefined?`${(idx*100).toFixed(0)} %`:'—'}</div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <RbInput value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
+                      <RbInput numeric={true} value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
                         style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
@@ -1854,7 +1862,7 @@ export default function StavbaPage() {
                   <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}30` }}>
                     <div style={{ padding:'5px 8px', color:T.text, fontSize:10 }}>{label}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <RbInput value={String(rb[bezKey]?.bez||'')} onChange={v=>setRb(bezKey,'bez',v)} placeholder="0"
+                      <RbInput numeric={true} value={String(rb[bezKey]?.bez||'')} onChange={v=>setRb(bezKey,'bez',v)} placeholder="0"
                         style={{ width:'100%', background:'rgba(59,130,246,0.08)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
@@ -1862,7 +1870,7 @@ export default function StavbaPage() {
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{`${(idx*100).toFixed(0)} %`}</div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <RbInput value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
+                      <RbInput numeric={true} value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
                         style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
