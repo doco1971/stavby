@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_07
+// Build: 20260316_08
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1906,9 +1906,6 @@ export default function StavbaPage() {
 
           </div>
         )}
-
-        )}
-      </div>
 
       {/* ROZBOR — plná šířka stránky */}
       {tab==='rozbor' && (
