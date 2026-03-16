@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_16
+// Build: 20260316_17
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -608,10 +608,14 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const RowManual = ({label, rbKey, ti}) => {
     const bez = num(rb[rbKey]?.bez||0)
     const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri) * (1 + idx/100)
-    const kVypl = sP * 0.66
+    const sP = bez * (1 + pri)
+    // K vyplacení = (bez / HZS_mont) × ZMES_zem × (1 + index/100)
+    const hodZemni = hzsM > 0 ? bez / hzsM : 0
+    const zmesZ = num(s.zmes_zem)
+    const kVypl = hodZemni * zmesZ * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
+    // ZISK = (Cena + přirážka) - vyplaceno × 1.34
+    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20`, background:'rgba(59,130,246,0.04)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
