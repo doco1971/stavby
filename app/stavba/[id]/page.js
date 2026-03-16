@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_11
+// Build: 20260316_14
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -490,7 +490,7 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 // ── komponenty ───────────────────────────────────────────
 
 // Input pro rozbor — top-level komponenta, drží lokální stav, Enter/Tab přeskakuje na další pole
-function RbInput({ value, onChange, placeholder, style, numeric=false }) {
+function RbInput({ value, onChange, placeholder, style, numeric=false, tabIndex }) {
   const [local, setLocal] = useState(String(value || ''))
   const [isFocused, setIsFocused] = useState(false)
   const skipBlur = useRef(false)
@@ -504,10 +504,11 @@ function RbInput({ value, onChange, placeholder, style, numeric=false }) {
     onChange(clean)
   }
 
-  const goNext = (el) => {
+  const goNext = () => {
     const inputs = Array.from(document.querySelectorAll('input[data-rb]'))
-    const idx = inputs.indexOf(el)
-    if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+    const myTab = tabIndex || 0
+    const next = inputs.find(i => parseInt(i.getAttribute('data-rb')) === myTab + 1)
+    if (next) next.focus()
   }
 
   const display = isFocused
@@ -516,7 +517,8 @@ function RbInput({ value, onChange, placeholder, style, numeric=false }) {
 
   return (
     <input
-      data-rb="1"
+      data-rb={tabIndex || 0}
+      tabIndex={tabIndex || 0}
       value={display}
       placeholder={placeholder}
       onChange={e => setLocal(e.target.value)}
@@ -532,7 +534,7 @@ function RbInput({ value, onChange, placeholder, style, numeric=false }) {
           skipBlur.current = true
           setIsFocused(false)
           commit(local)
-          goNext(e.target)
+          setTimeout(goNext, 30)
         }
       }}
       style={style}
@@ -545,6 +547,8 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const pri = num(s.prirazka)
   const hzsM = num(s.hzs_mont)
   const rb = s.rozbor || {}
+  // Výchozí index z profilu (default_sazby.index_rozbor) nebo -15
+  const defaultIdx = num(s.default_index_rozbor ?? -15)
 
   const setRb = (key, field, val) => {
     setS(prev => {
@@ -555,14 +559,21 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     })
   }
 
+  // Vrátí index pro daný klíč — z rozboru nebo výchozí
+  const getIdx = (key) => {
+    const v = rb[key]?.idx
+    return v !== undefined && v !== '' ? num(v) : defaultIdx
+  }
+
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
     <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderBottom:'2px solid #3b82f6' }}>{children}</div>
   )
 
-  const RowAuto = ({label, bez, kVypl, rbKey}) => {
-    const sP = bez * (1 + pri)
+  const RowAuto = ({label, bez, kVypl, rbKey, ti}) => {
+    const idx = getIdx(rbKey)
+    const sP = bez * (1 + pri) * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
     const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
     return (
@@ -571,24 +582,28 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>0 %</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
-          <RbInput numeric value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+          <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
-          <RbInput value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+          <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:`1px solid ${rb[rbKey]?.pozn?T.border:'transparent'}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
   }
 
-  const RowManual = ({label, rbKey}) => {
+  const RowManual = ({label, rbKey, ti}) => {
     const bez = num(rb[rbKey]?.bez||0)
-    const sP = bez * (1 + pri)
+    const idx = getIdx(rbKey)
+    const sP = bez * (1 + pri) * (1 + idx/100)
     const kVypl = sP * 0.66
     const vypl = num(rb[rbKey]?.vypl||0)
     const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
@@ -596,20 +611,23 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20`, background:'rgba(59,130,246,0.04)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
         <div style={{ padding:'3px 4px' }}>
-          <RbInput numeric value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
+          <RbInput numeric tabIndex={ti} value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
             style={{ width:'100%', background:'rgba(59,130,246,0.1)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>0 %</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput tabIndex={ti+1} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
-          <RbInput numeric value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+          <RbInput numeric tabIndex={ti+2} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
-          <RbInput value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+          <RbInput tabIndex={ti+3} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:`1px solid ${rb[rbKey]?.pozn?T.border:'transparent'}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
@@ -645,15 +663,15 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <TH>ZISK -(34%)</TH>
         <TH left>Poznámka</TH>
       </div>
-      <RowAuto  label="Montážní práce"       bez={montBez}    kVypl={montBez*0.66}    rbKey="mzdy_mont" />
-      <RowManual label="Zemní práce"                                                    rbKey="mzdy_zemni" />
-      <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}     kVypl={ppnBez*0.66}     rbKey="mzdy_ppn" />
-      <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}  kVypl={stimulBez*0.66}  rbKey="mzdy_stimul" />
-      <RowAuto  label="Def. úprava fasád"    bez={fasadyBez}  kVypl={fasadyBez*0.66}  rbKey="mzdy_fasady" />
-      <RowAuto  label="Def. úprava střech"   bez={strechyBez} kVypl={strechyBez*0.66} rbKey="mzdy_strechy" />
-      <RowAuto  label="Úhlová bruska"        bez={bruskaBez}  kVypl={bruskaBez*0.66}  rbKey="mzdy_bruska" />
-      <RowAuto  label="Inženýrská činnost"   bez={inzBez}     kVypl={inzBez*0.66}     rbKey="mzdy_inz" />
-      <RowManual label="Rezerv. mont."                                                  rbKey="mzdy_rezerv" />
+      <RowAuto  label="Montážní práce"       bez={montBez}    kVypl={montBez*0.66}    rbKey="mzdy_mont"    ti={1} />
+      <RowManual label="Zemní práce"                                                    rbKey="mzdy_zemni"   ti={4} />
+      <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}     kVypl={ppnBez*0.66}     rbKey="mzdy_ppn"     ti={8} />
+      <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}  kVypl={stimulBez*0.66}  rbKey="mzdy_stimul"  ti={11} />
+      <RowAuto  label="Def. úprava fasád"    bez={fasadyBez}  kVypl={fasadyBez*0.66}  rbKey="mzdy_fasady"  ti={14} />
+      <RowAuto  label="Def. úprava střech"   bez={strechyBez} kVypl={strechyBez*0.66} rbKey="mzdy_strechy" ti={17} />
+      <RowAuto  label="Úhlová bruska"        bez={bruskaBez}  kVypl={bruskaBez*0.66}  rbKey="mzdy_bruska"  ti={20} />
+      <RowAuto  label="Inženýrská činnost"   bez={inzBez}     kVypl={inzBez*0.66}     rbKey="mzdy_inz"     ti={23} />
+      <RowManual label="Rezerv. mont."                                                  rbKey="mzdy_rezerv"  ti={26} />
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>CELKEM MZDY</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
@@ -947,8 +965,12 @@ export default function StavbaPage() {
       // Načti profil uživatele
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data: prof } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+        const { data: prof } = await supabase.from('profiles').select('role, default_sazby').eq('id', user.id).single()
         setProfile(prof)
+        // Ulož výchozí index rozboru do stavby state pro RozborMzdy
+        if (prof?.default_sazby?.index_rozbor !== undefined) {
+          setS(prev => prev ? { ...prev, default_index_rozbor: prof.default_sazby.index_rozbor } : prev)
+        }
       }
     }
     load()
