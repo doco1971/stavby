@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_02
+// Build: 20260316_03
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,16 +488,32 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
-// Input pro rozbor — neztratí focus při psaní, ukládá do state až při onBlur nebo Enter
+// Input pro rozbor — neztratí focus, neresetnuje při překreslení, Enter přeskočí na další
 function RbInput({ value, onChange, placeholder, style }) {
   const [local, setLocal] = useState(String(value || ''))
-  useEffect(() => { setLocal(String(value || '')) }, [value])
-  const commit = (val) => onChange(val)
+  const editing = useRef(false)
+  // Aktualizuj local pouze pokud zrovna needitujeme
+  useEffect(() => {
+    if (!editing.current) setLocal(String(value || ''))
+  }, [value])
+  const commit = (val) => {
+    editing.current = false
+    onChange(val)
+  }
   return (
     <input value={local} placeholder={placeholder}
-      onChange={e => setLocal(e.target.value)}
+      onChange={e => { editing.current = true; setLocal(e.target.value) }}
       onBlur={e => commit(e.target.value)}
-      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); commit(local); e.target.blur() } }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit(local)
+          // Přeskoč na další input
+          const inputs = Array.from(document.querySelectorAll('input'))
+          const idx = inputs.indexOf(e.target)
+          if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+        }
+      }}
       style={style} />
   )
 }
@@ -1874,7 +1890,9 @@ export default function StavbaPage() {
 
               const celkemBez = montBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
               const celkemSP  = celkemBez * (1 + pri)
-              const celkemVypl = num(s.vypl_mzdy)
+              // Celkem vyplaceno = součet všech vyplaceno řádků v rozboru mzdy
+              const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
+                .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
               const celkemZisk = celkemVypl > 0 ? (celkemSP - celkemVypl) * (1 - 0.34) : null
 
               // GN, DOF, ZEMNI, MECH výpočty pro ostatní sekce
