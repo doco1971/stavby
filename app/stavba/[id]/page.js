@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_17
+// Build: 20260316_18
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -574,10 +574,10 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const RowAuto = ({label, bez, rbKey, ti, hod, zmes}) => {
     const idx = getIdx(rbKey)
     const sP = bez * (1 + pri)
-    // K vyplacení: pokud jsou hodiny a ZMES → hod × ZMES × (1+idx/100), jinak sP × (1+idx/100)
+    // K vyplacení: Montážní práce = hod × ZMES × (1+idx/100), ostatní = (bez×0.6) × (1+idx/100)
     const kVypl = hod !== undefined && zmes !== undefined
       ? hod * zmes * (1 + idx/100)
-      : sP * (1 + idx/100)
+      : (bez * 0.6) * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
     // ZISK = Cena+přirážka - vyplaceno × 1.34
     const zisk = vypl > 0 ? sP - vypl * 1.34 : null
