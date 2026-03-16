@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_18
+// Build: 20260316_20
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -660,7 +660,32 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const celkemSP   = celkemBez * (1 + pri)
   const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
     .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
-  const celkemZisk = celkemVypl > 0 ? (celkemSP - celkemVypl) * (1 - 0.34) : null
+
+  // Celkem ZISK = součet zisku z jednotlivých řádků
+  const rowZisk = (sP, rbKey) => {
+    const vypl = num(rb[rbKey]?.vypl||0)
+    return vypl > 0 ? sP - vypl * 1.34 : 0
+  }
+  const montSP    = montBez * (1 + pri)
+  const zemniSP   = zemniMzdyBez * (1 + pri)
+  const ppnSP     = ppnBez * (1 + pri)
+  const stimulSP  = stimulBez * (1 + pri)
+  const fasadySP  = fasadyBez * (1 + pri)
+  const strechySP = strechyBez * (1 + pri)
+  const bruskaSP  = bruskaBez * (1 + pri)
+  const inzSP     = inzBez * (1 + pri)
+  const rezervSP  = rezervBez * (1 + pri)
+  const celkemZiskSum =
+    rowZisk(montSP,    'mzdy_mont') +
+    rowZisk(zemniSP,   'mzdy_zemni') +
+    rowZisk(ppnSP,     'mzdy_ppn') +
+    rowZisk(stimulSP,  'mzdy_stimul') +
+    rowZisk(fasadySP,  'mzdy_fasady') +
+    rowZisk(strechySP, 'mzdy_strechy') +
+    rowZisk(bruskaSP,  'mzdy_bruska') +
+    rowZisk(inzSP,     'mzdy_inz') +
+    rowZisk(rezervSP,  'mzdy_rezerv')
+  const celkemZisk = celkemVypl > 0 ? celkemZiskSum : null
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
@@ -672,7 +697,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <TH>Index</TH>
         <TH>K vyplacení</TH>
         <TH>Vyplaceno</TH>
-        <TH>ZISK -(34%)</TH>
+        <TH>ZISK MZDY</TH>
         <TH left>Poznámka</TH>
       </div>
       <RowAuto  label="Montážní práce"       bez={montBez}    hod={hodMont} zmes={zmesM}  rbKey="mzdy_mont"    ti={1} />
