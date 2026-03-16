@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_28
+// Build: 20260316_29
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -328,6 +328,46 @@ function compute(s) {
   const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
 
   return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
+}
+
+// ── Dialog: Sazby stavby (plovoucí, přetahovatelný) ────
+function SazbyInfoDialog({ T, s, onClose }) {
+  const [pos, setPos] = useState({ x: window.innerWidth - 420, y: 160 })
+  const drag = useRef(null)
+  const num = v => parseFloat(String(v).replace(/\s/g,'').replace(',','.')) || 0
+
+  const onMouseDown = (e) => {
+    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
+    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const rows = [
+    { l:'Přirážka',    v: `${(num(s.prirazka)*100).toFixed(2)} %` },
+    { l:'HZS montáž',  v: `${s.hzs_mont} Kč/h` },
+    { l:'HZS zemní',   v: `${s.hzs_zem} Kč/h` },
+    { l:'ZMES montáž', v: `${s.zmes_mont} Kč/h` },
+    { l:'ZMES zemní',  v: `${s.zmes_zem} Kč/h` },
+  ]
+
+  return (
+    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:3000, width:320, background:T.card, border:'1px solid #10b981', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
+      <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:`1px solid ${T.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(16,185,129,0.08)', borderRadius:'14px 14px 0 0' }}>
+        <span style={{ color:'#10b981', fontWeight:800, fontSize:14 }}>📋 Sazby stavby</span>
+        <button onClick={onClose} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
+      </div>
+      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+        {rows.map(({l,v}) => (
+          <div key={l} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'rgba(255,255,255,0.04)', borderRadius:6 }}>
+            <span style={{ color:T.muted, fontSize:12 }}>{l}</span>
+            <span style={{ color:T.text, fontFamily:'monospace', fontSize:12, fontWeight:600 }}>{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ── Dialog: rozpis bázové ceny (plovoucí, přetahovatelný) ────
@@ -949,20 +989,23 @@ function RozborZemni({ s, T, c, sRef, setS }) {
   const ALL_ROWS = [...ROWS_NORMAL, ...ROWS_LOCKED]
 
   const getBez = (rbKey) => itemSum(s.zemni[rbKey.replace('zemni_rb_','')]?.rows||[])
+  const isLocked = (rbKey) => ROWS_LOCKED.some(l => l.rbKey === rbKey)
 
-  const celkemBez  = ALL_ROWS.reduce((a,r) => a + getBez(r.rbKey), 0)
-  const celkemSP   = ROWS_NORMAL.reduce((a,r) => a + getBez(r.rbKey) * (1+pri), 0)
-  const celkemVypl = ALL_ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
+  const celkemBez   = ALL_ROWS.reduce((a,r) => a + getBez(r.rbKey), 0)
+  const celkemSP    = ALL_ROWS.reduce((a,r) => {
+    const bez = getBez(r.rbKey)
+    return a + bez * (1 + (isLocked(r.rbKey) ? 0 : pri))
+  }, 0)
+  const celkemVypl  = ALL_ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
   const celkemKVypl = ALL_ROWS.reduce((a,r) => {
     const bez = getBez(r.rbKey)
-    const idx = r.locked ? 0 : getIdx(r.rbKey)
+    const idx = isLocked(r.rbKey) ? 0 : getIdx(r.rbKey)
     return a + (bez * 0.8) * (1 + idx/100)
   }, 0)
-  const celkemZisk = celkemVypl > 0
+  const celkemZisk  = celkemVypl > 0
     ? ALL_ROWS.reduce((a,r) => {
         const bez = getBez(r.rbKey)
-        const locked = ROWS_LOCKED.some(l => l.rbKey === r.rbKey)
-        const sP = bez * (1 + (locked ? 0 : pri))
+        const sP  = bez * (1 + (isLocked(r.rbKey) ? 0 : pri))
         const vypl = num(rb[r.rbKey]?.vypl||0)
         return a + (vypl > 0 ? sP - vypl * 1.34 : 0)
       }, 0)
@@ -2144,16 +2187,16 @@ export default function StavbaPage() {
                 <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
                 <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.bazova)} Kč</div>
               </div>
+              <div style={{ textAlign:'right' }}>
+                <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
+                <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.celkemZisk)} Kč</div>
+              </div>
               {tab==='rozbor' && (
                 <button onClick={() => setSazbyInfoOpen(true)}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   📋 Sazby
                 </button>
               )}
-              <div style={{ textAlign:'right' }}>
-                <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
-                <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.celkemZisk)} Kč</div>
-              </div>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
               <button onClick={() => importFileRef.current?.click()}
                 style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
@@ -2474,31 +2517,7 @@ export default function StavbaPage() {
         </div>
       )}
 
-      {sazbyInfoOpen && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}
-          onClick={() => setSazbyInfoOpen(false)}>
-          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, minWidth:320, boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}
-            onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize:15, fontWeight:800, color:T.text, marginBottom:16 }}>📋 Sazby stavby</div>
-            {[
-              { l:'Přirážka', v: `${(num(s.prirazka)*100).toFixed(2)} %` },
-              { l:'HZS montáž', v: `${s.hzs_mont} Kč/h` },
-              { l:'HZS zemní', v: `${s.hzs_zem} Kč/h` },
-              { l:'ZMES montáž', v: `${s.zmes_mont} Kč/h` },
-              { l:'ZMES zemní', v: `${s.zmes_zem} Kč/h` },
-            ].map(({l,v}) => (
-              <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:`1px solid ${T.border}` }}>
-                <div style={{ color:T.muted, fontSize:13 }}>{l}</div>
-                <div style={{ color:T.text, fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{v}</div>
-              </div>
-            ))}
-            <button onClick={() => setSazbyInfoOpen(false)}
-              style={{ marginTop:20, width:'100%', padding:'9px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-              Zavřít
-            </button>
-          </div>
-        </div>
-      )}
+      {sazbyInfoOpen && <SazbyInfoDialog T={T} s={s} onClose={() => setSazbyInfoOpen(false)} />}
       {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
 
       {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} defaultSazby={sazbyDialog.defaultSazby} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
