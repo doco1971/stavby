@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_06
+// Build: 20260316_07
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,13 +488,12 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
-// Input pro rozbor — drží lokální stav, ukládá při onBlur/Enter, formátuje tisíce
+// Input pro rozbor — drží lokální stav, ukládá při onBlur/Enter/Tab, formátuje tisíce
 function RbInput({ value, onChange, placeholder, style, numeric=false }) {
   const [local, setLocal] = useState(String(value || ''))
   const [isFocused, setIsFocused] = useState(false)
-  const committed = useRef(false)
+  const inputRef = useRef(null)
 
-  // Sync z venku jen když needitujeme
   useEffect(() => {
     if (!isFocused) setLocal(String(value || ''))
   }, [value, isFocused])
@@ -504,42 +503,36 @@ function RbInput({ value, onChange, placeholder, style, numeric=false }) {
     onChange(clean)
   }
 
-  const handleFocus = () => {
-    setIsFocused(true)
-    setLocal(String(value || ''))
+  const goNext = (current) => {
+    const inputs = Array.from(document.querySelectorAll('input[data-rb]'))
+    const idx = inputs.indexOf(current)
+    if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
   }
 
-  const handleBlur = (e) => {
-    setIsFocused(false)
-    commit(e.target.value)
-  }
-
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      if (e.key === 'Enter') e.preventDefault()
-      commit(local)
-      // Najdi a fokusuj další input
-      setTimeout(() => {
-        const inputs = Array.from(document.querySelectorAll('input:not([disabled]):not([readonly])'))
-        const idx = inputs.indexOf(e.target)
-        if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
-      }, 10)
-    }
-  }
-
-  // Zobrazení: formátované mimo focus, surové při editaci
   const display = isFocused
     ? local
     : (numeric && num(local) > 0 ? num(local).toLocaleString('cs-CZ', {minimumFractionDigits:0, maximumFractionDigits:2}) : local)
 
   return (
     <input
+      ref={inputRef}
+      data-rb="1"
       value={display}
       placeholder={placeholder}
       onChange={e => setLocal(e.target.value)}
-      onFocus={handleFocus}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
+      onFocus={() => { setIsFocused(true); setLocal(String(value || '')) }}
+      onBlur={e => { setIsFocused(false); commit(e.target.value) }}
+      onKeyDown={e => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commit(local)
+          goNext(e.target)
+        } else if (e.key === 'Tab') {
+          e.preventDefault()
+          commit(local)
+          goNext(e.target)
+        }
+      }}
       style={style}
     />
   )
@@ -1914,8 +1907,12 @@ export default function StavbaPage() {
           </div>
         )}
 
-        {tab==='rozbor' && (
-          <div>
+        )}
+      </div>
+
+      {/* ROZBOR — plná šířka stránky */}
+      {tab==='rozbor' && (
+        <div style={{ padding:'20px 20px 60px' }}>
             {/* HLAVIČKA */}
             <div style={{ background:'linear-gradient(135deg,rgba(37,99,235,0.12),rgba(74,158,255,0.05))', border:'1px solid rgba(74,158,255,0.25)', borderRadius:14, padding:'16px 20px', marginBottom:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
@@ -1973,7 +1970,6 @@ export default function StavbaPage() {
             </div>
           </div>
         )}
-      </div>
 
       {/* Dialog schválení nové položky do katalogu */}
       {katalogDialog && (
