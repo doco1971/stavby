@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_21
+// Build: 20260316_22
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -752,6 +752,117 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   )
 }
 
+// RozborMech — sekce Mechanizace
+function RozborMech({ s, T, c, sRef, setS }) {
+  const pri = num(s.prirazka)
+  const rb = s.rozbor || {}
+  const defaultIdx = num(s.default_index_rozbor ?? -15)
+
+  const setRb = (key, field, val) => {
+    setS(prev => {
+      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
+      const newS = { ...prev, rozbor: newRozbor }
+      sRef.current = newS
+      return newS
+    })
+  }
+
+  const getIdx = (key) => {
+    const v = rb[key]?.idx
+    return v !== undefined && v !== '' ? num(v) : defaultIdx
+  }
+
+  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
+
+  const TH = ({children, left=false}) => (
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderBottom:'2px solid #f59e0b' }}>{children}</div>
+  )
+
+  const Row = ({label, bez, rbKey, ti}) => {
+    const idx = getIdx(rbKey)
+    const sP = bez * (1 + pri)
+    const kVypl = (bez * 0.6) * (1 + idx/100)
+    const vypl = num(rb[rbKey]?.vypl||0)
+    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20` }}>
+        <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+            style={{ width:'100%', background:'transparent', border:`1px solid ${rb[rbKey]?.pozn?T.border:'transparent'}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+        </div>
+      </div>
+    )
+  }
+
+  const ROWS = [
+    { label:'Jeřáb',        rbKey:'mech_jerab',    bez: itemSum(s.mech['jerab']?.rows||[]) },
+    { label:'Nákladní auto', rbKey:'mech_nakladni', bez: itemSum(s.mech['nakladni']?.rows||[]) },
+    { label:'Traktor',      rbKey:'mech_traktor',  bez: itemSum(s.mech['traktor']?.rows||[]) },
+    { label:'Plošina',      rbKey:'mech_plosina',  bez: itemSum(s.mech['plosina']?.rows||[]) },
+    { label:'Dodávka',      rbKey:'mech_dodavka',  bez: itemSum(s.mech['dodavka']?.rows||[]) },
+    { label:'Kango',        rbKey:'mech_kango',    bez: itemSum(s.mech['kango']?.rows||[]) },
+    { label:'Pila',         rbKey:'mech_pila',     bez: itemSum(s.mech['pila']?.rows||[]) },
+  ]
+
+  const celkemBez  = ROWS.reduce((a,r) => a + r.bez, 0)
+  const celkemSP   = celkemBez * (1 + pri)
+  const celkemVypl = ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
+  const celkemKVypl = ROWS.reduce((a,r) => {
+    const idx = getIdx(r.rbKey)
+    return a + (r.bez * 0.6) * (1 + idx/100)
+  }, 0)
+  const celkemZisk = celkemVypl > 0
+    ? ROWS.reduce((a,r) => {
+        const idx = getIdx(r.rbKey)
+        const sP = r.bez * (1 + pri)
+        const vypl = num(rb[r.rbKey]?.vypl||0)
+        return a + (vypl > 0 ? sP - vypl * 1.34 : 0)
+      }, 0)
+    : null
+
+  return (
+    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #f59e0b' }}>
+        <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:13 }}>🚜 Mechanizace</div>
+        <TH>Cena bez přirážky</TH>
+        <TH>Přirážka</TH>
+        <TH>Cena + přirážka</TH>
+        <TH>Index ZMES</TH>
+        <TH>K vyplacení</TH>
+        <TH>Vyplaceno</TH>
+        <TH>ZISK</TH>
+        <TH left>Poznámka</TH>
+      </div>
+      {ROWS.map((r, i) => <Row key={r.rbKey} label={r.label} bez={r.bez} rbKey={r.rbKey} ti={100 + i*3} />)}
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(245,158,11,0.3)' }}>
+        <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:12 }}>CELKEM MECHANIZACE</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemSP)}</div>
+        <div/>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div/>
+      </div>
+    </div>
+  )
+}
+
 function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
   const [open, setOpen] = useState(false)
   const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
@@ -1022,7 +1133,8 @@ export default function StavbaPage() {
       const dof    = data.dof    || {}; for (const it of DOF)    if (!dof[it.key])    dof[it.key]    = { rows: mkRows(), open: false }
       const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
       const rozbor = data.rozbor || {}
-      const rbDefaults = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
+      const rbDefaults = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
+        'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila']
       rbDefaults.forEach(k => { if (!rozbor[k]) rozbor[k] = { bez:'', vypl:'', pozn:'' } })
       setS({ ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor })
       sRef.current = { ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor }
@@ -2031,6 +2143,8 @@ export default function StavbaPage() {
 
             {/* TABULKA ROZBORU — Mzdy montáže */}
             <RozborMzdy s={s} T={T} c={c} sRef={sRef} setS={setS} />
+            {/* TABULKA ROZBORU — Mechanizace */}
+            <RozborMech s={s} T={T} c={c} sRef={sRef} setS={setS} />
             {false && (() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
