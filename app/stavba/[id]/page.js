@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_33
+// Build: 20260316_34
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -622,7 +622,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     // ZISK = Cena+přirážka - vyplaceno × 1.34
     const zisk = vypl > 0 ? sP - vypl * 1.34 : null
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80` }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}` }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.35)' }}>{(pri*100).toFixed(1)} %</div>
@@ -657,7 +657,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     // ZISK = (Cena + přirážka) - vyplaceno × 1.34
     const zisk = vypl > 0 ? sP - vypl * 1.34 : null
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80`, background:'rgba(59,130,246,0.04)' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}`, background:'rgba(59,130,246,0.04)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.35)' }}>
           <RbInput numeric tabIndex={ti} value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
@@ -825,7 +825,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
     const vypl = num(rb[rbKey]?.vypl||0)
     const zisk = vypl > 0 ? sP - vypl : null
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80` }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}` }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.35)' }}>{(pri*100).toFixed(1)} %</div>
@@ -940,7 +940,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
     const zisk = vypl > 0 ? sP - vypl : null
     const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80`, background:bg }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}`, background:bg }}>
         <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
@@ -1074,7 +1074,7 @@ function RozborGN({ s, T, c, sRef, setS }) {
     const vypl = num(rb[rbKey]?.vypl||0)
     const zisk = vypl > 0 ? sP - vypl : null
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80` }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}` }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.35)' }}>{(pri*100).toFixed(1)} %</div>
@@ -1188,7 +1188,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
     const zisk = vypl > 0 ? sP - vypl : null
     const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
     return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}80`, background:bg }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}`, background:bg }}>
         <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{label}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.35)' }}>{bez>0?fmt(bez):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b', borderRight:'1px solid rgba(100,116,139,0.35)' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
@@ -1267,7 +1267,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
         </div>
       </div>
       {/* CELKEM OSTATNÍ */}
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(139,92,246,0.3)' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(139,92,246,0.3)', marginBottom:16 }}>
         <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:12 }}>CELKEM OSTATNÍ</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#8b5cf6' }}>{fmt(celkemBez)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
@@ -1276,6 +1276,33 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div/>
+      </div>
+    </div>
+  )
+}
+
+// RozborCelkem — řádek CELKEM ZA STAVBU
+function RozborCelkem({ s, T, c, sRef }) {
+  const pri = num(s.prirazka)
+  const rb = s.rozbor || {}
+  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
+
+  // Součty ze všech sekcí — K vyplacení
+  const celkemVypl = Object.values(rb).reduce((a, v) => a + num(v?.vypl||0), 0)
+  const celkemZisk = Object.values(rb).reduce((a, v) => a + num(v?.zisk||0), 0)
+
+  return (
+    <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.18)', borderRadius:8 }}>
+        <div style={{ padding:'10px 8px', color:'#60a5fa', fontWeight:900, fontSize:14 }}>CELKEM ZA STAVBU</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova*(1+pri))}</div>
+        <div/>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:c.celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(c.celkemZisk)}</div>
         <div/>
       </div>
     </div>
@@ -2583,6 +2610,8 @@ export default function StavbaPage() {
             <RozborGN s={s} T={T} c={c} sRef={sRef} setS={setS} />
             {/* TABULKA ROZBORU — Ostatní položky */}
             <RozborOstatni s={s} T={T} c={c} sRef={sRef} setS={setS} />
+            {/* CELKEM ZA STAVBU */}
+            <RozborCelkem s={s} T={T} c={c} sRef={sRef} />
             {false && (() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
