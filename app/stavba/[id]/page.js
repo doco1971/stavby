@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_05
+// Build: 20260316_06
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -751,6 +751,139 @@ function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez
 }
 
 // ── hlavní stránka ────────────────────────────────────────
+// ── RozborMzdy — top-level komponenta (ne IIFE) aby RbInput držel state ──
+function RozborMzdy({ s, T, c, sRef, setS }) {
+  const pri = num(s.prirazka)
+  const hzsM = num(s.hzs_mont)
+  const rb = s.rozbor || {}
+
+  const setRb = (key, field, val) => {
+    setS(prev => {
+      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
+      const newS = { ...prev, rozbor: newRozbor }
+      sRef.current = newS
+      return newS
+    })
+  }
+
+  const cols = '160px 110px 80px 110px 90px 110px 110px 110px 1fr'
+
+  const TH = ({children, right=true}) => (
+    <div style={{ color:T.muted, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:right?'right':'left', padding:'5px 6px', borderBottom:'2px solid #3b82f6' }}>{children}</div>
+  )
+
+  const RowAuto = ({label, bez, kVypl, rbKey}) => {
+    const sP = bez * (1 + pri)
+    const vypl = num(rb[rbKey]?.vypl||0)
+    const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}30` }}>
+        <div style={{ padding:'5px 8px', color:T.text, fontSize:10 }}>{label}</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.text }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>0 %</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'2px 4px' }}>
+          <RbInput numeric value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'2px 4px' }}>
+          <RbInput value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+            style={{ width:'100%', background:'transparent', border:`1px solid ${rb[rbKey]?.pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
+        </div>
+      </div>
+    )
+  }
+
+  const RowManual = ({label, rbKey}) => {
+    const bez = num(rb[rbKey]?.bez||0)
+    const sP = bez * (1 + pri)
+    const kVypl = sP * 0.66
+    const vypl = num(rb[rbKey]?.vypl||0)
+    const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}30`, background:'rgba(59,130,246,0.03)' }}>
+        <div style={{ padding:'5px 8px', color:T.text, fontSize:10 }}>{label}</div>
+        <div style={{ padding:'2px 4px' }}>
+          <RbInput numeric value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
+            style={{ width:'100%', background:'rgba(59,130,246,0.08)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>0 %</div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'2px 4px' }}>
+          <RbInput numeric value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'2px 4px' }}>
+          <RbInput value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+            style={{ width:'100%', background:'transparent', border:`1px solid ${rb[rbKey]?.pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
+        </div>
+      </div>
+    )
+  }
+
+  const montBez = (itemSum(s.mzdy['mont_vn']?.rows||[]) + itemSum(s.mzdy['mont_nn']?.rows||[]) + itemSum(s.mzdy['mont_opto']?.rows||[])) * hzsM
+  const ppnBez   = itemSum(s.gn['pripl_ppn']?.rows||[])
+  const stimulBez = itemSum(s.dof['stimul_prirazka']?.rows||[])
+  const fasadyBez = itemSum(s.zemni['def_fasady']?.rows||[])
+  const strechyBez = itemSum(s.zemni['def_str']?.rows||[])
+  const bruskaBez = itemSum(s.zemni['uhlova_bruska']?.rows||[])
+  const inzBez   = itemSum(s.gn['inzenyrska']?.rows||[])
+  const zemniMzdyBez = num(rb['mzdy_zemni']?.bez||0)
+  const rezervBez    = num(rb['mzdy_rezerv']?.bez||0)
+
+  const celkemBez  = montBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
+  const celkemSP   = celkemBez * (1 + pri)
+  const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
+    .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
+  const celkemZisk = celkemVypl > 0 ? (celkemSP - celkemVypl) * (1 - 0.34) : null
+
+  return (
+    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
+      {/* HEADER */}
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6' }}>
+        <div style={{ padding:'7px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>👷 Mzdy montáže</div>
+        <TH>Cena bez přirážky</TH>
+        <TH>Přirážka</TH>
+        <TH>Cena + přirážka</TH>
+        <TH>Index ZMES/HZS</TH>
+        <TH>K vyplacení</TH>
+        <TH>Vyplaceno</TH>
+        <TH>ZISK -(34%)</TH>
+        <TH right={false}>Poznámka</TH>
+      </div>
+
+      <RowAuto label="Montážní práce"     bez={montBez}    kVypl={montBez*0.66}    rbKey="mzdy_mont" />
+      <RowManual label="Zemní práce"                                                 rbKey="mzdy_zemni" />
+      <RowAuto label="Příplatek PPN NN"   bez={ppnBez}     kVypl={ppnBez*0.66}     rbKey="mzdy_ppn" />
+      <RowAuto label="Stimul. přirážka + PPV" bez={stimulBez} kVypl={stimulBez*0.66} rbKey="mzdy_stimul" />
+      <RowAuto label="Def. úprava fasád"  bez={fasadyBez}  kVypl={fasadyBez*0.66}  rbKey="mzdy_fasady" />
+      <RowAuto label="Def. úprava střech" bez={strechyBez} kVypl={strechyBez*0.66} rbKey="mzdy_strechy" />
+      <RowAuto label="Úhlová bruska"      bez={bruskaBez}  kVypl={bruskaBez*0.66}  rbKey="mzdy_bruska" />
+      <RowAuto label="Inženýrská činnost" bez={inzBez}     kVypl={inzBez*0.66}     rbKey="mzdy_inz" />
+      <RowManual label="Rezerv. mont."                                                rbKey="mzdy_rezerv" />
+
+      {/* CELKEM */}
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
+        <div style={{ padding:'7px 8px', color:'#3b82f6', fontWeight:800, fontSize:11 }}>CELKEM MZDY</div>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
+        <div/>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{fmt(celkemBez*0.66)}</div>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):T.muted }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div/>
+      </div>
+    </div>
+  )
+}
+
 export default function StavbaPage() {
   const { dark, toggle: toggleTheme, T } = useTheme()
   const router = useRouter()
@@ -1830,184 +1963,8 @@ export default function StavbaPage() {
             </div>
 
             {/* TABULKA ROZBORU */}
-            {(() => {
-              const pri = num(s.prirazka)
-              const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
-              const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
-              const rb = s.rozbor || {}
-              const setRb = (key, field, val) => {
-                const newRozbor = { ...s.rozbor, [key]: { ...(s.rozbor||{})[key], [field]: val } }
-                const newS = { ...s, rozbor: newRozbor }
-                sRef.current = newS
-                setS(newS)
-              }
+            <RozborMzdy s={s} T={T} c={c} sRef={sRef} setS={setS} />
 
-              // Sloupce: Název | Bez přirážky | Přirážka | S přirážkou | Index ZMES/HZS | K vyplacení | Vyplaceno | ZISK-(34%) | Poznámka
-              const cols = '160px 110px 80px 110px 90px 110px 110px 110px 1fr'
-
-              const TH = ({children, right=true}) => (
-                <div style={{ color:T.muted, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:right?'right':'left', padding:'5px 6px', borderBottom:`2px solid #3b82f6` }}>{children}</div>
-              )
-
-              // Řádek s automatickou hodnotou
-              const RowAuto = ({label, bez, idx, kVypl, vypl, pozn, onPozn, onVypl, isTotal, color='#3b82f6'}) => {
-                const sP = bez * (1 + pri)
-                const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
-                return (
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background:isTotal?`${color}12`:'transparent', borderBottom:`1px solid ${T.border}30` }}>
-                    <div style={{ padding:'5px 8px', color:isTotal?color:T.text, fontSize:isTotal?11:10, fontWeight:isTotal?700:400 }}>{label}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.text, fontWeight:isTotal?700:400 }}>{bez>0?fmt(bez):'—'}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:isTotal?color:T.text, fontWeight:isTotal?700:400 }}>{sP>0?fmt(sP):'—'}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{idx!==undefined?`${(idx*100).toFixed(0)} %`:'—'}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
-                    <div style={{ padding:'2px 4px' }}>
-                      <RbInput numeric={true} value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
-                        style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-                    </div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
-                      {zisk!==null?fmt(zisk):'—'}
-                    </div>
-                    <div style={{ padding:'2px 4px' }}>
-                      <RbInput value={String(pozn||'')} onChange={v=>onPozn&&onPozn(v)} placeholder="Poznámka…"
-                        style={{ width:'100%', background:'transparent', border:`1px solid ${pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
-                    </div>
-                  </div>
-                )
-              }
-
-              // Řádek s ručním vstupem pro Cena bez přirážky
-              const RowManual = ({label, bezKey, pozn, onPozn, vypl, onVypl, idx=0, color='#3b82f6'}) => {
-                const bez = num(rb[bezKey]?.bez || 0)
-                const sP = bez * (1 + pri)
-                const kVypl = sP * 0.66
-                const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
-                return (
-                  <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}30` }}>
-                    <div style={{ padding:'5px 8px', color:T.text, fontSize:10 }}>{label}</div>
-                    <div style={{ padding:'2px 4px' }}>
-                      <RbInput numeric={true} value={String(rb[bezKey]?.bez||'')} onChange={v=>setRb(bezKey,'bez',v)} placeholder="0"
-                        style={{ width:'100%', background:'rgba(59,130,246,0.08)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-                    </div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{`${(idx*100).toFixed(0)} %`}</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
-                    <div style={{ padding:'2px 4px' }}>
-                      <RbInput numeric={true} value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
-                        style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-                    </div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
-                      {zisk!==null?fmt(zisk):'—'}
-                    </div>
-                    <div style={{ padding:'2px 4px' }}>
-                      <RbInput value={String(pozn||'')} onChange={v=>onPozn&&onPozn(v)} placeholder="Poznámka…"
-                        style={{ width:'100%', background:'transparent', border:`1px solid ${pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
-                    </div>
-                  </div>
-                )
-              }
-
-              // Výpočty pro Mzdy montáže
-              const montBez = (itemSum(s.mzdy['mont_vn']?.rows||[]) + itemSum(s.mzdy['mont_nn']?.rows||[]) + itemSum(s.mzdy['mont_opto']?.rows||[])) * hzsM
-              const ppnBez  = itemSum(s.gn['pripl_ppn']?.rows||[])
-              const stimulBez = itemSum(s.dof['stimul_prirazka']?.rows||[])
-              const fasadyBez = itemSum(s.zemni['def_fasady']?.rows||[])
-              const strechyBez = itemSum(s.zemni['def_str']?.rows||[])
-              const bruskaBez = itemSum(s.zemni['uhlova_bruska']?.rows||[])
-              const inzBez  = itemSum(s.gn['inzenyrska']?.rows||[])
-
-              const zemniMzdyBez = num(rb['mzdy_zemni']?.bez||0)
-              const rezervBez    = num(rb['mzdy_rezerv']?.bez||0)
-
-              const celkemBez = montBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
-              const celkemSP  = celkemBez * (1 + pri)
-              // Celkem vyplaceno = součet všech vyplaceno řádků v rozboru mzdy
-              const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
-                .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
-              const celkemZisk = celkemVypl > 0 ? (celkemSP - celkemVypl) * (1 - 0.34) : null
-
-              // GN, DOF, ZEMNI, MECH výpočty pro ostatní sekce
-              const mechBez = MECH.reduce((a,it)=>a+itemSum(s.mech[it.key]?.rows||[]),0)
-              const mechSP = mechBez*(1+pri)
-              const zemniRowsBez = ZEMNI.filter(it=>!it.isProtlak&&!it.noIdx).reduce((a,it)=>a+itemSum(s.zemni[it.key]?.rows||[]),0)
-              const zemniSP2 = zemniRowsBez*(1+pri)
-              const gnBez = GN.reduce((a,it)=>a+itemSum(s.gn[it.key]?.rows||[]),0)
-              const gnSP = gnBez*(1+pri)
-              const dofBez = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
-              const dofegdBez = DOFEGD.reduce((a,it)=>a+itemSum(s.dofegd[it.key]?.rows||[]),0)
-              const matVlastniR = itemSum(s.zemni['mat_vlastni']?.rows||[])
-              const prispSklad = num(s.prispevek_sklad)
-              const matZhot = c.matZhot
-
-              return (
-                <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
-
-                  {/* ── MZDY MONTÁŽE ── */}
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6', marginBottom:0 }}>
-                    <div style={{ padding:'7px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>👷 Mzdy montáže</div>
-                    <TH>Cena bez přirážky</TH>
-                    <TH>Přirážka</TH>
-                    <TH>Cena + přirážka</TH>
-                    <TH>Index ZMES/HZS</TH>
-                    <TH>K vyplacení</TH>
-                    <TH>Vyplaceno</TH>
-                    <TH>ZISK -(34%)</TH>
-                    <TH right={false}>Poznámka</TH>
-                  </div>
-
-                  <RowAuto label="Montážní práce" bez={montBez} idx={0} kVypl={montBez*0.66}
-                    vypl={num(rb['mzdy_mont']?.vypl||0)} onVypl={v=>setRb('mzdy_mont','vypl',v)}
-                    pozn={rb['mzdy_mont']?.pozn||''} onPozn={v=>setRb('mzdy_mont','pozn',v)} />
-
-                  <RowManual label="Zemní práce" bezKey="mzdy_zemni" idx={0}
-                    vypl={num(rb['mzdy_zemni']?.vypl||0)} onVypl={v=>setRb('mzdy_zemni','vypl',v)}
-                    pozn={rb['mzdy_zemni']?.pozn||''} onPozn={v=>setRb('mzdy_zemni','pozn',v)} />
-
-                  <RowAuto label="Příplatek PPN NN" bez={ppnBez} idx={0} kVypl={ppnBez*0.66}
-                    vypl={num(rb['mzdy_ppn']?.vypl||0)} onVypl={v=>setRb('mzdy_ppn','vypl',v)}
-                    pozn={rb['mzdy_ppn']?.pozn||''} onPozn={v=>setRb('mzdy_ppn','pozn',v)} />
-
-                  <RowAuto label="Stimul. přirážka + PPV" bez={stimulBez} idx={0} kVypl={stimulBez*0.66}
-                    vypl={num(rb['mzdy_stimul']?.vypl||0)} onVypl={v=>setRb('mzdy_stimul','vypl',v)}
-                    pozn={rb['mzdy_stimul']?.pozn||''} onPozn={v=>setRb('mzdy_stimul','pozn',v)} />
-
-                  <RowAuto label="Def. úprava fasád" bez={fasadyBez} idx={0} kVypl={fasadyBez*0.66}
-                    vypl={num(rb['mzdy_fasady']?.vypl||0)} onVypl={v=>setRb('mzdy_fasady','vypl',v)}
-                    pozn={rb['mzdy_fasady']?.pozn||''} onPozn={v=>setRb('mzdy_fasady','pozn',v)} />
-
-                  <RowAuto label="Def. úprava střech" bez={strechyBez} idx={0} kVypl={strechyBez*0.66}
-                    vypl={num(rb['mzdy_strechy']?.vypl||0)} onVypl={v=>setRb('mzdy_strechy','vypl',v)}
-                    pozn={rb['mzdy_strechy']?.pozn||''} onPozn={v=>setRb('mzdy_strechy','pozn',v)} />
-
-                  <RowAuto label="Úhlová bruska" bez={bruskaBez} idx={0} kVypl={bruskaBez*0.66}
-                    vypl={num(rb['mzdy_bruska']?.vypl||0)} onVypl={v=>setRb('mzdy_bruska','vypl',v)}
-                    pozn={rb['mzdy_bruska']?.pozn||''} onPozn={v=>setRb('mzdy_bruska','pozn',v)} />
-
-                  <RowAuto label="Inženýrská činnost" bez={inzBez} idx={0} kVypl={inzBez*0.66}
-                    vypl={num(rb['mzdy_inz']?.vypl||0)} onVypl={v=>setRb('mzdy_inz','vypl',v)}
-                    pozn={rb['mzdy_inz']?.pozn||''} onPozn={v=>setRb('mzdy_inz','pozn',v)} />
-
-                  <RowManual label="Rezerv. mont." bezKey="mzdy_rezerv" idx={0}
-                    vypl={num(rb['mzdy_rezerv']?.vypl||0)} onVypl={v=>setRb('mzdy_rezerv','vypl',v)}
-                    pozn={rb['mzdy_rezerv']?.pozn||''} onPozn={v=>setRb('mzdy_rezerv','pozn',v)} />
-
-                  {/* CELKEM MZDY */}
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)', marginBottom:16 }}>
-                    <div style={{ padding:'7px 8px', color:'#3b82f6', fontWeight:800, fontSize:11 }}>CELKEM MZDY</div>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
-                    <div/>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{fmt(celkemBez*0.66)}</div>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-                    <div style={{ padding:'7px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):T.muted }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-                    <div/>
-                  </div>
-
-                </div>
-              )
-            })()}
 
             <div style={{ textAlign:'right', marginTop:16 }}>
               <button onClick={()=>window.print()} style={{ padding:'10px 22px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
