@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_29
+// Build: 20260316_01
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,6 +488,18 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
+// Input pro rozbor — neztratí focus při psaní, ukládá do state až při onBlur
+function RbInput({ value, onChange, placeholder, style }) {
+  const [local, setLocal] = useState(String(value || ''))
+  useEffect(() => { setLocal(String(value || '')) }, [value])
+  return (
+    <input value={local} placeholder={placeholder}
+      onChange={e => setLocal(e.target.value)}
+      onBlur={e => onChange(e.target.value)}
+      style={style} />
+  )
+}
+
 function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
   const [open, setOpen] = useState(false)
   const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
@@ -1800,14 +1812,14 @@ export default function StavbaPage() {
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{idx!==undefined?`${(idx*100).toFixed(0)} %`:'—'}</div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <input value={vypl||''} onChange={e=>onVypl&&onVypl(e.target.value)} placeholder="—"
+                      <RbInput value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
                         style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
                       {zisk!==null?fmt(zisk):'—'}
                     </div>
                     <div style={{ padding:'2px 4px' }}>
-                      <input value={pozn||''} onChange={e=>onPozn&&onPozn(e.target.value)} placeholder="Poznámka…"
+                      <RbInput value={String(pozn||'')} onChange={v=>onPozn&&onPozn(v)} placeholder="Poznámka…"
                         style={{ width:'100%', background:'transparent', border:`1px solid ${pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
                     </div>
                   </div>
@@ -1824,7 +1836,7 @@ export default function StavbaPage() {
                   <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}30` }}>
                     <div style={{ padding:'5px 8px', color:T.text, fontSize:10 }}>{label}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <input value={rb[bezKey]?.bez||''} onChange={e=>setRb(bezKey,'bez',e.target.value)} placeholder="0"
+                      <RbInput value={String(rb[bezKey]?.bez||'')} onChange={v=>setRb(bezKey,'bez',v)} placeholder="0"
                         style={{ width:'100%', background:'rgba(59,130,246,0.08)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
@@ -1832,14 +1844,14 @@ export default function StavbaPage() {
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{`${(idx*100).toFixed(0)} %`}</div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:T.muted }}>{kVypl>0?fmt(kVypl):'—'}</div>
                     <div style={{ padding:'2px 4px' }}>
-                      <input value={vypl||''} onChange={e=>onVypl&&onVypl(e.target.value)} placeholder="—"
+                      <RbInput value={String(vypl||'')} onChange={v=>onVypl&&onVypl(v)} placeholder="—"
                         style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:10, padding:'2px 5px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
                     </div>
                     <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):T.muted, fontWeight:zisk!==null?700:400 }}>
                       {zisk!==null?fmt(zisk):'—'}
                     </div>
                     <div style={{ padding:'2px 4px' }}>
-                      <input value={pozn||''} onChange={e=>onPozn&&onPozn(e.target.value)} placeholder="Poznámka…"
+                      <RbInput value={String(pozn||'')} onChange={v=>onPozn&&onPozn(v)} placeholder="Poznámka…"
                         style={{ width:'100%', background:'transparent', border:`1px solid ${pozn?T.border:'transparent'}`, borderRadius:4, color:T.muted, fontSize:10, padding:'2px 5px', outline:'none', boxSizing:'border-box' }} />
                     </div>
                   </div>
