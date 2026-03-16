@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_15
+// Build: 20260316_16
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -639,8 +639,8 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     )
   }
 
-  // Hodiny montáže (bez opto) pro výpočet K vyplacení
-  const hodMont    = itemSum(s.mzdy['mont_vn']?.rows||[]) + itemSum(s.mzdy['mont_nn']?.rows||[])
+  // Hodiny montáže z compute (mont_vn + mont_nn, bez opto)
+  const hodMont    = (c.mzdyT?.['mont_vn']?.hod || 0) + (c.mzdyT?.['mont_nn']?.hod || 0)
   const zmesM      = num(s.zmes_mont)
   const montBez    = hodMont * hzsM
   const ppnBez     = itemSum(s.gn['pripl_ppn']?.rows||[])
