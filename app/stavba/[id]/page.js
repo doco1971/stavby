@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_23
+// Build: 20260316_25
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -568,7 +568,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderBottom:'2px solid #3b82f6' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px' }}>{children}</div>
   )
 
   const RowAuto = ({label, bez, rbKey, ti, hod, zmes}) => {
@@ -589,17 +589,17 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:`1px solid ${T.border}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
@@ -621,23 +621,23 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti} value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
-            style={{ width:'100%', background:'rgba(59,130,246,0.1)', border:`1px solid ${bez>0?'#3b82f6':T.border}`, borderRadius:4, color:'#60a5fa', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(59,130,246,0.1)', border:'1px solid #3b82f6', borderRadius:4, color:'#60a5fa', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+1} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+2} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+3} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:`1px solid ${T.border}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
@@ -716,7 +716,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const celkemZisk = celkemVypl > 0 ? celkemZiskSum : null
 
   return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
+    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:8 }}>
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6' }}>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:13 }}>👷 Mzdy montáže</div>
         <TH>Cena bez přirážky</TH>
@@ -775,7 +775,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderBottom:'2px solid #f59e0b' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px' }}>{children}</div>
   )
 
   const Row = ({label, bez, rbKey, ti}) => {
@@ -792,17 +792,17 @@ function RozborMech({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:`1px solid ${rb[rbKey]?.idx!==undefined?'#a855f7':T.border}`, borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:`1px solid ${vypl>0?'#f59e0b':T.border}`, borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:`1px solid ${T.border}`, borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
