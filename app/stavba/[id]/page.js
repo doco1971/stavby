@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_25
+// Build: 20260316_27
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -594,12 +594,12 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
@@ -632,12 +632,12 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+2} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+3} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
@@ -797,12 +797,12 @@ function RozborMech({ s, T, c, sRef, setS }) {
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b40', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
         <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b40', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
         </div>
       </div>
     )
