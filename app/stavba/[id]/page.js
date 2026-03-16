@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_36
+// Build: 20260316_37
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2556,14 +2556,14 @@ export default function StavbaPage() {
                 </div>
                 <div style={{ display:'flex', gap:24 }}>
                   {[
-                    { l:'Bázová cena', v:c.bazova, col:'#3b82f6' },
-                    { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)), col:'#60a5fa' },
-                    { l:'Zisk celkem', v:c.celkemZisk, col:c.celkemZisk>=0?'#10b981':'#ef4444', pct: c.bazova>0?(c.celkemZisk/c.bazova*100).toFixed(1):null },
-                  ].map(({l,v,col})=>(
+                    { l:'Bázová cena', v:c.bazova, col:'#3b82f6', p:null },
+                    { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)), col:'#60a5fa', p:null },
+                    { l:'Zisk celkem', v:c.celkemZisk, col:c.celkemZisk>=0?'#10b981':'#ef4444', p:c.bazova>0?(c.celkemZisk/c.bazova*100).toFixed(1):null },
+                  ].map(({l,v,col,p})=>(
                     <div key={l} style={{ textAlign:'right' }}>
                       <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
                       <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}</div>
-                      <div style={{ color:T.muted, fontSize:9 }}>Kč {pct ? `(${pct} %)` : ''}</div>
+                      <div style={{ color:T.muted, fontSize:9 }}>Kč {p ? `(${p} %)` : ''}</div>
                     </div>
                   ))}
                 </div>
