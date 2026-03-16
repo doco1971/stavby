@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_14
+// Build: 20260316_15
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -571,11 +571,16 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderBottom:'2px solid #3b82f6' }}>{children}</div>
   )
 
-  const RowAuto = ({label, bez, kVypl, rbKey, ti}) => {
+  const RowAuto = ({label, bez, rbKey, ti, hod, zmes}) => {
     const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri) * (1 + idx/100)
+    const sP = bez * (1 + pri)
+    // K vyplacení: pokud jsou hodiny a ZMES → hod × ZMES × (1+idx/100), jinak sP × (1+idx/100)
+    const kVypl = hod !== undefined && zmes !== undefined
+      ? hod * zmes * (1 + idx/100)
+      : sP * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? (sP - vypl) * (1 - 0.34) : null
+    // ZISK = Cena+přirážka - vyplaceno × 1.34
+    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20` }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
@@ -634,7 +639,10 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     )
   }
 
-  const montBez    = (itemSum(s.mzdy['mont_vn']?.rows||[]) + itemSum(s.mzdy['mont_nn']?.rows||[]) + itemSum(s.mzdy['mont_opto']?.rows||[])) * hzsM
+  // Hodiny montáže (bez opto) pro výpočet K vyplacení
+  const hodMont    = itemSum(s.mzdy['mont_vn']?.rows||[]) + itemSum(s.mzdy['mont_nn']?.rows||[])
+  const zmesM      = num(s.zmes_mont)
+  const montBez    = hodMont * hzsM
   const ppnBez     = itemSum(s.gn['pripl_ppn']?.rows||[])
   const stimulBez  = itemSum(s.dof['stimul_prirazka']?.rows||[])
   const fasadyBez  = itemSum(s.zemni['def_fasady']?.rows||[])
@@ -663,14 +671,14 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <TH>ZISK -(34%)</TH>
         <TH left>Poznámka</TH>
       </div>
-      <RowAuto  label="Montážní práce"       bez={montBez}    kVypl={montBez*0.66}    rbKey="mzdy_mont"    ti={1} />
+      <RowAuto  label="Montážní práce"       bez={montBez}    hod={hodMont} zmes={zmesM}  rbKey="mzdy_mont"    ti={1} />
       <RowManual label="Zemní práce"                                                    rbKey="mzdy_zemni"   ti={4} />
-      <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}     kVypl={ppnBez*0.66}     rbKey="mzdy_ppn"     ti={8} />
-      <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}  kVypl={stimulBez*0.66}  rbKey="mzdy_stimul"  ti={11} />
-      <RowAuto  label="Def. úprava fasád"    bez={fasadyBez}  kVypl={fasadyBez*0.66}  rbKey="mzdy_fasady"  ti={14} />
-      <RowAuto  label="Def. úprava střech"   bez={strechyBez} kVypl={strechyBez*0.66} rbKey="mzdy_strechy" ti={17} />
-      <RowAuto  label="Úhlová bruska"        bez={bruskaBez}  kVypl={bruskaBez*0.66}  rbKey="mzdy_bruska"  ti={20} />
-      <RowAuto  label="Inženýrská činnost"   bez={inzBez}     kVypl={inzBez*0.66}     rbKey="mzdy_inz"     ti={23} />
+      <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}         rbKey="mzdy_ppn"     ti={8} />
+      <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}   rbKey="mzdy_stimul"  ti={11} />
+      <RowAuto  label="Def. úprava fasád"    bez={fasadyBez}   rbKey="mzdy_fasady"  ti={14} />
+      <RowAuto  label="Def. úprava střech"   bez={strechyBez} rbKey="mzdy_strechy" ti={17} />
+      <RowAuto  label="Úhlová bruska"        bez={bruskaBez}   rbKey="mzdy_bruska"  ti={20} />
+      <RowAuto  label="Inženýrská činnost"   bez={inzBez}         rbKey="mzdy_inz"     ti={23} />
       <RowManual label="Rezerv. mont."                                                  rbKey="mzdy_rezerv"  ti={26} />
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>CELKEM MZDY</div>
