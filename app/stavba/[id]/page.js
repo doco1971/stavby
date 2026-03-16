@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_20
+// Build: 20260316_21
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -661,7 +661,35 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
     .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
 
-  // Celkem ZISK = součet zisku z jednotlivých řádků
+  // Celkem K vyplacení = součet K vyplacení z jednotlivých řádků
+  const rowKVypl = (bez, rbKey, hod, zmes) => {
+    const idx = getIdx(rbKey)
+    if (hod !== undefined && zmes !== undefined) return hod * zmes * (1 + idx/100)
+    const bezNum = num(bez)
+    return (bezNum * 0.6) * (1 + idx/100)
+  }
+  const zemniKVypl = (() => {
+    const bez = zemniMzdyBez
+    const idx = getIdx('mzdy_zemni')
+    const hodZemni = hzsM > 0 ? bez / hzsM : 0
+    return hodZemni * num(s.zmes_zem) * (1 + idx/100)
+  })()
+  const rezervKVypl = (() => {
+    const bez = rezervBez
+    const idx = getIdx('mzdy_rezerv')
+    const hodZemni = hzsM > 0 ? bez / hzsM : 0
+    return hodZemni * num(s.zmes_zem) * (1 + idx/100)
+  })()
+  const celkemKVypl =
+    rowKVypl(montBez,    'mzdy_mont',    hodMont, zmesM) +
+    zemniKVypl +
+    rowKVypl(ppnBez,     'mzdy_ppn') +
+    rowKVypl(stimulBez,  'mzdy_stimul') +
+    rowKVypl(fasadyBez,  'mzdy_fasady') +
+    rowKVypl(strechyBez, 'mzdy_strechy') +
+    rowKVypl(bruskaBez,  'mzdy_bruska') +
+    rowKVypl(inzBez,     'mzdy_inz') +
+    rezervKVypl
   const rowZisk = (sP, rbKey) => {
     const vypl = num(rb[rbKey]?.vypl||0)
     return vypl > 0 ? sP - vypl * 1.34 : 0
@@ -715,7 +743,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:'#64748b' }}>{fmt(celkemBez*0.66)}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
