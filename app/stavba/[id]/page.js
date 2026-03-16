@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_29
+// Build: 20260316_30
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -823,7 +823,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
     const sP = bez * (1 + pri)
     const kVypl = (bez * 0.6) * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
+    const zisk = vypl > 0 ? sP - vypl : null
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20` }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13 }}>{label}</div>
@@ -870,7 +870,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
         const idx = getIdx(r.rbKey)
         const sP = r.bez * (1 + pri)
         const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl * 1.34 : 0)
+        return a + (vypl > 0 ? sP - vypl : 0)
       }, 0)
     : null
 
@@ -937,7 +937,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
     const sP = bez * (1 + priRow)
     const kVypl = (bez * 0.8) * (1 + idx/100)
     const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
+    const zisk = vypl > 0 ? sP - vypl : null
     const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20`, background:bg }}>
@@ -1007,7 +1007,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
         const bez = getBez(r.rbKey)
         const sP  = bez * (1 + (isLocked(r.rbKey) ? 0 : pri))
         const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl * 1.34 : 0)
+        return a + (vypl > 0 ? sP - vypl : 0)
       }, 0)
     : null
 
@@ -2207,7 +2207,7 @@ export default function StavbaPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '20px 120px 60px' : '20px 20px 60px' }}>
+      <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '20px 0 60px' : '20px 20px 60px' }}>
         {tab==='vstup' && (
           <div>
             {/* Parametry */}
@@ -2282,7 +2282,7 @@ export default function StavbaPage() {
         )}
 
         {tab==='rozbor' && (
-          <div>
+          <div style={{ padding:'0 120px' }}>
             {/* HLAVIČKA */}
             <div style={{ background:'linear-gradient(135deg,rgba(37,99,235,0.12),rgba(74,158,255,0.05))', border:'1px solid rgba(74,158,255,0.25)', borderRadius:14, padding:'16px 20px', marginBottom:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
