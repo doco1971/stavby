@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_04
+// Build: 20260316_05
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -488,41 +488,60 @@ function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
 }
 
 // ── komponenty ───────────────────────────────────────────
-// Input pro rozbor — neztratí focus, formátuje tisíce, Enter přeskočí na další
+// Input pro rozbor — drží lokální stav, ukládá při onBlur/Enter, formátuje tisíce
 function RbInput({ value, onChange, placeholder, style, numeric=false }) {
-  const raw = String(value || '')
-  const [local, setLocal] = useState(raw)
-  const [focused, setFocused] = useState(false)
-  const editing = useRef(false)
+  const [local, setLocal] = useState(String(value || ''))
+  const [isFocused, setIsFocused] = useState(false)
+  const committed = useRef(false)
 
+  // Sync z venku jen když needitujeme
   useEffect(() => {
-    if (!editing.current) setLocal(raw)
-  }, [value])
+    if (!isFocused) setLocal(String(value || ''))
+  }, [value, isFocused])
 
   const commit = (val) => {
-    editing.current = false
-    onChange(val.replace(/\s/g, '').replace(',', '.'))
+    const clean = val.replace(/\s/g, '').replace(',', '.')
+    onChange(clean)
   }
 
-  // Formátuj pro zobrazení (ne při editaci)
-  const display = focused ? local : (numeric && num(local) > 0 ? num(local).toLocaleString('cs-CZ', {minimumFractionDigits:0, maximumFractionDigits:2}) : local)
+  const handleFocus = () => {
+    setIsFocused(true)
+    setLocal(String(value || ''))
+  }
+
+  const handleBlur = (e) => {
+    setIsFocused(false)
+    commit(e.target.value)
+  }
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      if (e.key === 'Enter') e.preventDefault()
+      commit(local)
+      // Najdi a fokusuj další input
+      setTimeout(() => {
+        const inputs = Array.from(document.querySelectorAll('input:not([disabled]):not([readonly])'))
+        const idx = inputs.indexOf(e.target)
+        if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
+      }, 10)
+    }
+  }
+
+  // Zobrazení: formátované mimo focus, surové při editaci
+  const display = isFocused
+    ? local
+    : (numeric && num(local) > 0 ? num(local).toLocaleString('cs-CZ', {minimumFractionDigits:0, maximumFractionDigits:2}) : local)
 
   return (
-    <input value={display} placeholder={placeholder}
-      onChange={e => { editing.current = true; setLocal(e.target.value) }}
-      onFocus={e => { setFocused(true); setLocal(raw) }}
-      onBlur={e => { setFocused(false); commit(e.target.value) }}
-      onKeyDown={e => {
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          commit(local)
-          setFocused(false)
-          const inputs = Array.from(document.querySelectorAll('input'))
-          const idx = inputs.indexOf(e.target)
-          if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
-        }
-      }}
-      style={style} />
+    <input
+      value={display}
+      placeholder={placeholder}
+      onChange={e => setLocal(e.target.value)}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDown}
+      style={style}
+    />
   )
 }
 
@@ -1666,7 +1685,7 @@ export default function StavbaPage() {
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
-                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ await save(s); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
+                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ await save(sRef.current||s); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
               ))}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:16 }}>
@@ -1816,7 +1835,12 @@ export default function StavbaPage() {
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
               const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
               const rb = s.rozbor || {}
-              const setRb = (key, field, val) => setS(prev => ({ ...prev, rozbor: { ...prev.rozbor, [key]: { ...prev.rozbor[key], [field]: val } } }))
+              const setRb = (key, field, val) => {
+                const newRozbor = { ...s.rozbor, [key]: { ...(s.rozbor||{})[key], [field]: val } }
+                const newS = { ...s, rozbor: newRozbor }
+                sRef.current = newS
+                setS(newS)
+              }
 
               // Sloupce: Název | Bez přirážky | Přirážka | S přirážkou | Index ZMES/HZS | K vyplacení | Vyplaceno | ZISK-(34%) | Poznámka
               const cols = '160px 110px 80px 110px 90px 110px 110px 110px 1fr'
