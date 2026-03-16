@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_38
+// Build: 20260316_39
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2562,7 +2562,8 @@ export default function StavbaPage() {
                   ].map(({l,v,col,p})=>(
                     <div key={l} style={{ textAlign:'right' }}>
                       <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
-                      <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}{p ? <span style={{ fontSize:13, marginLeft:6, fontWeight:700 }}>({p} %)</span> : ''}</div>
+                      <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}</div>
+                      {p && <div style={{ color:col, fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{p} %</div>}
                     </div>
                   ))}
                 </div>
@@ -2577,7 +2578,7 @@ export default function StavbaPage() {
                   <div style={{ display:'flex', height:8, borderRadius:4, overflow:'hidden', gap:2, margin:'12px 0 6px' }}>
                     {bars.map(b=><div key={b.l} style={{ flex:b.v, background:b.col, opacity:0.85 }}/>)}
                   </div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:10 }}>
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
                     {bars.map(({l,v,col})=>(
                       <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
                         <div style={{ width:8, height:8, borderRadius:2, background:col }}/>
@@ -2586,6 +2587,10 @@ export default function StavbaPage() {
                         <span style={{ color:'#94a3b8', fontSize:10 }}>({(v/c.bazova*100).toFixed(1)}%)</span>
                       </div>
                     ))}
+                    <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ color:'#94a3b8', fontSize:10, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena:</span>
+                      <span style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:11, fontWeight:800 }}>{fmt(c.bazova)} Kč</span>
+                    </div>
                   </div>
                 </>)
               })()}
