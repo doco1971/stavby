@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_27
+// Build: 20260316_28
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -863,6 +863,141 @@ function RozborMech({ s, T, c, sRef, setS }) {
   )
 }
 
+// RozborZemni — sekce Zemní práce
+function RozborZemni({ s, T, c, sRef, setS }) {
+  const pri = num(s.prirazka)
+  const rb = s.rozbor || {}
+  const defaultIdx = num(s.default_index_rozbor ?? -15)
+
+  const setRb = (key, field, val) => {
+    setS(prev => {
+      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
+      const newS = { ...prev, rozbor: newRozbor }
+      sRef.current = newS
+      return newS
+    })
+  }
+
+  const getIdx = (key) => {
+    const v = rb[key]?.idx
+    return v !== undefined && v !== '' ? num(v) : defaultIdx
+  }
+
+  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
+
+  const TH = ({children, left=false}) => (
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px' }}>{children}</div>
+  )
+
+  // Normální řádek — K vyplacení = (bez × 0.8) × (1 + index/100)
+  const Row = ({label, rbKey, ti, locked=false}) => {
+    const bez = itemSum(s.zemni[rbKey.replace('zemni_rb_','')]?.rows||[])
+    const idx = locked ? 0 : getIdx(rbKey)
+    const priRow = locked ? 0 : pri
+    const sP = bez * (1 + priRow)
+    const kVypl = (bez * 0.8) * (1 + idx/100)
+    const vypl = num(rb[rbKey]?.vypl||0)
+    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
+    const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}20`, background:bg }}>
+        <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13 }}>{label}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          {locked
+            ? <div style={{ padding:'3px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#f97316' }}>0 %</div>
+            : <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
+                style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+          }
+        </div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput numeric tabIndex={locked?-1:ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
+            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+        </div>
+        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'3px 4px' }}>
+          <RbInput tabIndex={locked?-1:ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
+            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
+        </div>
+      </div>
+    )
+  }
+
+  const ROWS_NORMAL = [
+    { label:'Zemní práce',            rbKey:'zemni_rb_zemni_prace' },
+    { label:'Zádlažby',               rbKey:'zemni_rb_zadlazby' },
+    { label:'Bagr',                   rbKey:'zemni_rb_bagr' },
+    { label:'Kompresor',              rbKey:'zemni_rb_kompresor' },
+    { label:'Řezač asfaltu',          rbKey:'zemni_rb_rezac' },
+    { label:'Motorový pěch',          rbKey:'zemni_rb_mot_pech' },
+    { label:'Naložení a doprava sutě', rbKey:'zemni_rb_nalosute' },
+    { label:'Stav. práce m. rozsahu', rbKey:'zemni_rb_stav_prace' },
+    { label:'Optotrubka',             rbKey:'zemni_rb_optotrubka' },
+    { label:'Protlak',                rbKey:'zemni_rb_protlak' },
+    { label:'Asfalt',                 rbKey:'zemni_rb_asfalt' },
+    { label:'Rezerv. zemní',          rbKey:'zemni_rb_rezerv_zemni' },
+  ]
+  const ROWS_LOCKED = [
+    { label:'Roura PE - říz. protlaky', rbKey:'zemni_rb_roura_pe' },
+    { label:'Písek',                    rbKey:'zemni_rb_pisek' },
+    { label:'Štěrk',                    rbKey:'zemni_rb_sterk' },
+    { label:'Beton',                    rbKey:'zemni_rb_beton' },
+  ]
+  const ALL_ROWS = [...ROWS_NORMAL, ...ROWS_LOCKED]
+
+  const getBez = (rbKey) => itemSum(s.zemni[rbKey.replace('zemni_rb_','')]?.rows||[])
+
+  const celkemBez  = ALL_ROWS.reduce((a,r) => a + getBez(r.rbKey), 0)
+  const celkemSP   = ROWS_NORMAL.reduce((a,r) => a + getBez(r.rbKey) * (1+pri), 0)
+  const celkemVypl = ALL_ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
+  const celkemKVypl = ALL_ROWS.reduce((a,r) => {
+    const bez = getBez(r.rbKey)
+    const idx = r.locked ? 0 : getIdx(r.rbKey)
+    return a + (bez * 0.8) * (1 + idx/100)
+  }, 0)
+  const celkemZisk = celkemVypl > 0
+    ? ALL_ROWS.reduce((a,r) => {
+        const bez = getBez(r.rbKey)
+        const locked = ROWS_LOCKED.some(l => l.rbKey === r.rbKey)
+        const sP = bez * (1 + (locked ? 0 : pri))
+        const vypl = num(rb[r.rbKey]?.vypl||0)
+        return a + (vypl > 0 ? sP - vypl * 1.34 : 0)
+      }, 0)
+    : null
+
+  return (
+    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #ef4444' }}>
+        <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:13 }}>⛏️ Zemní práce</div>
+        <TH>Cena bez přirážky</TH>
+        <TH>Přirážka</TH>
+        <TH>Cena + přirážka</TH>
+        <TH>Index zemní</TH>
+        <TH>K vyplacení</TH>
+        <TH>Vyplaceno</TH>
+        <TH>ZISK</TH>
+        <TH left>Poznámka</TH>
+      </div>
+      {ROWS_NORMAL.map((r, i) => <Row key={r.rbKey} label={r.label} rbKey={r.rbKey} ti={200 + i*3} locked={false} />)}
+      {ROWS_LOCKED.map((r, i) => <Row key={r.rbKey} label={r.label} rbKey={r.rbKey} ti={250 + i*3} locked={true} />)}
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(239,68,68,0.3)' }}>
+        <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:12 }}>CELKEM ZEMNÍ PRÁCE</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemSP)}</div>
+        <div/>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div/>
+      </div>
+    </div>
+  )
+}
+
 function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
   const [open, setOpen] = useState(false)
   const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
@@ -1086,7 +1221,8 @@ export default function StavbaPage() {
   const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
   const [lastSaved, setLastSaved] = useState(null)
   const [sazbyDialog, setSazbyDialog] = useState(null)
-  const [rozpisDialog, setRozpisDialog] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
+  const [rozpisDialog, setRozpisDialog] = useState(false)
+  const [sazbyInfoOpen, setSazbyInfoOpen] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
 
   const importFileRef = useRef(null)
   const sRef = useRef(null)  // vždy aktuální stav pro save při navigaci
@@ -1134,7 +1270,10 @@ export default function StavbaPage() {
       const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
       const rozbor = data.rozbor || {}
       const rbDefaults = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
-        'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila']
+        'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila',
+        'zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac',
+        'zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak',
+        'zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton']
       rbDefaults.forEach(k => { if (!rozbor[k]) rozbor[k] = { bez:'', vypl:'', pozn:'' } })
       setS({ ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor })
       sRef.current = { ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor }
@@ -2005,6 +2144,12 @@ export default function StavbaPage() {
                 <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena</div>
                 <div style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.bazova)} Kč</div>
               </div>
+              {tab==='rozbor' && (
+                <button onClick={() => setSazbyInfoOpen(true)}
+                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  📋 Sazby
+                </button>
+              )}
               <div style={{ textAlign:'right' }}>
                 <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk</div>
                 <div style={{ color:c.celkemZisk>=0?'#10b981':'#ef4444', fontFamily:'monospace', fontSize:15, fontWeight:800 }}>{fmt(c.celkemZisk)} Kč</div>
@@ -2019,7 +2164,7 @@ export default function StavbaPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding:'20px 20px 60px' }}>
+      <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '20px 120px 60px' : '20px 20px 60px' }}>
         {tab==='vstup' && (
           <div>
             {/* Parametry */}
@@ -2145,6 +2290,8 @@ export default function StavbaPage() {
             <RozborMzdy s={s} T={T} c={c} sRef={sRef} setS={setS} />
             {/* TABULKA ROZBORU — Mechanizace */}
             <RozborMech s={s} T={T} c={c} sRef={sRef} setS={setS} />
+            {/* TABULKA ROZBORU — Zemní práce */}
+            <RozborZemni s={s} T={T} c={c} sRef={sRef} setS={setS} />
             {false && (() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
@@ -2327,6 +2474,31 @@ export default function StavbaPage() {
         </div>
       )}
 
+      {sazbyInfoOpen && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}
+          onClick={() => setSazbyInfoOpen(false)}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, minWidth:320, boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize:15, fontWeight:800, color:T.text, marginBottom:16 }}>📋 Sazby stavby</div>
+            {[
+              { l:'Přirážka', v: `${(num(s.prirazka)*100).toFixed(2)} %` },
+              { l:'HZS montáž', v: `${s.hzs_mont} Kč/h` },
+              { l:'HZS zemní', v: `${s.hzs_zem} Kč/h` },
+              { l:'ZMES montáž', v: `${s.zmes_mont} Kč/h` },
+              { l:'ZMES zemní', v: `${s.zmes_zem} Kč/h` },
+            ].map(({l,v}) => (
+              <div key={l} style={{ display:'flex', justifyContent:'space-between', padding:'8px 0', borderBottom:`1px solid ${T.border}` }}>
+                <div style={{ color:T.muted, fontSize:13 }}>{l}</div>
+                <div style={{ color:T.text, fontFamily:'monospace', fontSize:13, fontWeight:700 }}>{v}</div>
+              </div>
+            ))}
+            <button onClick={() => setSazbyInfoOpen(false)}
+              style={{ marginTop:20, width:'100%', padding:'9px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              Zavřít
+            </button>
+          </div>
+        </div>
+      )}
       {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
 
       {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} defaultSazby={sazbyDialog.defaultSazby} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
