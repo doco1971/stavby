@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_03
+// Build: 20260317_04
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2417,19 +2417,30 @@ export default function StavbaPage() {
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 8mm 10mm; }
-          body { background: white !important; color: black !important; }
-          body * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          .no-print { display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
-          .rozbor-print { padding: 0 !important; width: 100% !important; display: block !important; }
-          * { overflow: visible !important; position: static !important; }
-          /* Přepsat tmavé barvy */
-          [style*="background:#080f1c"], [style*="background: #080f1c"] { background: white !important; }
-          [style*="background:#0d1829"], [style*="background: #0d1829"] { background: white !important; }
-          [style*="background:#0a1520"], [style*="background: #0a1520"] { background: white !important; }
-          [style*="color:#e2e8f0"], [style*="color: #e2e8f0"] { color: black !important; }
-          [style*="color:#64748b"], [style*="color: #64748b"] { color: #444 !important; }
-          [style*="color:#94a3b8"], [style*="color: #94a3b8"] { color: #666 !important; }
+          .no-print { display: none !important; }
+          .rozbor-print { padding: 0 !important; width: 100% !important; }
+          * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
+        /* Světlý motiv pro tisk — přepíše tmavý motiv */
+        html.printing, html.printing body { background: white !important; color: black !important; }
+        html.printing .no-print { display: none !important; }
+        html.printing * {
+          background-color: transparent !important;
+          color: black !important;
+          border-color: #cccccc !important;
+        }
+        html.printing [style*="color:#3b82f6"], html.printing [style*="color: #3b82f6"] { color: #1d4ed8 !important; }
+        html.printing [style*="color:#f59e0b"], html.printing [style*="color: #f59e0b"] { color: #b45309 !important; }
+        html.printing [style*="color:#ef4444"], html.printing [style*="color: #ef4444"] { color: #b91c1c !important; }
+        html.printing [style*="color:#10b981"], html.printing [style*="color: #10b981"] { color: #047857 !important; }
+        html.printing [style*="color:#8b5cf6"], html.printing [style*="color: #8b5cf6"] { color: #6d28d9 !important; }
+        html.printing [style*="color:#60a5fa"], html.printing [style*="color: #60a5fa"] { color: #1d4ed8 !important; }
+        html.printing [style*="background:rgba(59,130,246"] { background-color: #dbeafe !important; }
+        html.printing [style*="background:rgba(245,158,11"] { background-color: #fef3c7 !important; }
+        html.printing [style*="background:rgba(239,68,68"]  { background-color: #fee2e2 !important; }
+        html.printing [style*="background:rgba(16,185,129"] { background-color: #d1fae5 !important; }
+        html.printing [style*="background:rgba(139,92,246"] { background-color: #ede9fe !important; }
+        html.printing [style*="background:rgba(37,99,235"]  { background-color: #dbeafe !important; }
       `}</style>
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
@@ -2781,7 +2792,11 @@ export default function StavbaPage() {
             })()}
 
             <div className="no-print" style={{ textAlign:'right', marginTop:16 }}>
-              <button onClick={()=>window.print()} style={{ padding:'10px 22px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+              <button onClick={() => {
+                document.documentElement.classList.add('printing')
+                window.print()
+                setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+              }} style={{ padding:'10px 22px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
                 🖨️ Tisk / Export PDF
               </button>
             </div>
