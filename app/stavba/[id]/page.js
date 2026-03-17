@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_09
+// Build: 20260317_10
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -77,6 +77,8 @@
 // Vždy exportovat: page_XXXXXXXX_XX.js + changelog_XXXXXXXX_XX.txt
 // nastaveni_XXXXXXXX_XX.js exportovat POUZE při změně kódu v nastaveni
 // dashboard/page.js exportovat POUZE při změně kódu v dashboard
+// !! VŽDY aktualizovat import_build string na aktuální číslo buildu !!
+// !! Hledat: import_build: `XXXXXXXX_XX / ` a aktualizovat !!
 //
 // NASTAVENÍ:
 // Tab Výchozí sazby ukládá do profiles.default_sazby (jsonb)
@@ -2492,7 +2494,7 @@ export default function StavbaPage() {
               await supabase.from('stavby').update({ ...dataToSave, updated_at: new Date().toISOString() }).eq('id', params.id)
               setSaving(false)
               router.push('/dashboard')
-            }} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer', flexShrink:0 }}>← zpět</button>
+            }} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'4px 10px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>← zpět</button>
 
             {/* Název + import info */}
             <div style={{ flex:1, minWidth:0 }}>
@@ -2514,53 +2516,63 @@ export default function StavbaPage() {
               </div>
             </div>
 
-            {/* Tlačítka */}
+            {/* Tlačítka — různá pro Vstupní hodnoty vs Rozbor */}
             <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
-              {profile?.role === 'admin' && (
-                <button onClick={() => setRozpisDialog(true)}
+              {tab === 'rozbor' ? (<>
+                {/* ROZBOR: Sazby | Rozpis | Tisk | ☀️🌙 */}
+                <button onClick={() => setSazbyInfoOpen(true)}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  🔍 Rozpis
+                  📋 Sazby
                 </button>
-              )}
-              {/* Den/Noc vedle sebe */}
-              <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-                <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-              </div>
-              {profile?.role === 'admin' && (
-                <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  🗑️ Smazat
+                {profile?.role === 'admin' && (
+                  <button onClick={() => setRozpisDialog(true)}
+                    style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    🔍 Rozpis
+                  </button>
+                )}
+                <button onClick={() => {
+                  document.documentElement.classList.add('printing')
+                  window.print()
+                  setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+                }} style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  🖨️ Tisk
                 </button>
-              )}
-              <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
-              </button>
+                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
+                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
+                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
+                </div>
+              </>) : (<>
+                {/* VSTUPNÍ HODNOTY: Rozpis | ☀️🌙 | Smazat | Uložit */}
+                {profile?.role === 'admin' && (
+                  <button onClick={() => setRozpisDialog(true)}
+                    style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    🔍 Rozpis
+                  </button>
+                )}
+                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
+                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
+                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
+                </div>
+                {profile?.role === 'admin' && (
+                  <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    🗑️ Smazat
+                  </button>
+                )}
+                <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
+                </button>
+              </>)}
             </div>
           </div>
 
-          {/* Tabs + Bázová cena + Import */}
+          {/* Tabs + Import */}
           <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
                 <button key={t.k} onClick={async()=>{ if(tab!==t.k){ const d=sRef.current||s; await supabase.from('stavby').update({...d,updated_at:new Date().toISOString()}).eq('id',params.id); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
               ))}
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:16 }}>
-              {tab==='rozbor' && (
-                <button onClick={() => setSazbyInfoOpen(true)}
-                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  📋 Sazby
-                </button>
-              )}
-              {tab==='rozbor' && (
-                <button onClick={() => {
-                  document.documentElement.classList.add('printing')
-                  window.print()
-                  setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-                }} style={{ padding:'7px 16px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:7, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  🖨️ Tisk / Export PDF
-                </button>
-              )}
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
               <button onClick={() => importFileRef.current?.click()}
                 style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
