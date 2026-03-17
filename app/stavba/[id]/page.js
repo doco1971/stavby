@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_23
+// Build: 20260317_24
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1394,17 +1394,20 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        {/* Zisk Kč + % v jednom sloupci, % zarovnáno vlevo vedle čísla */}
-        <div style={{ padding:'6px 6px' }}>
+        {/* Zisk Kč — sloupec 8 */}
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
           {hasAnyVypl ? (<>
-            <div style={{ display:'flex', alignItems:'baseline', gap:10 }}>
-              <span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:ziskColor }}>{fmt(ziskCelkem)}</span>
-              {ziskPct && <span style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{ziskPct} %</span>}
-            </div>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:ziskColor, whiteSpace:'nowrap' }}>{fmt(ziskCelkem)}</div>
             <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>{kompletni ? '✓ kompletní data' : '⚠ neúplná data'}</div>
           </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
         </div>
-        <div/>
+        {/* Zisk % — sloupec 9 (Poznámka) */}
+        <div style={{ padding:'6px 6px', textAlign:'left' }}>
+          {hasAnyVypl && ziskPct ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b', whiteSpace:'nowrap' }}>{ziskPct} %</div>
+            <div style={{ fontSize:10, color:'#f59e0b', marginTop:2 }}>{kompletni ? '✓ kompletní data' : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
       </div>
     </div>
   )
@@ -2477,7 +2480,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_23 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_24 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2526,7 +2529,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_23</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_24</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
