@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_05
+// Build: 20260317_06
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1317,9 +1317,45 @@ function RozborCelkem({ s, T, c, sRef }) {
   const rb = s.rozbor || {}
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
-  // Součty ze všech sekcí — K vyplacení
-  const celkemVypl = Object.values(rb).reduce((a, v) => a + num(v?.vypl||0), 0)
-  const celkemZisk = Object.values(rb).reduce((a, v) => a + num(v?.zisk||0), 0)
+  // Všechny klíče vyplaceno které se mají vyplnit
+  const VYPL_KEYS = [
+    'mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
+    'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila',
+    'zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac',
+    'zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak',
+    'zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton',
+    'gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn',
+    'gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace',
+    'ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs',
+  ]
+
+  // Kompletní = všechna pole Vyplaceno jsou vyplněna (včetně 0)
+  const kompletni = VYPL_KEYS.every(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
+
+  // Celkem vyplaceno = součet všech vyplacených hodnot
+  const celkemVypl = VYPL_KEYS.reduce((a, k) => a + num(rb[k]?.vypl||0), 0)
+
+  // Zisk = počítá se POUZE z řádků kde je Vyplaceno vyplněno
+  const ziskSP = c.bazova * (1 + pri) // Cena s přirážkou
+  const ziskVyplneno = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
+  const ziskCelkem = ziskVyplneno.length > 0 ? (() => {
+    // Součet SP z vyplněných řádků minus jejich vyplaceno
+    // Použijeme celkový SP * podíl vyplacených nebo jednodušeji z dat rozboru
+    return VYPL_KEYS.reduce((a, k) => {
+      if (rb[k]?.vypl === undefined || rb[k]?.vypl === '') return a
+      // Najdi odpovídající sP pro daný klíč
+      const vypl = num(rb[k].vypl)
+      // Zisk řádku se počítá různě — pro jednoduchost bereme součet z rb[k].zisk pokud existuje
+      // Jinak spočítáme jako vypl odečteme od celkového podílu
+      return a + vypl
+    }, 0)
+  })() : 0
+
+  // Jednodušší výpočet — celkový zisk = cena s přirážkou - celkem vyplaceno (z vyplněných řádků)
+  const zisk = ziskVyplneno.length > 0 ? ziskSP - celkemVypl : null
+  const ziskPct = zisk !== null && ziskSP > 0 ? (zisk / ziskSP * 100).toFixed(1) : null
+
+  const ziskColor = kompletni ? '#10b981' : '#059669' // jasná vs tmavší zelená
 
   return (
     <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
@@ -1327,11 +1363,23 @@ function RozborCelkem({ s, T, c, sRef }) {
         <div style={{ padding:'10px 8px', color:'#60a5fa', fontWeight:900, fontSize:14 }}>CELKEM ZA STAVBU</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova*(1+pri))}</div>
+        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
         <div/>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:c.celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(c.celkemZisk)}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {zisk !== null ? (
+            <div>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8 }}>
+                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(zisk)}</span>
+                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:ziskColor }}>{ziskPct} %</span>
+              </div>
+              <div style={{ fontSize:10, color:kompletni?'#10b981':'#059669', marginTop:2 }}>
+                {kompletni ? '✓ kompletní data' : '⚠ neúplná data'}
+              </div>
+            </div>
+          ) : '—'}
+        </div>
         <div/>
       </div>
     </div>
