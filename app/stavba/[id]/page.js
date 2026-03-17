@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_16
+// Build: 20260317_18
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -819,7 +819,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>CELKEM MZDY</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
@@ -930,7 +930,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(245,158,11,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:12 }}>CELKEM MECHANIZACE</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemSP)}</div>
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
@@ -1068,7 +1068,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(239,68,68,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:12 }}>CELKEM ZEMNÍ PRÁCE</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemSP)}</div>
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
@@ -1180,7 +1180,7 @@ function RozborGN({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(16,185,129,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#10b981', fontWeight:800, fontSize:12 }}>CELKEM GN</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#10b981' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#10b981' }}>{fmt(celkemSP)}</div>
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
@@ -1309,7 +1309,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(139,92,246,0.3)', marginBottom:16 }}>
         <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:12 }}>CELKEM OSTATNÍ</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#8b5cf6' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#8b5cf6' }}>{fmt(celkemSP)}</div>
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
@@ -1413,25 +1413,25 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.18)', borderRadius:8 }}>
         <div style={{ padding:'10px 8px', color:'#60a5fa', fontWeight:900, fontSize:14 }}>CELKEM ZA STAVBU</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
+        <div/>{/* přirážka prázdná */}
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
         <div/>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        {/* Zisk Kč */}
         <div style={{ padding:'6px 6px', textAlign:'right' }}>
-          {hasAnyVypl ? (
-            <div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8 }}>
-                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</span>
-                {ziskPct && <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:ziskColor }}>{ziskPct} %</span>}
-              </div>
-              <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>
-                {kompletni ? '✓ kompletní data' : '⚠ neúplná data'}
-              </div>
-            </div>
-          ) : '—'}
+          {hasAnyVypl ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</div>
+            <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná'}</div>
+          </>) : <span style={{ color:'#64748b' }}>—</span>}
         </div>
-        <div/>
+        {/* Zisk % — v posledním sloupci (Poznámka) */}
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {hasAnyVypl && ziskPct ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:'#f59e0b' }}>{ziskPct} %</div>
+            <div style={{ fontSize:10, color:'#f59e0b', marginTop:2 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná'}</div>
+          </>) : <span style={{ color:'#64748b' }}>—</span>}
+        </div>
       </div>
     </div>
   )
@@ -1663,6 +1663,10 @@ export default function StavbaPage() {
   const [rozpisDialog, setRozpisDialog] = useState(false)
   const [sazbyInfoOpen, setSazbyInfoOpen] = useState(false)
   const [zoom, setZoom] = useState(1.0)
+  const [zoomVstup, setZoomVstup] = useState(1.0)
+  const [zoomRozbor, setZoomRozbor] = useState(1.0)
+  const currentZoom = tab === 'rozbor' ? zoomRozbor : zoomVstup
+  const setCurrentZoom = tab === 'rozbor' ? setZoomRozbor : setZoomVstup
 
   const importFileRef = useRef(null)
   const sRef = useRef(null)  // vždy aktuální stav pro save při navigaci
@@ -2500,7 +2504,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_16 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_18 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2512,7 +2516,7 @@ export default function StavbaPage() {
   }
 
   return (
-    <div style={{ minHeight:'100vh', background:T.bg, zoom: zoom }}>
+    <div style={{ minHeight:'100vh', background:T.bg, zoom: currentZoom }}>
       {/* PRINT STYLY */}
       <style>{`
         @media print {
@@ -2549,7 +2553,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_16</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_18</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2633,9 +2637,9 @@ export default function StavbaPage() {
               </>)}
               {/* Zoom — vždy viditelný */}
               <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                <button onClick={() => setZoom(z => Math.max(0.7, +(z-0.1).toFixed(1)))} style={{ padding:'4px 9px', background:'transparent', border:'none', color:T.muted, fontSize:13, fontWeight:700, cursor:'pointer' }}>A−</button>
-                <button onClick={() => setZoom(1.0)} style={{ padding:'4px 8px', background:'transparent', border:'none', borderLeft:`1px solid ${T.border}`, borderRight:`1px solid ${T.border}`, color:T.muted, fontSize:11, cursor:'pointer' }}>{Math.round(zoom*100)}%</button>
-                <button onClick={() => setZoom(z => Math.min(1.5, +(z+0.1).toFixed(1)))} style={{ padding:'4px 9px', background:'transparent', border:'none', color:T.muted, fontSize:13, fontWeight:700, cursor:'pointer' }}>A+</button>
+                <button onClick={() => setCurrentZoom(z => Math.max(0.7, +(z-0.1).toFixed(1)))} style={{ padding:'4px 9px', background:'transparent', border:'none', color:T.muted, fontSize:13, fontWeight:700, cursor:'pointer' }}>A−</button>
+                <button onClick={() => setCurrentZoom(1.0)} style={{ padding:'4px 8px', background:'transparent', border:'none', borderLeft:`1px solid ${T.border}`, borderRight:`1px solid ${T.border}`, color:T.muted, fontSize:11, cursor:'pointer' }}>{Math.round(currentZoom*100)}%</button>
+                <button onClick={() => setCurrentZoom(z => Math.min(1.5, +(z+0.1).toFixed(1)))} style={{ padding:'4px 9px', background:'transparent', border:'none', color:T.muted, fontSize:13, fontWeight:700, cursor:'pointer' }}>A+</button>
               </div>
             </div>
           </div>
