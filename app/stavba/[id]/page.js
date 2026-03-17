@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_14
+// Build: 20260317_15
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2499,7 +2499,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_14 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_15 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2768,18 +2768,29 @@ export default function StavbaPage() {
                     const ziskSP = c.bazova*(1+pri2)
                     const ziskPct = hasAny && ziskSP>0 ? (ziskCelkem/ziskSP*100).toFixed(1) : null
                     const col = kompletni ? '#10b981' : '#059669'
-                    return (
+                    const status = kompletni ? '✓ kompletní data' : '⚠ neúplná data'
+                    return (<>
+                      {/* Zisk celkem — číslo */}
                       <div style={{ textAlign:'right' }}>
                         <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
                         {hasAny ? (<>
                           <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(ziskCelkem)}</div>
-                          {ziskPct && <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>}
-                          <div style={{ color:col, fontSize:9 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná data'}</div>
+                          <div style={{ color:col, fontSize:9, marginTop:2 }}>{status}</div>
                         </>) : (
                           <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
                         )}
                       </div>
-                    )
+                      {/* Zisk celkem % */}
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem %</div>
+                        {hasAny && ziskPct ? (<>
+                          <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>
+                          <div style={{ color:'#f59e0b', fontSize:9, marginTop:2 }}>{status}</div>
+                        </>) : (
+                          <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
+                        )}
+                      </div>
+                    </>)
                   })()}
                 </div>
               </div>
