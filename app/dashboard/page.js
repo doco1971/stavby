@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260315_28
+// Build: 20260317_16
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -11,8 +11,11 @@
 // - Vyhledávání podle názvu stavby (ignoruje datum verze)
 // - Seskupení verzí stejné stavby při aktivním hledání
 // - Přepínač motivu ☀️🌙 vedle sebe
+// - Build kódu vedle názvu aplikace
+// - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260317_16 – build kódu vedle "Kalkulace stavby"; zvýraznění Nastavení + Odhlásit
 // 20260315_28 – přidáno vyhledávání + seskupení verzí
 // 20260315_24 – přepínač ☀️🌙 vedle sebe
 // ============================================================
@@ -23,6 +26,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
+const BUILD = '20260317_16'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -75,7 +79,6 @@ export default function Dashboard() {
     if (data) router.push(`/stavba/${data.id}`)
   }
 
-  // Odstraní časové razítko z názvu: "Název - (15.03.2026 23:00)" → "Název"
   const baseNazev = (nazev) => String(nazev || '').replace(/\s*-\s*\(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}\)\s*$/, '').trim()
 
   const filtered = stavby
@@ -104,7 +107,6 @@ export default function Dashboard() {
     </div>
   )
 
-  // Seskupení podle základního názvu (bez data)
   const renderGrouped = () => {
     const skupiny = {}
     filtered.forEach(s => {
@@ -129,20 +131,28 @@ export default function Dashboard() {
       <div style={{ background: T.header, borderBottom: `1px solid ${T.border}`, padding: '0 24px', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ maxWidth: 900, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12, height: 58 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#2563eb,#3b82f6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>🏗️</div>
-          <div style={{ flex: 1, fontWeight: 800, fontSize: 15, color: T.text }}>Kalkulace stavby</div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', gap: 10 }}>
+            <span style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Kalkulace stavby</span>
+            <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>📦 {BUILD}</span>
+          </div>
           <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
             <button onClick={() => dark && toggle()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
             <button onClick={() => !dark && toggle()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
           </div>
           <div style={{ color: T.muted, fontSize: 12 }}>{user?.email}</div>
           {profile?.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 4 }}>ADMIN</span>}
-          <button onClick={() => router.push('/nastaveni')} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>⚙️ Nastavení</button>
-          <button onClick={() => setLogoutConfirm(true)} style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, padding: '5px 12px', color: T.muted, fontSize: 12, cursor: 'pointer' }}>Odhlásit</button>
+          <button onClick={() => router.push('/nastaveni')}
+            style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, padding: '5px 12px', color: '#818cf8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ⚙️ Nastavení
+          </button>
+          <button onClick={() => setLogoutConfirm(true)}
+            style={{ background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 6, padding: '5px 12px', color: '#ef4444', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            🚪 Odhlásit
+          </button>
         </div>
       </div>
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
-        {/* Filtry oblasti */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
           <button onClick={novaStavba} style={{ padding: '9px 18px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Nová stavba</button>
           {['vse', ...OBLASTI].map(o => (
@@ -154,7 +164,6 @@ export default function Dashboard() {
           <div style={{ marginLeft: 'auto', color: T.muted, fontSize: 12, alignSelf: 'center' }}>{filtered.length} staveb</div>
         </div>
 
-        {/* Vyhledávání */}
         <div style={{ marginBottom: 20, position: 'relative' }}>
           <input value={search} onChange={e => setSearch(e.target.value)}
             placeholder="🔍 Hledat stavbu… (ignoruje datum verze)"
