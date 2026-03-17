@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_19
+// Build: 20260317_20
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -800,7 +800,12 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {celkemZisk!==null ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(celkemZisk)}</div>
+            <div style={{ fontSize:10, color:celkemZisk>=0?'#10b981':'#ef4444', marginTop:2 }}>{celkemVypl>0 ? (kompletni!==undefined ? (kompletni?'✓ kompletní data':'⚠ neúplná data') : '⚠ neúplná data') : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
         <div/>
       </div>
     </div>
@@ -911,7 +916,12 @@ function RozborMech({ s, T, c, sRef, setS }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {celkemZisk!==null ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(celkemZisk)}</div>
+            <div style={{ fontSize:10, color:celkemZisk>=0?'#10b981':'#ef4444', marginTop:2 }}>{celkemVypl>0 ? (kompletni!==undefined ? (kompletni?'✓ kompletní data':'⚠ neúplná data') : '⚠ neúplná data') : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
         <div/>
       </div>
     </div>
@@ -1049,7 +1059,12 @@ function RozborZemni({ s, T, c, sRef, setS }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {celkemZisk!==null ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(celkemZisk)}</div>
+            <div style={{ fontSize:10, color:celkemZisk>=0?'#10b981':'#ef4444', marginTop:2 }}>{celkemVypl>0 ? (kompletni!==undefined ? (kompletni?'✓ kompletní data':'⚠ neúplná data') : '⚠ neúplná data') : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
         <div/>
       </div>
     </div>
@@ -1161,7 +1176,12 @@ function RozborGN({ s, T, c, sRef, setS }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {celkemZisk!==null ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(celkemZisk)}</div>
+            <div style={{ fontSize:10, color:celkemZisk>=0?'#10b981':'#ef4444', marginTop:2 }}>{celkemVypl>0 ? (kompletni!==undefined ? (kompletni?'✓ kompletní data':'⚠ neúplná data') : '⚠ neúplná data') : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
         <div/>
       </div>
     </div>
@@ -1290,7 +1310,12 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
         <div/>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
         <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {celkemZisk!==null ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk>=0?'#10b981':'#ef4444' }}>{fmt(celkemZisk)}</div>
+            <div style={{ fontSize:10, color:celkemZisk>=0?'#10b981':'#ef4444', marginTop:2 }}>{celkemVypl>0 ? (kompletni!==undefined ? (kompletni?'✓ kompletní data':'⚠ neúplná data') : '⚠ neúplná data') : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
         <div/>
       </div>
     </div>
@@ -1387,22 +1412,26 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
   return (
     <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.18)', borderRadius:8 }}>
-        <div style={{ padding:'10px 8px', color:'#60a5fa', fontWeight:900, fontSize:14 }}>CELKEM ZA STAVBU</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
-        <div/>{/* přirážka prázdná */}
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
+        <div style={{ padding:'8px 8px', color:'#60a5fa', fontWeight:800, fontSize:12 }}>CELKEM ZA STAVBU</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
         <div/>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        {/* Zisk Kč + % vedle sebe */}
-        <div style={{ padding:'6px 6px', gridColumn:'span 2' }}>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
+        <div/>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
+        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        {/* Zisk Kč */}
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
           {hasAnyVypl ? (<>
-            <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
-              <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</span>
-              {ziskPct && <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:'#f59e0b' }}>{ziskPct} %</span>}
-            </div>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:ziskColor }}>{fmt(ziskCelkem)}</div>
             <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>{kompletni ? '✓ kompletní data' : '⚠ neúplná data'}</div>
-          </>) : <span style={{ color:'#64748b' }}>—</span>}
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
+        </div>
+        {/* Zisk % */}
+        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+          {hasAnyVypl && ziskPct ? (<>
+            <div style={{ fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{ziskPct} %</div>
+            <div style={{ fontSize:10, color:'#f59e0b', marginTop:2 }}>{kompletni ? '✓ kompletní data' : '⚠ neúplná data'}</div>
+          </>) : <span style={{ color:'#64748b', fontFamily:'monospace', fontSize:12 }}>—</span>}
         </div>
       </div>
     </div>
@@ -2476,7 +2505,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_19 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_20 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2525,7 +2554,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_19</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_20</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
