@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_18
+// Build: 20260317_19
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,78 +91,54 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260317_18    – Odstraněna přirážka z řádků CELKEM (všechny sekce)
+// 20260317_17    – CELKEM ZA STAVBU: přirážka pryč, zisk ve dvou sloupcích; zoom per záložka
+// 20260317_16    – Vstupní hodnoty: odebráno Uložit; přidány A−/A+ zoom (70–150%)
+//                  Dashboard: build kódu, zvýrazněné Nastavení + Odhlásit
+// 20260317_15    – Rozbor hlavička: Zisk celkem ve dvou sloupcích (Kč + %)
+//                  každý sloupec má ⚠ neúplná / ✓ kompletní data
+// 20260317_14    – Rozbor: skryt název stavby z horního headeru
+// 20260317_13    – Vstupní hodnoty: build kódu vedle "Kalkulace stavby"
+//                  Rozbor: import_build přesunut pod název stavby v hlavičce
+// 20260317_12    – Fix: Zisk = součet zisků z vyplněných řádků (ne celková cena - vyplaceno)
+//                  Mzdy: ZISK = sP - vypl×1.34, Mech/Zemní/GN/Ostatní: ZISK = sP - vypl
 // 20260317_11    – Fix: Zisk v hlavičce rozboru počítá jen z vyplněných Vyplaceno
-//                  — dokud není nic, tmavší zelená + "neúplná data", kompletní → jasná zelená
 // 20260317_10    – UI Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙
 //                  UI Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Uložit
 // 20260317_09    – Fix: import_build se zapisoval natvrdo jako 20260315_28
 // 20260317_05    – Tisk: okraje 4mm; tlačítko Tisk mezi Sazby a Importovat
 // 20260317_04    – Fix tisk tmavý motiv: třída printing na html element
 // 20260317_01    – Tisk: @media print, A4 landscape, no-print, rozbor-print
-// 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá barva; popisky grafu T.text/T.muted
-// 20260316_39    – UI: zisk % pod číslem bez závorek; bázová cena v legendě grafu
-// 20260316_38    – UI: linky zesvětleny rgba(148,163,184); popisky grafu světlejší
-// 20260316_37    – fix: zisk % zobrazovalo kód funkce — opraveno destrukturování
+// 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá; popisky grafu T.text/T.muted
 // 20260316_36    – graf: Ostatní, bázová cena; zisk %; linky opraveny pro světlý motiv
-// 20260316_35    – odstraněna duplikátní bázová cena z menu; opraven sloupcový graf
-// 20260316_34    – přidán CELKEM ZA STAVBU (RozborCelkem); čáry zesíleny na T.border
-// 20260316_33    – CELKEM OSTATNÍ přidán; čáry zesíleny (0.35 opacity)
-// 20260316_32    – Rozbor: sekce Ostatní položky (Mat.zhotovitele, Příspěvek, GZS, Doloženo fakturou)
-//                  tenké svislé i vodorovné čáry ve všech sekcích rozboru
-// 20260316_31    – Rozbor: sekce Globální náklady (RozborGN); menu stejně široké; jemné čáry v hlavičkách
-// 20260316_30    – fix ZISK Mech/Zemní = sP - vypl (bez ×1.34); fix šířka hlavičky rozboru
-// 20260316_29    – fix Zemní práce celkem (sP, kVypl); tlačítko Sazby za Ziskem; plovoucí dialog
-// 20260316_28    – Rozbor: sekce Zemní práce (normální+oranžové zamčené); tlačítko Sazby; zúžení tabulky
-// 20260316_27    – fix: rámečky polí měly průhlednost #40 — opraveno na plnou barvu
-// 20260316_26    – zbytečné zúžení sloupců vráceno zpět
-// 20260316_25    – UI: permanentní barevné rámečky (žlutá=vyplaceno, fialová=index, šedá=pozn.)
-// 20260316_24    – UI: rámečky na editovatelných polích (neúplné)
-// 20260316_23    – UI: permanentní rámeček na Poznámka (neúplné)
-// 20260316_22    – Rozbor: sekce Mechanizace (RozborMech) — Jeřáb, Nákladní, Traktor, Plošina, Dodávka, Kango, Pila
-// 20260316_21    – fix Celkem mzdy K vyplacení = součet z řádků (ne celkemBez×0.66)
-// 20260316_20    – UI: přejmenováno na "ZISK MZDY" v řádku Celkem mzdy
-// 20260316_19    – fix Celkem mzdy ZISK = součet zisku z jednotlivých řádků
-// 20260316_18    – K vyplacení ostatních RowAuto = (bez×0.6)×(1+idx/100)
-// 20260316_17    – Zemní práce: K vyplacení = (bez/HZS_mont)×ZMES_zem×(1+idx/100); ZISK = sP-vypl×1.34
-// 20260316_16    – fix K vyplacení Montážní práce: hodiny z c.mzdyT (ne itemSum)
-// 20260316_15    – Montážní práce: opraveny vzorce (bez opto, K vyplacení = hod×ZMES×(1+idx/100))
-// 20260316_14    – Rozbor: sloupec Index editovatelný, výchozí z nastavení; nastaveni: Index ZMES/HZS
-// 20260316_13    – fix Enter/Tab: explicitní tabIndex data-rb 1-30
-// 20260316_12    – fix goNext: setTimeout+pozice (nefungovalo)
-// 20260316_11    – skipBlur ref; zvětšen font v RozborMzdy
-// 20260316_10    – kompletní přepis rozboru od základu: RbInput+RozborMzdy top-level komponenty
-// 20260316_09    – fix syntax errors
-// 20260316_08    – fix syntax errors
-// 20260316_07    – Enter/Tab přeskok data-rb; Rozbor na celou šířku stránky
-// 20260316_06    – RozborMzdy jako top-level komponenta (ne IIFE) — root cause fix
-// 20260316_05    – setRb aktualizuje sRef; autosave při přepnutí záložky
-// 20260316_04    – autosave při přepnutí záložky; formátování tisíců v numeric inputech
-// 20260316_03    – fix RbInput editing.current ref; Celkem mzdy Vyplaceno = součet řádků
-// 20260316_02    – Enter potvrdí hodnotu v RbInput
-// 20260316_01    – fix inputy v rozboru ztrácely focus (RbInput komponenta)
+// 20260316_34    – přidán CELKEM ZA STAVBU (RozborCelkem)
+// 20260316_32    – Rozbor: sekce Ostatní položky; čáry ve všech sekcích
+// 20260316_31    – Rozbor: sekce Globální náklady; menu stejně široké
+// 20260316_30    – fix ZISK Mech/Zemní = sP - vypl; fix šířka hlavičky
+// 20260316_28    – Rozbor: sekce Zemní práce (normální+oranžové zamčené)
+// 20260316_25    – UI: permanentní barevné rámečky (žlutá/fialová/šedá)
+// 20260316_22    – Rozbor: sekce Mechanizace
+// 20260316_14    – Rozbor: Index editovatelný; nastaveni: Index ZMES/HZS
+// 20260316_10    – kompletní přepis rozboru: RbInput+RozborMzdy top-level komponenty
 // 20260315_29    – Rozbor: sekce Mzdy montáže podle Excel vzoru (9 řádků)
 //                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
-// 20260315_28    – SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
-//                  Dashboard: vyhledávání + seskupení verzí stavby
-// 20260315_27    – fix save: explicitní user_id (RLS), chybová hláška při selhání
-// 20260315_26    – fix: nová stavba po importu prázdná — sRef.current
-// 20260315_25    – fix: varování při odchodu s nedokončeným importem
-// 20260315_24    – dashboard: přepínač ☀️🌙; import: kontrola duplicitní stavby
+// 20260315_28    – Dashboard: vyhledávání + seskupení verzí stavby
+//                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
+// 20260315_27    – fix save: explicitní user_id (RLS)
+// 20260315_26    – fix: sRef.current po importu
+// 20260315_24    – dashboard: přepínač ☀️🌙; kontrola duplicitní stavby
 // 20260315_23    – fix archeologický dozor: gnRowAll + fallback text 'archeolog'
-// 20260315_22    – UI: bázová cena + zisk vedle Importovat z Excelu
-// 20260315_19    – archeologický dozor přesunut z DOFEGD → DOF
 // 20260315_18    – fix dvojité počítání stroje 250 (protlakStrojKc)
 // 20260315_17    – fix zemní práce, protlak kódy, PP/PPV, colCena detekce
-// 20260315_16    – fix S stroje: poslední nenulová hodnota; fix stimulační přirážka
-// 20260315_15    – opraveny cesty nastaveni
-// 20260315_14    – fix hodiny fallback PM/PZ
-// 20260315_13    – MECH každý kód = řádek
-// 20260314_12    – formát data importu, fix newEmail
+// 20260315_16    – fix S stroje: poslední nenulová hodnota
 // 20260314_11    – nastaveni tab Výchozí sazby
 //                  SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
-// 20260314_10    – fix duplikát matVlastniR
-// 20260314_9     – bazova: matZhot → matVlastni
-// 20260314_8     – smazány zem_vn/zem_nn z MZDY
+// 20260314_05    – DOFEGD vyjmuty z bazové ceny
+// 20260314_03    – DOF rozděleno na Zhotovitel + EGD
+//                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
+// 20260314_02    – kompletní přepis importu podle mapovací tabulky v2
+// 20260312_01    – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog
+// ============================================================
 // 20260314_7     – fix mat_vlastni přidán zpět
 // 20260314_6     – fix gzs+stimul_prirazka fallback
 // 20260314_5     – DOFEGD vyjmuty z bazové ceny
@@ -1418,18 +1394,14 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
         <div/>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        {/* Zisk Kč */}
-        <div style={{ padding:'6px 6px', textAlign:'right' }}>
+        {/* Zisk Kč + % vedle sebe */}
+        <div style={{ padding:'6px 6px', gridColumn:'span 2' }}>
           {hasAnyVypl ? (<>
-            <div style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</div>
-            <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná'}</div>
-          </>) : <span style={{ color:'#64748b' }}>—</span>}
-        </div>
-        {/* Zisk % — v posledním sloupci (Poznámka) */}
-        <div style={{ padding:'6px 6px', textAlign:'right' }}>
-          {hasAnyVypl && ziskPct ? (<>
-            <div style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:'#f59e0b' }}>{ziskPct} %</div>
-            <div style={{ fontSize:10, color:'#f59e0b', marginTop:2 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná'}</div>
+            <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
+              <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</span>
+              {ziskPct && <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:'#f59e0b' }}>{ziskPct} %</span>}
+            </div>
+            <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>{kompletni ? '✓ kompletní data' : '⚠ neúplná data'}</div>
           </>) : <span style={{ color:'#64748b' }}>—</span>}
         </div>
       </div>
@@ -2504,7 +2476,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_18 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_19 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2553,7 +2525,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_18</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_19</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2816,8 +2788,8 @@ export default function StavbaPage() {
                     {bars.map(({l,v,col})=>(
                       <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
                         <div style={{ width:8, height:8, borderRadius:2, background:col }}/>
-                        <span style={{ color:T.muted, fontSize:10 }}>{l}: </span>
-                        <span style={{ color:T.text, fontFamily:'monospace', fontSize:10, fontWeight:700 }}>{fmt(v)}</span>
+                        <span style={{ color:'#94a3b8', fontSize:10 }}>{l}: </span>
+                        <span style={{ color:'#e2e8f0', fontFamily:'monospace', fontSize:10, fontWeight:700 }}>{fmt(v)}</span>
                         <span style={{ color:T.muted, fontSize:10 }}>({(v/c.bazova*100).toFixed(1)}%)</span>
                       </div>
                     ))}
