@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_13
+// Build: 20260317_14
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2499,7 +2499,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_13 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_14 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2544,15 +2544,15 @@ export default function StavbaPage() {
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '0 120px' : '0' }}>
-          {/* Název + import info — jen jedna řádka */}
+          {/* Název + import info — skryto v záložce Rozbor */}
+          {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_13</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_14</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-
                 {lastSaved && (
                   <div style={{ fontSize:10, color:'#10b981' }}>
                     🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
@@ -2561,6 +2561,7 @@ export default function StavbaPage() {
               </div>
             </div>
           </div>
+          )}
           <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:6, marginBottom:4 }}>
             {/* Vlevo: ← zpět */}
             <button onClick={async () => {
