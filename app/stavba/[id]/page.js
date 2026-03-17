@@ -1,3041 +1,4578 @@
-'use client'
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
+import * as XLSX from "xlsx";
+// BUILD: 2026_03_17_build0113
 // ============================================================
-// Build: 20260317_12
-// Kalkulace stavby – hlavní editor stavby
+// POZNÁMKY PRO CLAUDE (čti na začátku každé session)
 // ============================================================
-// POPIS APLIKACE:
-// React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
-// Stack: Next.js 14 + Supabase + Vercel + GitHub
-// GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
-// Supabase: https://khvnaiokxvnbdogaphlw.supabase.co
-// Anon key: sb_publishable_WSrjfJhMNxxzfwRCPYBfYA_0LcCoNXq
-// Admin: doco@seznam.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
+// PRAVIDLO: Každá změna = dva soubory:
+//   stavby-app_DATUM_buildXXXX.jsx
+//   stavby-app_DATUM_buildXXXX_changelog.txt
+//   Třetí řádek souboru: // BUILD: DATUM_buildXXXX
+//   Po každém buildu aktualizovat sekci HISTORY níže.
 //
-// SEKCE KALKULAČKY:
-// MZDY:    mont_vn, mont_nn, mont_opto, rezerv_mont
-// MECH:    jerab, nakladni, traktor, plosina, pila, kango, dodavka, mech_sdok
-// ZEMNI:   zemni_prace, zadlazby, asfalt, nalosute, bagr, kompresor, rezac,
-//          uhlova_bruska, mot_pech, stav_prace, def_fasady, def_str, optotrubka,
-//          zaorkab, vez_ts, protlak (neřízený,isProtlak), protlak_rizeny,
-//          roura_pe (noIdx), pisek (noIdx), sterk (noIdx), beton (noIdx),
-//          mat_vlastni, rezerv_zemni
-// GN:      inzenyrska, geodetika, te_evidence, vychozi_revize, pripl_ppn,
-//          ekolog_likv, material_vyn, doprava_mat, pripl_capex, kolaudace,
-//          pausal_bo_do150, pausal_bo_nad150
-// DOF:     dio, vytyc_siti, neplanvykon, spravni_popl, omezeni_dopr,
-//          popl_omez_zeleznice, popl_ver_prostranstvi, archeolog_dozor
-//          + gzs, stimul_prirazka (mimo pole, čteny přímo z s.dof)
-// DOFEGD:  uhrady_zem_kultury, nahrady_maj_ujmy, koordinator_bozp,
-//          zadl_mesto, proj_geod, inz_cinnost, zajisteni_pracoviste, manipulace_vedeni,
-//          zkousky_vn, odvody_zem_puda, mobilni_ts, rezerva
-//          DOFEGD se NEZAPOČÍTÁVÁ do bázové ceny — pouze evidenční
+// DEPLOY: Vercel + GitHub (doco1971/stavby-znojmo), branch main
+//   Soubor patří do: src/App.jsx
 //
-// EBC IMPORT – MAPOVÁNÍ:
-// Hodiny (51:/52:) podle CZD: CZD00040/04/05/07→mont_vn, CZD00010→mont_nn, CZD00013→mont_opto
-//   Fallback: když level=3 vrátí 0 (vzorec SUBTOTAL), sečte detailní PM/PZ řádky
-//   Funguje pro .xls i .xlsx
-// Stroje (S): 120+160+170→jerab (3 řádky), 200+420+205+440+207+460+480+210+310+810+820+990→nakladni (12 řádků),
-//   620+640+645+970→traktor (4 řádky), 340+345+350+360+365→plosina (5 řádků),
-//   520+540+220→bagr[0-2], 740+750→kompresor, 260→rezac, 240→mot_pech,
-//   255→uhlova_bruska, 250→protlak[0], 230→pila, 270→kango, 410→dodavka, 995+996→mech_sdok
-// Protlak neřízený: stroj 250 (přičítán jako protlakStrojKc do bazové) + PZ kódy EK21-EK26 (v zemniPraceKc)
-// Protlak řízený: subdodávky 4760V+47622-47629 (každý kód=řádek), počítá se do zemniSumBez
-// PP/PPV: 9343+9223+9346+9347+9348→gzs,
-//   PPV vše + PP kódy 9349+9221+9321+9224+9344+9225+9345+9249→stimul_prirazka,
-//   9222+9322→doprava_zam (DOF)
-// Cena z PM listu: colCena (header Ident) nebo fallback PP řádek od col[9] odzadu
-// Stroje (S): poslední nenulová hodnota v řádku (col[8]=0 u strojů)
-// GN (gnRowAll): 1101999→inzenyrska, 1102000→geodetika, 1102010→te_evidence,
-//   1101594→vychozi_revize, 1100167→pripl_ppn, 1101638→ekolog_likv,
-//   1102001→material_vyn, 1102004→kolaudace, 1102116→pripl_capex,
-//   1102005-1102008→doprava_mat, 9404→pausal_bo_do150, 9405→pausal_bo_nad150
-// DOF (gnRowAll): 1101929→dio, 1101922→vytyc_siti, 1102213→neplanvykon,
-//   1101926→spravni_popl, 1101927→omezeni_dopr, 1101928→popl_omez_zeleznice,
-//   1102003_→popl_ver_prostranstvi
-//   1101925→archeolog_dozor (gnRowAll + fallback text 'archeolog' v GN listu)
-// DOFEGD (gnRowAll): 1101923→uhrady_zem_kultury, 1101924→nahrady_maj_ujmy,
-//   1102560→koordinator_bozp, 9491→zadl_mesto, 9100→proj_geod, 9150→inz_cinnost,
-//   9416→zajisteni_pracoviste, 9417→manipulace_vedeni, 9418→zkousky_vn,
-//   9425→odvody_zem_puda, 9465→mobilni_ts
-// Subdodávky: 53001+53011+530031+53020+53021+53032+53035+53036→asfalt (každý kód=řádek)
-//   53002-53031 mimo asfalt→zadlazby (každý kód=řádek), 53041→nalosute,
-//   54003+54005-54019+54051→def_fasady, 54001→def_str, DT56→stav_prace,
-//   PA90+PA91+QB05+QC01-QC12→optotrubka, 4601+4611→zaorkab, 4110V+4111+4112+4901→vez_ts
-// Materiál: 800000000301→pisek[0], 800000000303→pisek[1],
-//   800000000321/323/325→beton[0-2], 800000000305/306/307/308→sterk[0-3],
-//   900000000085-088→roura_pe[0-3], 4760V+47622-47629→protlak_rizeny
+// TRANSCRIPT: /mnt/transcripts/ — přečíst pro kontext předchozích session
 //
-// COMPUTE:
-// bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez
-//          + matVlastni + prispSklad + gzsKc + stimulKc + protlakStrojKc
-// protlakStrojKc = první řádek protlak sekce (stroj 250)
-// zemniSumBez NEzahrnuje: isProtlak (protlak neřízený), noIdx (písek, štěrk, beton, roura_pe)
-// dofAllBez = dofBez + dofegdBez (dofegdBez NENÍ v bazova)
-// matVlastni = itemSum(zemni['mat_vlastni'].rows)
-//
-// EXPORT PRAVIDLA:
-// Vždy exportovat: page_XXXXXXXX_XX.js + changelog_XXXXXXXX_XX.txt
-// nastaveni_XXXXXXXX_XX.js exportovat POUZE při změně kódu v nastaveni
-// dashboard/page.js exportovat POUZE při změně kódu v dashboard
-// !! VŽDY aktualizovat import_build string na aktuální číslo buildu !!
-// !! Hledat: import_build: `XXXXXXXX_XX / ` a aktualizovat !!
-//
-// NASTAVENÍ:
-// Tab Výchozí sazby ukládá do profiles.default_sazby (jsonb)
-// Předvyplní SazbyDialog při EBC importu
-//
-// SUPABASE — potřebné SQL migrace (již spuštěno):
-// ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
-// ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
-// ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text;
-// ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
-//
-// CHANGELOG:
-// 20260317_11    – Fix: Zisk v hlavičce rozboru počítá jen z vyplněných Vyplaceno
-//                  — dokud není nic, tmavší zelená + "neúplná data", kompletní → jasná zelená
-// 20260317_10    – UI Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙
-//                  UI Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Uložit
-// 20260317_09    – Fix: import_build se zapisoval natvrdo jako 20260315_28
-// 20260317_05    – Tisk: okraje 4mm; tlačítko Tisk mezi Sazby a Importovat
-// 20260317_04    – Fix tisk tmavý motiv: třída printing na html element
-// 20260317_01    – Tisk: @media print, A4 landscape, no-print, rozbor-print
-// 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá barva; popisky grafu T.text/T.muted
-// 20260316_39    – UI: zisk % pod číslem bez závorek; bázová cena v legendě grafu
-// 20260316_38    – UI: linky zesvětleny rgba(148,163,184); popisky grafu světlejší
-// 20260316_37    – fix: zisk % zobrazovalo kód funkce — opraveno destrukturování
-// 20260316_36    – graf: Ostatní, bázová cena; zisk %; linky opraveny pro světlý motiv
-// 20260316_35    – odstraněna duplikátní bázová cena z menu; opraven sloupcový graf
-// 20260316_34    – přidán CELKEM ZA STAVBU (RozborCelkem); čáry zesíleny na T.border
-// 20260316_33    – CELKEM OSTATNÍ přidán; čáry zesíleny (0.35 opacity)
-// 20260316_32    – Rozbor: sekce Ostatní položky (Mat.zhotovitele, Příspěvek, GZS, Doloženo fakturou)
-//                  tenké svislé i vodorovné čáry ve všech sekcích rozboru
-// 20260316_31    – Rozbor: sekce Globální náklady (RozborGN); menu stejně široké; jemné čáry v hlavičkách
-// 20260316_30    – fix ZISK Mech/Zemní = sP - vypl (bez ×1.34); fix šířka hlavičky rozboru
-// 20260316_29    – fix Zemní práce celkem (sP, kVypl); tlačítko Sazby za Ziskem; plovoucí dialog
-// 20260316_28    – Rozbor: sekce Zemní práce (normální+oranžové zamčené); tlačítko Sazby; zúžení tabulky
-// 20260316_27    – fix: rámečky polí měly průhlednost #40 — opraveno na plnou barvu
-// 20260316_26    – zbytečné zúžení sloupců vráceno zpět
-// 20260316_25    – UI: permanentní barevné rámečky (žlutá=vyplaceno, fialová=index, šedá=pozn.)
-// 20260316_24    – UI: rámečky na editovatelných polích (neúplné)
-// 20260316_23    – UI: permanentní rámeček na Poznámka (neúplné)
-// 20260316_22    – Rozbor: sekce Mechanizace (RozborMech) — Jeřáb, Nákladní, Traktor, Plošina, Dodávka, Kango, Pila
-// 20260316_21    – fix Celkem mzdy K vyplacení = součet z řádků (ne celkemBez×0.66)
-// 20260316_20    – UI: přejmenováno na "ZISK MZDY" v řádku Celkem mzdy
-// 20260316_19    – fix Celkem mzdy ZISK = součet zisku z jednotlivých řádků
-// 20260316_18    – K vyplacení ostatních RowAuto = (bez×0.6)×(1+idx/100)
-// 20260316_17    – Zemní práce: K vyplacení = (bez/HZS_mont)×ZMES_zem×(1+idx/100); ZISK = sP-vypl×1.34
-// 20260316_16    – fix K vyplacení Montážní práce: hodiny z c.mzdyT (ne itemSum)
-// 20260316_15    – Montážní práce: opraveny vzorce (bez opto, K vyplacení = hod×ZMES×(1+idx/100))
-// 20260316_14    – Rozbor: sloupec Index editovatelný, výchozí z nastavení; nastaveni: Index ZMES/HZS
-// 20260316_13    – fix Enter/Tab: explicitní tabIndex data-rb 1-30
-// 20260316_12    – fix goNext: setTimeout+pozice (nefungovalo)
-// 20260316_11    – skipBlur ref; zvětšen font v RozborMzdy
-// 20260316_10    – kompletní přepis rozboru od základu: RbInput+RozborMzdy top-level komponenty
-// 20260316_09    – fix syntax errors
-// 20260316_08    – fix syntax errors
-// 20260316_07    – Enter/Tab přeskok data-rb; Rozbor na celou šířku stránky
-// 20260316_06    – RozborMzdy jako top-level komponenta (ne IIFE) — root cause fix
-// 20260316_05    – setRb aktualizuje sRef; autosave při přepnutí záložky
-// 20260316_04    – autosave při přepnutí záložky; formátování tisíců v numeric inputech
-// 20260316_03    – fix RbInput editing.current ref; Celkem mzdy Vyplaceno = součet řádků
-// 20260316_02    – Enter potvrdí hodnotu v RbInput
-// 20260316_01    – fix inputy v rozboru ztrácely focus (RbInput komponenta)
-// 20260315_29    – Rozbor: sekce Mzdy montáže podle Excel vzoru (9 řádků)
-//                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
-// 20260315_28    – SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
-//                  Dashboard: vyhledávání + seskupení verzí stavby
-// 20260315_27    – fix save: explicitní user_id (RLS), chybová hláška při selhání
-// 20260315_26    – fix: nová stavba po importu prázdná — sRef.current
-// 20260315_25    – fix: varování při odchodu s nedokončeným importem
-// 20260315_24    – dashboard: přepínač ☀️🌙; import: kontrola duplicitní stavby
-// 20260315_23    – fix archeologický dozor: gnRowAll + fallback text 'archeolog'
-// 20260315_22    – UI: bázová cena + zisk vedle Importovat z Excelu
-// 20260315_19    – archeologický dozor přesunut z DOFEGD → DOF
-// 20260315_18    – fix dvojité počítání stroje 250 (protlakStrojKc)
-// 20260315_17    – fix zemní práce, protlak kódy, PP/PPV, colCena detekce
-// 20260315_16    – fix S stroje: poslední nenulová hodnota; fix stimulační přirážka
-// 20260315_15    – opraveny cesty nastaveni
-// 20260315_14    – fix hodiny fallback PM/PZ
-// 20260315_13    – MECH každý kód = řádek
-// 20260314_12    – formát data importu, fix newEmail
-// 20260314_11    – nastaveni tab Výchozí sazby
-//                  SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
-// 20260314_10    – fix duplikát matVlastniR
-// 20260314_9     – bazova: matZhot → matVlastni
-// 20260314_8     – smazány zem_vn/zem_nn z MZDY
-// 20260314_7     – fix mat_vlastni přidán zpět
-// 20260314_6     – fix gzs+stimul_prirazka fallback
-// 20260314_5     – DOFEGD vyjmuty z bazové ceny
-// 20260314_4     – fix kódy 420+440 do nakladni
-// 20260314_3     – DOF rozděleno na Zhotovitel + EGD
-//                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
-// 20260314_2     – kompletní přepis importu podle mapovací tabulky v2
-// 20260312_1     – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog
 // ============================================================
-import { useState, useEffect, useRef } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '../../../lib/supabase'
-import { useTheme } from '../../layout'
+// EMAIL NOTIFIKACE — AKTUÁLNÍ STAV (session 2026-03-16)
+// ============================================================
+// ✅ Resend.com funguje a je plně nakonfigurován
+// ✅ Doména zmes.cz ověřena v Resend (DNS záznamy přidal IT správce Forpsi)
+//   DNS záznamy přidány:
+//     TXT  resend._domainkey.zmes.cz  → DKIM klíč
+//     MX   send.zmes.cz               → feedback-smtp.eu-west-1.amazonses.com (priorita 10)
+//     TXT  send.zmes.cz               → v=spf1 include:amazonses.com ~all
+//   Domain verified: Mar 16, 6:21 PM (Ireland eu-west-1)
+// ✅ FROM_EMAIL nastaven v Supabase Secrets: stavby_znojmo@zmes.cz
+// ✅ Edge Function aktualizována — FROM_EMAIL fallback = stavby_znojmo@zmes.cz
+// ✅ Edge Function načítá emaily z DB (tabulka nastaveni, klic=notify_emails)
+// ✅ pg_cron nastaven — job "stavby-deadline-emails-v2" (jobid=2)
+//   Schedule: 0 5 * * * = 5:00 UTC = 6:00 CZ zimní / 7:00 CZ letní
+// ✅ Duplicitní job "send-deadline-emails-daily" (jobid=3) byl smazán
+// ✅ Emaily lze spravovat v aplikaci: Nastavení → Aplikace → 📧 EMAIL NOTIFIKACE
+//   Pole notify_emails: adresy oddělené čárkou nebo novým řádkem, uloženo v DB
+//
+// SUPABASE SECRETS (Edge Functions → Secrets):
+//   RESEND_API_KEY          — API klíč z resend.com
+//   FROM_EMAIL              — stavby_znojmo@zmes.cz
+//   SUPABASE_URL            — automaticky dostupná
+//   SUPABASE_SERVICE_ROLE_KEY — automaticky dostupná
+//
+// PENDING ÚKOLY:
+//   [ ] Sledovat několik dní — chodí email každý den spolehlivě?
+//
+// ============================================================
+// MULTI-TENANT ARCHITEKTURA — ROZPRACOVÁNO (session 2026-03-16)
+// ============================================================
+// Plán: 3–5 firem. Každá firma = vlastní instance, data 100% oddělená.
+// Hosting: Cloudflare Pages (zdarma, komerční použití povoleno)
+//          Vercel Hobby ZAKÁZÁN pro komerční použití — nepoužívat!
+//
+// STRUKTURA REPOZITÁŘŮ:
+//   Template: doco1971/stavby-template — základ, nikdy se nenasazuje přímo
+//   Každá firma = fork: doco1971/stavby-[nazev]
+//   Každý fork má 2 větve: main (produkce) + staging (testování)
+//
+// STRUKTURA JEDNÉ INSTANCE (každá firma):
+//   GitHub fork:       doco1971/stavby-[nazev]
+//     větev main    → Cloudflare Pages (produkce)  + Supabase PROD DB
+//     větev staging → Cloudflare Pages (staging)   + Supabase STAGING DB
+//   .env: VITE_SB_URL + VITE_SB_KEY (liší se mezi firmami i prostředími)
+//
+// SOUBORY TEMPLATE (vytvořeny v BUILD0112):
+//   .env.template                            — šablona proměnných
+//   .github/workflows/supabase-heartbeat.yml — keep-alive pro Supabase Free
+//   README.md                                — onboarding CZ + EN
+//
+// JAK ŠÍŘIT OPRAVY KÓDU:
+//   1. Opravit v stavby-template (main větev)
+//   2. V každém forku: git fetch upstream && git merge upstream/main
+//   3. Firma nechce Git? → udělat za ně (5 minut)
+//
+// SUPABASE FREE — HEARTBEAT:
+//   Free tier pauzuje po 7 dnech nečinnosti
+//   Řešení: .github/workflows/supabase-heartbeat.yml (ping Po+Čt 9:00 UTC)
+//   GitHub Secrets nutné: VITE_SB_URL + VITE_SB_KEY (Settings → Secrets → Actions)
+//   Produkce s vysokými nároky: zvážit Supabase Pro ($25/měsíc)
+//
+// .ENV PROMĚNNÉ:
+//   VITE_SB_URL      — URL Supabase projektu (prod nebo staging)
+//   VITE_SB_KEY      — Supabase anon klíč
+//   (Resend + FROM_EMAIL = Supabase Secrets, ne .env)
+//
+// CHECKLIST PRO KAŽDOU NOVOU FIRMU:
+//   [ ] Fork stavby-template → stavby-[nazev] (Private)
+//   [ ] Vytvořit 2 Supabase projekty (prod + staging)
+//   [ ] Spustit SQL migrace v obou projektech
+//   [ ] Vyplnit .env (prod hodnoty), nepushovat do Gitu
+//   [ ] Vytvořit větev staging, pushnout
+//   [ ] Nasadit na Cloudflare Pages (main → prod, staging → staging)
+//   [ ] Přidat GitHub Actions Secrets (VITE_SB_URL + VITE_SB_KEY)
+//   [ ] Nastavit Resend emaily (volitelné)
+//   [ ] Otestovat přihlášení, CRUD, export na staging
+//   [ ] Předat přístupy firmě
+//
+// ============================================================
+// TECHNICKÉ DETAILY
+// ============================================================
+//
+// SUPABASE: tabulky stavby, ciselniky, uzivatele, log_aktivit, nastaveni
+//   sb() helper — fetch wrapper s Bearer tokenem
+//   XLSX export: HTML blob (.xls) — NE import("xlsx"), nefunguje v bundlu!
+//   XLSX import: XLSX.read(..., { raw: true, cellDates: true }) — raw:true nutné!
+//
+// TABULKA — sloupce:
+//   Faktura 2 (cislo_faktury_2, castka_bez_dph_2, splatna_2): hidden:true
+//   ale zobrazují se jako druhý řádek v buňkách faktury (stejný font, čára dashed)
+//   Zelený řádek (isFaktura): č.faktury + castka_bez_dph + splatna vyplněny
+//     → isOverdue = false
+//   Červené ukončení (isOverdue): termín v minulosti, jen pokud !isFaktura
+//
+// ROLE: user (čtení), user_e (editor), admin, superadmin
+//
+// DEMO: email=demo / heslo=demo
+//   role=admin, max 15 staveb, jen v paměti — NESMÍ zapisovat do DB!
+//   Blokováno: logAkce, saveSettings, saveUsers, saveAppInfo, saveColWidths,
+//              loadLog, HistorieModal, LogModal, SettingsModal log tab
+//   Demo data: 8 staveb, 4 firmy, DEMO_USERS (4 účty viditelné v Nastavení)
+//
+// IMPORT původní tabulky (📥 Import, jen superadmin):
+//   Formát A — původní Excel: List1, hlavička řádek 4, data od řádku 5
+//     col1=firma, col3=ps_i, col4=snk_i, col5=bo_i, col6=ps_ii, col7=bo_ii,
+//     col8=poruch, col9=cislo_stavby, col10=nazev_stavby,
+//     col14=ukonceni, col15=zrealizovano, col16=sod, col17=ze_dne,
+//     col18=objednatel, col19=stavbyvedouci, col20=nabidkova_cena,
+//     col21=cislo_faktury, col22=castka_bez_dph, col23=splatna
+//   Formát B — záloha DB (list "Stavby" z aplikace)
+//   Datumy vždy DD.MM.YYYY, čísla jako float (raw:true)
+//
+// ZÁLOHA DB (💾 Záloha DB, jen superadmin):
+//   Excel 3 listy: Stavby + Ciselniky + Uzivatele (bez hesel)
+//
+// DB MIGRACE (nutné v Supabase SQL editoru):
+//   ALTER TABLE stavby ADD COLUMN IF NOT EXISTS poznamka TEXT;
+//   ALTER TABLE stavby ADD COLUMN IF NOT EXISTS cislo_faktury_2 TEXT;
+//   ALTER TABLE stavby ADD COLUMN IF NOT EXISTS castka_bez_dph_2 NUMERIC;
+//   ALTER TABLE stavby ADD COLUMN IF NOT EXISTS splatna_2 TEXT;
+//   CREATE POLICY "admin_read_all" ON log_aktivit FOR SELECT USING (true);
+//
+// MOBIL: tabulka není optimalizována (25 sloupců) → do budoucna kartičky
+//
+// ============================================================
+// PENDING FUNKCE (dohodnuté, zatím neimplementované)
+// ============================================================
+// [PENDING] 🎨 Layout / rozmístění na ploše — až po dokončení všech funkcí
+// [PENDING] 📱 iOS klávesnice — přihlašovací obrazovka se roztáhne při psaní
+// [PENDING] 📱 iOS klávesnice — alert okno (⚠️ Termíny) přetéká mimo obrazovku
+// [PENDING] 📱 Překrývání tlačítek Export (⬇) a + Přidat stavbu na mobilu
+// [PENDING] ↔️  Změna šířky sloupců tabulky tažením myší
+// [PENDING] 📈 Dashboard — přehledová stránka s KPI kartami a grafy
+//   KPI karty: celkem staveb, prošlé termíny, vyfakturováno, celková nab. cena
+//   Grafy: stavby per firma, vyfakturováno vs nevyfakturováno, nab. ceny per rok
+//   Nový pohled (třetí záložka vedle 📋 Stránky / 📜 Vše)
+// [PENDING] 🗓️ Kalendářní pohled — termíny ukončení v kalendáři
+//   Zobrazení termínů ukončení staveb v měsíčním kalendáři
+//   Barevné odlišení dle firmy nebo stavu (prošlé / aktivní / vyfakturované)
+// [PENDING] ☁️  Přechod Vercel → Cloudflare Pages
+//   Vercel Hobby zakazuje komerční použití → Cloudflare Pages zdarma bez omezení
+//   Postup: napojit GitHub repo, build = npm run build / output = dist, přenést .env
+//   Odhadovaný čas: 15–30 min na instanci, žádná změna v kódu App.jsx
+//   Provést pro všechny instance při vytváření multi-tenant template
+// [PENDING] 😴 Supabase pauzování — heartbeat workaround
+//   Free tier uspí projekt po 7 dnech nečinnosti (data zůstanou, app offline)
+//   Řešení A (staging/free): GitHub Actions YAML ping každé Po+Čt 9:00 UTC
+//     Soubor: .github/workflows/supabase-heartbeat.yml
+//     Secrets v GitHub: VITE_SB_URL + VITE_SB_KEY → Settings → Secrets → Actions
+//   Řešení B (produkce): Supabase Pro $25/měsíc — pauzování odstraněno
+//   Heartbeat YAML přidat přímo do multi-tenant template → forky zdědí automaticky
+// [DONE] 🏗️  Multi-tenant template + testovací prostředí — BUILD0112
+// [DONE] 💾 JSON záloha + 📥 Import JSON — BUILD0113
+// [DONE] ⚠️  TEST banner + badge na staging — BUILD0113
+//   ✅ .env.template — šablona proměnných pro každou instanci
+//   ✅ .github/workflows/supabase-heartbeat.yml — keep-alive Pro+Čt 9:00 UTC
+//   ✅ README.md — onboarding CZ + EN, SQL migrace, checklist
+//   ✅ MULTI-TENANT sekce v hlavičce aktualizována
+//
+// PRAVIDLA EXPORTU (platí od BUILD0052)
+// ============================================================
+// Každý build se exportuje jako:
+//   1. stavby-app_DATUM_buildXXXX.jsx        — hlavní soubor aplikace
+//   2. stavby-app_DATUM_buildXXXX_changelog.txt — popis změn tohoto buildu
+// Hlavička .jsx obsahuje vždy aktuální HISTORY + PENDING sekci.
+// ============================================================
+// HISTORY BUILDŮ (0025–0045)
+// ============================================================
+//
+// BUILD0025 — Notifikace, SVG graf firma/měsíc, auto-logout, poznámka
+// BUILD0026 — FIX: recharts odstraněn, duplicate key
+// BUILD0027 — FIX: 💬 ikona pro user, nápověda rozšířena
+// BUILD0028 — Graf: třetí přepínač Kat. I / II
+// BUILD0029 — 🕐 HistorieModal, diff při uložení, FIELD_LABELS
+// BUILD0030 — FIX: syntax error v nápovědě
+// BUILD0031 — FIX: regex filtr historie (přesná shoda ID)
+// BUILD0032 — 📜 LogModal, exporty z logu a historie
+// BUILD0033 — 🔴 Tečka na 🕐, RLS banner v logu
+// BUILD0034 — FIX: ReferenceError "ur", dynamic import xlsx
+// BUILD0035 — Tečka permanentní, nápověda přepsána (16 sekcí)
+// BUILD0036 — Nápověda plovoucí (drag), demo banner, RLS kopírovat
+// BUILD0037 — Aktualizace hlavičky (jen dokumentace)
+// BUILD0038 — Demo jako admin, 8 staveb, DEMO_USERS, tečka při loginu
+// BUILD0039 — FIX: demo logy prázdné (isDemo prop), tečka ihned po save
+// BUILD0040 — FIX: SettingsModal log tab blokován v demo
+// BUILD0041 — 🚨 KRITICKÁ OPRAVA: demo zapisovalo do ostré DB
+//   saveSettings/saveUsers/logAkce/saveAppInfo/saveColWidths — vše blokováno
+//   PŘÍČINA: demo role admin + chybějící guardy → přepsalo ciselniky+uzivatele
+// BUILD0042 — 💾 Záloha DB (superadmin): 3 listy Stavby+Ciselniky+Uzivatele
+// BUILD0043 — 📥 Import staveb: původní tabulka + záloha DB formát
+// BUILD0044 — FIX: import čísla (raw:true), datumy DD.MM.YYYY, Faktura 2 obnovena
+//   Faktura 2 chyběla v COLUMNS/editaci/tabulce — obnovena kompletně
+//   FIX syntax error: chybějící </div> po sekci Faktura 2 v EditModal
+// BUILD0045 — Aktualizace hlavičky pro nové session (jen dokumentace)
+// BUILD0046 — FIX: Faktura 2 v buňce stejný font jako Faktura 1, skryté sloupce
+//   Č. FAKTURY 2 / Č. BEZ DPH 2 / SPLATNÁ 2 zmizely z hlavičky (hidden filter)
+//   colgroup + thead: přidán filtr !col.hidden (chyběl, data ho měly)
+//   Druhý řádek faktury: odstraněn fontSize:11 + color:textMuted → dědí styl buňky
+//   FIX: table-wrapper overflowY:"hidden" → "auto" (řádky nebyly vidět)
+// BUILD0047 — Označení faktur: červené "e" (E.ON) před Fakturou 1, žluté "S" (sdružení) před Fakturou 2
+//   Nápověda doplněna: sekce 🧾 Označení faktur
+// BUILD0048 — 🔍 Rozšířený filtr: rok, rozsah nab. ceny, prošlé termíny bez faktury
+//   Plovoucí přetahovatelný panel (stejný princip jako nápověda)
+//   Tabulka se při otevření filtru neposouvá
+//   Nápověda doplněna: sekce 🔍 Rozšířený filtr
+// BUILD0049 — FIX filtrovací lišta: kompaktní layout, nowrap, overflowX auto
+//   Zmenšeny šířky NativeSelect (145/160/170), hledání 170px, gap 6px
+//   Zkráceny popisky tlačítek (záz., Záloha) aby se vešlo na 1 řádek
+//   Aktualizována HISTORY + PENDING sekce v hlavičce
+// BUILD0050 — FIX blikání stránkování: řádky s Fakturou 2 jsou vyšší
+//   PAGE_SIZE se počítal z firstRow → přepočet → blikání
+//   Oprava: MIN výška, pak MAX výška, nakonec stableRowH ref — vše nestabilní
+// BUILD0051 — FIX posuvník a přetékání: více pokusů o dynamický výpočet
+//   useMemo + iterativní simulace stránkování, ratchet DOM měření — vše nestabilní
+//   Problém: různé výšky řádků na různých stránkách nelze spolehlivě předpovědět z DOM
+// BUILD0052 — FIX definitivní: PAGE_SIZE = fixní useState(7), žádné DOM měření
+//   Přidána tlačítka − / + v paginaci pro ruční nastavení počtu řádků (3–50)
+// BUILD0053 — Dva pohledy + oprava filtru Kat. II + barevné grafy
+//   📋 Stránky / 📜 Vše, filterKat II fix, stacked graf, barevná tabulka
+// BUILD0054 — FIX export dropdown překrytý tabulkou
+//   position:fixed + getBoundingClientRect, click toggle, kompaktní lišta
+// BUILD0055 — FIX legenda grafu Kat. I/II
+//   Legenda přesunuta z SVG do HTML, Kat.I/II sekce odděleny
+// BUILD0056 — FIX build error: renderBars HTML legenda mimo return
+//   Přidán React fragment <> kolem svg+legenda
+// BUILD0057 — 3 opravy filtrovací lišty a grafu
+//   Graf labels horizontal, Export NativeSelect, height 28px
+// BUILD0058 — FIX: graf labels stále šikmé + export menu příliš úzké
+//   labels rotate odstraněn, NativeSelect minWidth 220px
+// BUILD0059 — FIX: resize sloupce — truncate maxWidth: col.width → getColWidth
+// BUILD0060 — FIX: resize sloupce nepustí za header text
+//   th: minWidth:0 + maxWidth:getColWidth, input max 2000px
+// BUILD0061 — Doplnění nápovědy o nové funkce (BUILD0043–0060)
+//   Přidány sekce: Dva pohledy, Rozšířený filtr, Import, Označení faktur e/S
+// BUILD0062 — FIX: td overflow:hidden pro truncate sloupce, reset shownDeadlineOnce při změně usera
+// BUILD0063 — FIX: th maxWidth odstraněn (blokoval resize), nápověda e/S s barvami
+// BUILD0064 — FIX: ikona ⟺ vždy viditelná (flex space-between), objednatel 130px, SV 140px
+// BUILD0065 — FIX: tlačítka −/+ vždy viditelná (mimo blok totalPages>1), glow ikony v nápovědě
+// BUILD0066 — Nápověda: auto glow všech emoji přes Unicode regex + drop-shadow filter
+// BUILD0067 — FIX: drop-shadow → brightness(1.4) — čisté zesvětlení bez modrého nádechu
+// BUILD0068 — brightness(2) + bílý glow — příliš agresivní
+// BUILD0069 — nadpisová ikona brightness(1.4), ikony v textu bez filtru
+// BUILD0070 — všechny ikony brightness(1.4)
+// BUILD0113 — JSON záloha + import, TEST banner/badge na staging, oprava importu XLS
+//   💾 Záloha DB přepnuta z Excel na JSON (přesnější, bez problémů s názvy sloupců)
+//   📥 Import JSON — nový handler pro zálohu JSON (bez konverze, přímý přenos dat)
+//   📥 Import XLS — opraven FIELD_MAP (názvy sloupců z exportu), castka_bez_dph_2 přidán do NUM
+//   ⚠️  TEST banner — blikající oranžový pruh přes celou šířku na staging/preview/localhost
+//   ⚠️  TEST badge — blikající štítek v hlavičce vedle loga na staging
+//   isStaging detekce — automaticky podle URL (hostname contains staging/preview/localhost)
+// BUILD0112 — Multi-tenant template: .env.template, heartbeat YAML, README CZ+EN
+//   ✅ .env.template — šablona s VITE_SB_URL, VITE_SB_KEY + komentáře kde najít hodnoty
+//   ✅ supabase-heartbeat.yml — GitHub Actions keep-alive Po+Čt 9:00 UTC
+//   ✅ README.md — onboarding CZ+EN, SQL migrace, Cloudflare Pages setup, checklist
+//   ✅ MULTI-TENANT sekce přepsána: 3–5 firem, staging větev, Cloudflare Pages
+//   ✅ PENDING 🏗️ označen jako DONE
+// BUILD0111 — Aktualizace PENDING: Cloudflare Pages, Supabase heartbeat, multi-tenant
+//   [PENDING] ☁️  Přechod Vercel → Cloudflare Pages (komerční omezení Hobby plánu)
+//   [PENDING] 😴 Supabase heartbeat workaround (Free tier pauzování po 7 dnech)
+//   [PENDING] 🏗️  Multi-tenant template + testovací prostředí — příští krok
+// BUILD0110 — Aktualizace hlavičky: email na více adres otestován a funguje
+//   ✅ Odesílání na více adres otestováno — funguje
+//   ✅ Správa emailů přes Nastavení → Aplikace funguje end-to-end
+//   PENDING emailu: zbývá jen sledovat spolehlivost denního odesílání
+// BUILD0109 — Aktualizace hlavičky: kompletní stav emailu po dokončení konfigurace
+//   ✅ Doména zmes.cz ověřena v Resend (DNS přidal IT správce Forpsi)
+//   ✅ FROM_EMAIL = stavby_znojmo@zmes.cz (Supabase Secret + Edge Function)
+//   ✅ Edge Function čte emaily z DB (notify_emails), posílá na více adres
+//   ✅ Emaily lze spravovat v Nastavení → Aplikace bez zásahu do kódu
+//   EMAIL sekce kompletně přepsána s aktuálním stavem + Supabase Secrets popisem
+// BUILD0108 — Aktualizace hlavičky: Dashboard + Kalendář do PENDING, multi-tenant rozšířen
+//   [PENDING] přidán 📈 Dashboard (KPI karty + grafy, třetí pohled)
+//   [PENDING] přidán 🗓️ Kalendářní pohled (termíny ukončení v kalendáři)
+//   Multi-tenant sekce rozšířena: .env proměnné, postup šíření oprav, detaily onboardingu
+// BUILD0107 — Aktualizace hlavičky: email funguje, pg_cron ověřen, plán více adres
+//   ✅ Email odesílá na doco@seznam.cz, pg_cron job2 běží 0 5 * * *
+//   ✅ Duplicitní job3 smazán, EMAIL sekce přepsána na aktuální stav
+// BUILD0106 — Aktualizace hlavičky: multi-tenant architektura + email řešení (jen dokumentace)
+//   Přidána sekce MULTI-TENANT do poznámek pro Claude
+//   Přidána sekce EMAIL NOTIFIKACE — aktuální stav a plán řešení
+// BUILD0105 — 📧 Email notifikace: pole pro emaily v Nastavení → Aplikace,
+//   uloženo v DB (nastaveni, klic=notify_emails), načteno při startu
+// BUILD0104 — FIX: 💎 se nevypíná při klik 🌞/🌙 — liquidGlassRef + setLiquidGlass(false) vždy
+// BUILD0103 — FIX: NativeSelect dropdown font — portal dědí font z body, přidán fontFamily
+// BUILD0102 — Sjednocení fontFamily: všude 'Segoe UI',Tahoma,sans-serif
+// BUILD0101 — Oprava data exportu: 2026_03_13 → 2026_03_14 (aktuální datum)
+// BUILD0100 — UX: klik 🌞/🌙 při aktivním 💎 → vypne LG + zobrazí theme slider
+// BUILD0099 — FIX: NativeSelect dropdown portál do body (přes overflow:hidden + stacking context)
+// BUILD0098 — FIX: NativeSelect hover otevírá + spolehlivé zavírání (relatedTarget)
+// BUILD0097 — FIX: NativeSelect dropdown klik místo hover (thead překrytí),
+//   Nápověda: sekce Superadmin oprávnění + tlačítko Tisk nápovědy
+// BUILD0096 — FIX + UX: Termíny plovoucí, Nápověda přeřazena PC/mobil
+//   ⚠️ Termíny — převedeno na plovoucí okno (useDraggable 820×500)
+//   Nápověda — PC funkce nahoře, mobilní sekce dole (☰, ⋯, mobilní karty)
+// BUILD0095 — 🪟 Plovoucí okna — všechny modály draggable, jednotný vzor
+//   Nový hook: useDraggable(w, h) — výchozí pozice vždy střed obrazovky
+//   Převedeny: HistorieModal, LogModal, GrafModal, SettingsModal
+//   Help a AdvFilter — sjednoceny na useDraggable hook (stávající kód nahrazen)
+//   FormModal — stávající drag zachován, refaktorován na useDraggable
+//   Vzor: overlay pointerEvents:none, okno pointerEvents:all, header = táhlo
+//   Dimming backdrop odstraněn — plovoucí okno bez zatmění pozadí
+//   Header každého okna: ⠿ přetáhnout hint, cursor grab
+//   PENDING odstraněno: 🪟 Plovoucí okna
+// BUILD0094 — FIX: drag & drop sloupců omezen pouze na superadmin
+//   Ikona ⠿ a draggable atribut zobrazeny jen pokud isSuperAdmin
+//   Ostatní role (user, user_e, admin) nemohou přehazovat sloupce
+//   Resize ⟺ zůstává beze změny (jen superadmin — tak jak bylo)
+// BUILD0093 — ↔️ Drag & drop přehazování sloupců tabulky myší
+//   colOrder state — pole klíčů sloupců v aktuálním pořadí
+//   Uloženo v localStorage (per-browser, bez DB)
+//   HTML5 Drag & Drop API na <th> elementech
+//   dragColKey ref — táhnutý sloupec, dragOverKey ref — cílový sloupec
+//   Drag handle: ⠿ vlevo od názvu sloupce (viditelné vždy, ne jen superadmin)
+//   Vizuální highlight: cílový sloupec — modrý levý border při dragover
+//   thead i tbody přepnuty z COLUMNS.filter(...) na orderedCols
+//   Reset pořadí: tlačítko v Nastavení vedle Reset šířek (jen superadmin)
+//   PENDING odstraněno: ↔️ Drag & drop přehazování sloupců
+// BUILD0092 — Jeden univerzální posuvník mezi 💎 a Odhlásit
+//   Zobrazí se po kliknutí na 🌞, 🌙 nebo 💎 — vždy na stejném místě
+//   activeSlider state: null | "theme" | "lg" — určuje co slider ovládá
+//   Slider "theme": themeStrength (0–100), mění intenzitu appBg
+//   Slider "lg": lgStrength (10–100), mění sílu Liquid Glass efektu
+//   FIX: appBg se při themeStrength nereagoval — příčina: podmínka liquidGlass
+//        na řádku main divu ignorovala T.appBg → opraveno: darkAppBg/lightAppBg
+//        se aplikují vždy přes T.appBg, liquidGlass větev odstraněna
+//   Samostatné themeSlider/lgSlider stavy a timery nahrazeny jedním activeSlider
+//   Timer ref: sliderTimer — 2s auto-hide
+//   Desktop: slider vždy mezi 💎 a Odhlásit
+//   Mobil: slider pod 🌞/🌙/💎 tlačítky v hamburger menu
+// BUILD0091 — 🌞/🌙 posuvník intenzity pozadí + auto-hide po 2s nečinnosti
+//   themeStrength state (0–100, default 50), uložen v localStorage
+//   themeSliderVisible state + themeSliderTimer ref (stejný princip jako lgSlider)
+//   changeTheme(): přepne režim + zobrazí slider + spustí 2s timer
+//   changeThemeStrength(): změní intenzitu + resetuje timer
+//   Slider onMouseEnter=zastaví timer, onMouseLeave=spustí timer
+//   Mobilní slider: onTouchStart/onTouchEnd pro dotykové displeje
+//   T.appBg tmavý: interpolace #060818 (0%) ↔ #1e293b (100%)
+//   T.appBg světlý: interpolace #ffffff (0%) ↔ #d0d8e8 (100%)
+//   Slider akcent: 🌞 #fbbf24 žlutá / 🌙 #818cf8 modrá
+// BUILD0090 — 💎 Liquid Glass posuvník: auto-hide po nečinnosti 2s
+//   lgSliderVisible state (výchozí false) — slider se zobrazí jen po kliknutí na 💎
+//   lgSliderTimer ref — setTimeout 2000ms schová slider
+//   Nečinnost = ani myš nad sliderem, ani změna hodnoty
+//   toggleLiquidGlass: zapnutí → lgSliderVisible=true + spustí timer
+//                      vypnutí → lgSliderVisible=false okamžitě
+//   changeLgStrength: resetuje timer nečinnosti (pohyb posuvníkem)
+//   Slider div: onMouseEnter=reset timer, onMouseLeave=spustí timer znovu
+//   Desktop i mobilní menu: obě instance slideru synchronní
+// BUILD0089 — Nápověda: aktualizována sekce 💎 Liquid Glass
+//   Doplněn popis posuvníku síly (10–100%), animovaných orbů, iOS 26 stylu
+// BUILD0088 — 💎 Liquid Glass posuvník síly efektu
+//   lgStrength state (10–100, default 60), uložen v localStorage
+//   lgS = lgStrength/100 — všechny T hodnoty dynamicky interpolovány
+//   Orb kontejner: opacity:lgS + transition 0.3s
+//   Slider se zobrazí vedle 💎 jen když je LG zapnutý (desktop + mobil)
+//   accentColor:#a78bfa — fialový slider styl
+// BUILD0087 — FIX: 💎 tlačítko nešlo vypnout Liquid Glass
+//   Příčina: .lg-shimmer měl position:absolute inset:0 z-index:3 přímo na headeru
+//            → překrýval obsah a blokoval klikání na tlačítka
+//   Oprava: shimmer jako inline child div s pointer-events:none
+//           z-index pseudo-elementů snížen na 0 (pod obsah)
+// BUILD0086 — 💎 Liquid Glass iOS 26 upgrade
+//   Animované orby na pozadí (4x tmavý / 3x světlý, blur + CSS animace)
+//   SVG filtry: feTurbulence + feDisplacementMap (simulace lomu světla)
+//   CSS třídy: lg-panel (gradient odlesk + top highlight linka)
+//              lg-shimmer (animovaný průchod světla)
+//   T objekt: inset box-shadow s horním odleskem (simulace iOS skla)
+//   Header + filtr lišta: lg-panel + lg-shimmer třídy + z-index vrstvení
+//   Výkon: orby jsou fixed/pointer-events:none, neblokují interakci
+// BUILD0085 — Aktualizace PENDING sekce v hlavičce
+//   Přidány iOS mobilní problémy (klávesnice, alert, překrývání tlačítek)
+//   Přidány dohodnuté budoucí funkce (plovoucí okna, D&D sloupce, resize sloupce)
+// BUILD0084 — 💎 Liquid Glass téma
+//   Tlačítko 💎 vedle 🌞/🌙 (desktop i mobilní menu)
+//   liquidGlass state: uložen v localStorage
+//   T objekt: backdropFilter, boxShadow, průsvitné barvy pro LG variantu
+//   Pozadí appky: gradient místo flat barvy při LG aktivním
+//   Header + filtrovací lišta: backdropFilter/WebkitBackdropFilter aplikován
+//   Nápověda: sekce téma aktualizována
+// BUILD0083 — Nápověda aktualizována pro mobilní funkce
+//   📱 Mobilní zobrazení — kartičky: rozšířený popis (metriky, stavy, akce)
+//   ☰ Mobilní menu (hamburger): nová sekce
+//   ⋯ Mobilní filtr — rozbalovací řádek: nová sekce
+//   🔍 Filtry: doplněno o červené tlačítko při aktivním filtru
+// BUILD0082 — FIX: klávesnice iOS roztahuje login + modály; překrývání Export/Přidat
+//   Login: position:fixed místo minHeight:100vh → escape body overflow:hidden
+//   Deadline modál: WebkitOverflowScrolling:touch přidán
+//   Přidat stavbu tlačítko: marginLeft:auto → odsunuto od Export, nepřekrývají se
+// BUILD0081 — FIX: login + deadline modál mimo obrazovku; filtr ⋯ rozbalovací
+//   Login: alignItems flex-start + overflowY auto → scrollovatelná na mobilu
+//   Deadline modál: overlay scrollovatelný (alignItems flex-start + overflowY auto)
+//     obsah modálu: bez maxHeight (scrolluje overlay, ne vnitřek)
+//   Filtrovací lišta: tlačítko ⋯ rozbalí/schová řádek 2 (objednatel,SV,view,export...)
+//   State: showFilterRow2 přidán
+// BUILD0080 — FIX: header přetékal na mobilu, Nastavení/Odhlášení nedosažitelné
+//   Header: mobilní varianta — logo + Termíny + ☰ hamburger
+//   Hamburger menu (dropdown): jméno, role, téma, Nápověda, Nastavení, Log, Odhlásit
+//   Deadline modál: overflowX:auto na tabulce (scrollovatelná na mobilu)
+//   State: showMobileMenu přidán
+// BUILD0079 — FIX: mobilní layout kompletní
+//   Login: width min(380px,94vw) + padding clamp → nevyžaduje svýpování
+//   SummaryCards: firmy s nulou skryty na mobilu → souhrny zaberou méně místa
+//   Filtrovací lišta: dvouřádková na mobilu
+//     Řádek 1: hledání + firma + Filtr▼ + ▦
+//     Řádek 2: objednatel + SV + Str/Vše + záz. + 📊 + ⬇ + Přidat
+//   Desktop: beze změny
+// BUILD0078 — FIX: mobilní layout — souhrny a deadline modál mimo obrazovku
+//   Deadline modál: width min(820px,96vw), padding inset, ✕ tlačítko flexShrink:0
+//   SummaryCards: isMobile prop → kompaktní řádkový layout místo karet
+//   Firmy na mobilu: tečka + název + celkem + Kat.I/II v jednom řádku
+// BUILD0077 — FIX: kartičky zobrazovaly jen header (firma+číslo), tělo chybělo
+//   Odstraněn overflow:hidden z root divu StavbaCard (ořezával obsah)
+//   Přidán minHeight:0 na card view kontejner (iOS flex fix)
+// BUILD0076 — FIX: kartičky nefungovaly na iPhone (Chrome/Safari/Firefox)
+//   window.innerWidth nespolehlivý na iOS WebKit → přechod na window.matchMedia
+//   useIsMobile: mq.matches + mq.addEventListener("change") místo resize listeneru
+//   cardView init: window.matchMedia("(max-width: 767px)").matches
+// BUILD0075 — FIX: kartičky na mobilu nezobrazovaly se (zobrazovala se tabulka)
+//   cardView inicializován lazy: useState(() => window.innerWidth < 768)
+//   Odstraněn useEffect který nastavoval cardView až po prvním renderu — příliš pozdě
+// BUILD0074 — 📱 Mobilní kartičky
+//   useIsMobile hook (breakpoint 768px, resize listener)
+//   Výchozí pohled na mobilu: kartičky; na desktopu: tabulka
+//   Tlačítko přepínače v liště: jen na mobilu (📋/📇)
+//   Kartička: firma tečka + název + číslo stavby, 3 metriky,
+//     termín + badge (prošlý/blížící se/vyfakturováno/bez termínu),
+//     poznámka (💬 text), faktura(y) e/S, akce dle role
+//   Role: user=jen čtení, user_e=editovat+kopie, admin+=smazat
+// BUILD0073 — Tlačítko Filtr ▾: červené rozsvícení když je aktivní alespoň 1 rozšířený filtr
+//   Stav tlačítka: zavřený+neaktivní / zavřený+aktivní (červená) / otevřený / otevřený+aktivní (červená)
+//   Barva nezávislá na tom zda je panel otevřený — signalizuje aktivní filtrování
+// BUILD0072 — 📋 Kopírování stavby: tlačítko vedle editace (admin+editor)
+//   Otevře FormModal s daty původní stavby, č. stavby + " (kopie)", bez ID
+//   Demo: respektuje DEMO_MAX_STAVBY limit; ostrá DB: POST + logAkce "Kopírování stavby"
+//   Nápověda doplněna: sekce 📋 Kopírování stavby
+//   PENDING odstraněno: 📋 Kopírovat stavbu
+// BUILD0071 — ikony v textu fontSize:15 + saturate(1.3) pro sjednocení s nadpisovou ikonou
+//   Přidáno: Dva pohledy, Rozšířený filtr, Import staveb, Označení faktur e/S
+//   Upraveno: Šířky sloupců (max 2000px, zadání číslem)
+//   th: minWidth:0 + maxWidth:getColWidth → fixed layout respektuje col šířku
+//   input pro šířku: max 2000px, šířka 65px
+//   maxWidth: col.width-22 → getColWidth(col)-22
+//   labels: rotate odstraněn, textAnchor middle, font 11 bold
+//   NativeSelect dropdown: minWidth max(šířka tlačítka, 220px)
+//   1. Graf: firma labels horizontálně, font 9→11, fontWeight 600
+//   2. Export: custom dropdown → NativeSelect (stejný styl jako filtry)
+//   3. Všechna tlačítka lišty: height: 28px (sjednocená výška)
+//   Přidán React fragment <> kolem svg+legenda
+//   Legenda přesunuta z SVG do HTML pod grafem
+//   Kat. I a Kat. II každá ve svém řádku se svými barvami
+//   SVG PAD_B: 100→30, H: 340→280 (více místa pro sloupce)
+//   zIndex dropdown: 200 → 1100, overlay: 199 → 1099
+//   Export přepnut z hover na click toggle (spolehlivější)
+//   📋 Stránky / 📜 Vše — přepínač v filtrovací liště
+//   Pohled Vše: zobrazí všechny filtered řádky, skryje paginaci
+//   FIX: filterKat "II" nezahrnoval poruch → opraveno
+//   Graf Kat. I/II: stacked bars — 3 složky KAT I (fialová/modrá/zelená)
+//     + 3 složky KAT II (oranžová/červená/fialová)
+//   Tabulka v grafu: rozpad na 6 složek s barvami + součty Kat. I, Kat. II, Celkem
+//   Přidána tlačítka − / + v paginaci pro ruční nastavení počtu řádků (3–50)
+//   Zobrazení "7 řád." vedle tlačítek — uživatel vidí aktuální hodnotu
+//   Každý monitor si nastaví sám dle potřeby
+// ============================================================
+// ============================================================
+// SUPABASE CONFIG
+// ============================================================
+const SB_URL = import.meta.env.VITE_SB_URL;
+const SB_KEY = import.meta.env.VITE_SB_KEY;
 
-// ── helpers ──────────────────────────────────────────────
-const uid  = () => Math.random().toString(36).slice(2, 9)
-const num  = v  => parseFloat(String(v).replace(/\s/g,'').replace(',','.')) || 0
-const fmt  = n  => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits:2, maximumFractionDigits:2 })
-const pct  = v  => (num(v) * 100).toFixed(2)
+const sb = async (path, options = {}) => {
+  const res = await fetch(`${SB_URL}/rest/v1/${path}`, {
+    headers: {
+      "apikey": SB_KEY,
+      "Authorization": `Bearer ${SB_KEY}`,
+      "Content-Type": "application/json",
+      "Prefer": options.prefer || "return=representation",
+      ...options.headers,
+    },
+    ...options,
+  });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  const text = await res.text();
+  return text ? JSON.parse(text) : [];
+};
 
-// ── definice sekcí ───────────────────────────────────────
-// MZDY: mont_vn obsahuje VN venkovní + VN kabelové + TS technologie + TS vnitřní
-const MZDY = [
-  { key:"mont_vn",       label:"Montáž VN + TS",          isZem:false },
-  { key:"mont_nn",       label:"Montáž NN",               isZem:false },
-  { key:"mont_opto",     label:"Montáž Opto",             isZem:false },
+const logAkce = async (uzivatel, akce, detail = "") => {
+  if (uzivatel === "demo") return; // demo — nepsat do DB
+  try {
+    await sb("log_aktivit", { method: "POST", body: JSON.stringify({ uzivatel, akce, detail }), prefer: "return=minimal" });
+  } catch (e) { console.warn("Log chyba:", e); }
+};
+// ============================================================
+// DEMO MODE
+// ============================================================
+const DEMO_USER = { id: 0, email: "demo", password: "demo", role: "admin", name: "Demo administrátor" };
+const DEMO_FIRMY = [
+  { hodnota: "Elektro s.r.o.", barva: "#3b82f6" },
+  { hodnota: "Stavmont a.s.", barva: "#10b981" },
+  { hodnota: "VHS Znojmo", barva: "#f59e0b" },
+  { hodnota: "Silnice JM", barva: "#8b5cf6" },
+];
+const DEMO_CISELNIKY = {
+  objednatele: ["Město Znojmo", "Jihomoravský kraj", "MO ČR", "Správa silnic"],
+  stavbyvedouci: ["Jan Novák", "Petr Svoboda", "Marie Horáková", "Tomáš Blaha"],
+};
+const DEMO_MAX_STAVBY = 15;
+const DEMO_USERS = [
+  { id: 1, email: "admin@demo.cz",   password: "demo", role: "admin",      name: "Admin Demo",    heslo: "demo" },
+  { id: 2, email: "editor@demo.cz",  password: "demo", role: "user_e",     name: "Editor Demo",   heslo: "demo" },
+  { id: 3, email: "user@demo.cz",    password: "demo", role: "user",       name: "Čtenář Demo",   heslo: "demo" },
+  { id: 4, email: "super@demo.cz",   password: "demo", role: "superadmin", name: "Superadmin Demo", heslo: "demo" },
+];
 
-  { key:"rezerv_mont",   label:"Rezerva montáž", editLabel:true, isZem:false },
-]
-const MECH = [
-  { key:"jerab",    label:"Autojeřáb" },
-  { key:"nakladni", label:"Nákladní auto" },
-  { key:"traktor",  label:"Traktor" },
-  { key:"plosina",  label:"Plošina" },
-  { key:"pila",     label:"Motorová pila" },
-  { key:"kango",    label:"Bourací kladivo (Kango)" },
-  { key:"dodavka",  label:"Dodávkové auto" },
-  { key:"mech_sdok",label:"Zařízení SDOK" },
-]
-const ZEMNI = [
-  { key:"zemni_prace",    label:"Zemní práce" },
-  { key:"zadlazby",       label:"Zádlažby" },
-  { key:"asfalt",         label:"Asfalt" },
-  { key:"nalosute",       label:"Naložení a doprava sutě" },
-  { key:"bagr",           label:"Bagr" },
-  { key:"kompresor",      label:"Kompresor" },
-  { key:"rezac",          label:"Řezač asfaltu" },
-  { key:"uhlova_bruska",  label:"Úhlová bruska" },
-  { key:"mot_pech",       label:"Motorový pěch" },
-  { key:"stav_prace",     label:"Stav. práce m. rozsahu" },
-  { key:"def_fasady",     label:"Def. úprava fasád" },
-  { key:"def_str",        label:"Def. úprava střechy" },
-  { key:"optotrubka",     label:"Optotrubka" },
-  { key:"zaorkab",        label:"Zaorání kabelů" },
-  { key:"vez_ts",         label:"Věžová transformovna" },
-  { key:"protlak",        label:"Protlak neřízený", isProtlak:true },
-  { key:"protlak_rizeny", label:"Protlak řízený" },
-  { key:"roura_pe",       label:"Roura PE", noIdx:true },
-  { key:"pisek",          label:"Písek", noIdx:true },
-  { key:"sterk",          label:"Štěrk / kamenivo", noIdx:true },
-  { key:"beton",          label:"Beton", noIdx:true },
-  { key:"rezerv_zemni",   label:"Rezerva zemní", editLabel:true },
-]
-const GN = [
-  { key:"inzenyrska",       label:"Inženýring zhotovitele CAPEX" },
-  { key:"geodetika",        label:"Geodetické práce" },
-  { key:"te_evidence",      label:"Dokumentace pro TE" },
-  { key:"vychozi_revize",   label:"Výchozí revize" },
-  { key:"pripl_ppn",        label:"Příplatek PPN" },
-  { key:"ekolog_likv",      label:"Ekologická likvidace odpadů" },
-  { key:"material_vyn",     label:"Materiál výnosový" },
-  { key:"doprava_mat",      label:"Doprava materiálu na stavbu" },
-  { key:"pripl_capex",      label:"Příplatek CAPEX" },
-  { key:"kolaudace",        label:"Kolaudace" },
-  { key:"pausal_bo_do150",  label:"Paušál BO OPEX do 150 tis." },
-  { key:"pausal_bo_nad150", label:"Paušál BO OPEX nad 150 tis." },
-]
-const DOF = [
-  { key:"dio",                   label:"DIO – Dopravní značení" },
-  { key:"vytyc_siti",            label:"Vytýčení sítí" },
-  { key:"neplanvykon",           label:"Neplánovaný výkon" },
-  { key:"spravni_popl",          label:"Správní poplatky" },
-  { key:"omezeni_dopr",          label:"Omezení silniční dopravy" },
-  { key:"popl_omez_zeleznice",   label:"Omezení železniční dopravy" },
-  { key:"popl_ver_prostranstvi", label:"Poplatky za veřejné prostranství" },
-  { key:"archeolog_dozor",       label:"Archeologický dozor" },
-]
-const DOFEGD = [
-  { key:"uhrady_zem_kultury",    label:"Úhrady za zemědělské kultury" },
-  { key:"nahrady_maj_ujmy",      label:"Náhrady majetkové újmy" },
-  { key:"koordinator_bozp",      label:"Činnost koordinátora BOZP" },
-  { key:"zadl_mesto",            label:"Zádlažby subdodavatelsky městem" },
-  { key:"proj_geod",             label:"Projektové a geodetické práce" },
-  { key:"inz_cinnost",           label:"Inženýrská činnost EG.D" },
-  { key:"zajisteni_pracoviste",  label:"Zajištění pracoviště BO OPEX" },
-  { key:"manipulace_vedeni",     label:"Manipulace vedení" },
-  { key:"zkousky_vn",            label:"Zkoušky VN kabelu" },
-  { key:"odvody_zem_puda",       label:"Odvody za odnětí zemědělské půdy" },
-  { key:"mobilni_ts",            label:"Mobilní TS – zapůjčení" },
-  { key:"rezerva",               label:"Rezerva" },
-]
-const SEC = {
-  mzdy:    { color:'#3b82f6', icon:'👷', label:'Mzdy montáže' },
-  mech:    { color:'#f59e0b', icon:'🚜', label:'Mechanizace' },
-  zemni:   { color:'#ef4444', icon:'⛏️', label:'Zemní práce' },
-  gn:      { color:'#10b981', icon:'📋', label:'Globální náklady' },
-  dof:     { color:'#8b5cf6', icon:'🧾', label:'Ostatní náklady zhotovitel' },
-  dofegd:  { color:'#6366f1', icon:'🏢', label:'Ostatní náklady EGD' },
+const fmt = (n) => n == null || n === "" ? "" : Number(n).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtN = (n) => (n == null || n === "" || Number(n) === 0) ? "" : fmt(n);
+
+function computeRow(row) {
+  const nabidka = (Number(row.ps_i)||0)+(Number(row.snk_i)||0)+(Number(row.bo_i)||0)+(Number(row.ps_ii)||0)+(Number(row.bo_ii)||0)+(Number(row.poruch)||0);
+  const rozdil = (Number(row.vyfakturovano)||0) - nabidka;
+  return { ...row, nabidka, rozdil };
 }
 
-const mkRows = () => [{ id: uid(), popis:'', castka:'' }]
-const onEnterNext = (e) => {
-  if (e.key === 'Enter') {
-    e.preventDefault()
-    const inputs = Array.from(document.querySelectorAll('input, select'))
-    const idx = inputs.indexOf(e.target)
-    if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
-  }
-}
-const stopEnter = (e) => { if (e.key === 'Enter') e.stopPropagation() }
-const mkSec  = items => Object.fromEntries(items.map(it => [it.key, { rows: mkRows(), open: false }]))
-const itemSum = rows => rows.reduce((a, r) => a + num(r.castka), 0)
+const COLUMNS = [
+  { key: "id", label: "#", width: 40 },
+  { key: "firma", label: "Firma", width: 90 },
+  { key: "cislo_stavby", label: "Č. stavby", width: 120 },
+  { key: "nazev_stavby", label: "Název stavby", width: 240 },
+  { key: "ps_i", label: "Plán. stavby I", width: 105, type: "number" },
+  { key: "snk_i", label: "SNK I", width: 95, type: "number" },
+  { key: "bo_i", label: "Běžné opravy I", width: 105, type: "number" },
+  { key: "ps_ii", label: "Plán. stavby II", width: 105, type: "number" },
+  { key: "bo_ii", label: "Běžné opravy II", width: 105, type: "number" },
+  { key: "poruch", label: "Poruchy", width: 95, type: "number" },
+  { key: "nabidka", label: "Nabídka", width: 105, type: "number", computed: true },
+  { key: "rozdil", label: "Rozdíl", width: 105, type: "number", computed: true },
+  { key: "vyfakturovano", label: "Vyfakturováno", width: 105, type: "number" },
+  { key: "ukonceni", label: "Ukončení", width: 88 },
+  { key: "zrealizovano", label: "Zrealizováno", width: 105, type: "number" },
+  { key: "sod", label: "SOD", width: 130 },
+  { key: "ze_dne", label: "Ze dne", width: 88 },
+  { key: "objednatel", label: "Objednatel", width: 110, truncate: true },
+  { key: "stavbyvedouci", label: "Stavbyvedoucí", width: 110, truncate: true },
+  { key: "nabidkova_cena", label: "Nab. cena", width: 105, type: "number" },
+  { key: "cislo_faktury", label: "Č. faktury", width: 105 },
+  { key: "castka_bez_dph", label: "Č. bez DPH", width: 105, type: "number" },
+  { key: "splatna", label: "Splatná", width: 88 },
+  { key: "cislo_faktury_2", label: "Č. faktury 2", width: 105, hidden: true },
+  { key: "castka_bez_dph_2", label: "Č. bez DPH 2", width: 105, type: "number", hidden: true },
+  { key: "splatna_2", label: "Splatná 2", width: 88, hidden: true },
 
-// Materiál zhotovitele = mat_vlastni celkem − (písek D0-2 + štěrkopísek B0-4 + betonářský písek + štěrkodrť 0-32 + štěrkokamen 32-64 + roura PE)
-// Asfalt se NEodečítá — je to subdodávka, není součástí mat_vlastni
-function computeMatZhot(zemni, matVlastniCelkem) {
-  // Odečíst položky materiálu které jsou součástí vlastního materiálu ale fakturovány zvlášť
-  const odecti = ['pisek','sterk','roura_pe','beton','pisek_d02','pisek_b04','pisek_beton','sterk_032','sterk_3264']
-    .reduce((a, k) => a + itemSum(zemni[k]?.rows || mkRows()), 0)
-  const matV = (matVlastniCelkem != null && matVlastniCelkem > 0) ? matVlastniCelkem : itemSum(zemni['mat_vlastni']?.rows || mkRows())
-  return Math.max(0, matV - odecti)
-}
-// Materiál vlastní (pro zpětnou kompatibilitu)
-function computeMatVlastni(zemni) {
-  return itemSum(zemni['mat_vlastni']?.rows || mkRows())
-}
+];
 
-function compute(s) {
-  const pri = num(s.prirazka)
-  const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
-  const mzdyT = {}; let mzdySumBez = 0, mzdySumHzs = 0
-  for (const it of MZDY) {
-    const rows = s.mzdy[it.key]?.rows || mkRows()
-    const hod = itemSum(rows)
-    const bez = hod * (it.isZem ? hzsZ : hzsM)
-    const sP  = bez * (1 + pri)
-    mzdyT[it.key] = { hod, bez, hzs: bez, sP }
-    mzdySumBez += bez
-    mzdySumHzs += bez
-  }
-  const mzdySumS = mzdySumBez * (1 + pri)
-  const mzdyZisk = (mzdySumS - num(s.vypl_mzdy)) * 0.66
-  const hodMont = MZDY.filter(i => !i.isZem).reduce((a, i) => a + (mzdyT[i.key]?.hod || 0), 0)
-  const hodZem  = MZDY.filter(i =>  i.isZem).reduce((a, i) => a + (mzdyT[i.key]?.hod || 0), 0)
+const inputSx = { width: "100%", padding: "9px 11px", background: "#0f172a", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box" };
 
-  const mechT = {}; let mechSumBez = 0
-  for (const it of MECH) {
-    const bez = itemSum(s.mech[it.key]?.rows || mkRows())
-    const sP  = bez * (1 + pri)
-    mechT[it.key] = { bez, sP }
-    mechSumBez += bez
-  }
-  const mechSumS = mechSumBez * (1 + pri)
-  const mechZisk = mechSumS - num(s.vypl_mech)
+// ── Globální sdílené konstanty ─────────────────────────────
+const NUM_FIELDS = ["ps_i","snk_i","bo_i","ps_ii","bo_ii","poruch","vyfakturovano","zrealizovano","nabidkova_cena","castka_bez_dph","castka_bez_dph_2"];
+const DATE_FIELDS = ["ukonceni","splatna","ze_dne","splatna_2"];
+const TEXT_FIELDS_EXTRA = ["poznamka"]; // textarea pole – nepatří do NUM ani DATE
+const FIRMA_COLOR_FALLBACK = ["#3b82f6","#facc15","#a855f7","#ef4444","#0ea5e9","#f97316","#10b981","#ec4899"];
+const hexToRgb = hex => { const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); return r ? `${parseInt(r[1],16)},${parseInt(r[2],16)},${parseInt(r[3],16)}` : "59,130,246"; };
+const hexToRgbaGlobal = (hex, alpha) => `rgba(${hexToRgb(hex)},${alpha})`;
 
-  const zemniT = {}; let zemniSumBez = 0, zemniSumS = 0
-  for (const it of ZEMNI) {
-    const bez = itemSum(s.zemni[it.key]?.rows || mkRows())
-    const sP  = bez * (1 + pri)
-    zemniT[it.key] = { bez, sP }
-    // noIdx (písek, štěrk, beton, roura_pe) jsou v matVlastni — nezapočítávat
-    // isProtlak (protlak neřízený) — stroj 250 se přičítá samostatně jako protlakStrojKc
-    if (!it.noIdx && !it.isProtlak) { zemniSumBez += bez; zemniSumS += sP }
-  }
-  const zemniZisk = zemniSumS - num(s.vypl_zemni)
-
-  const gnT = {}; let gnSumBez = 0
-  for (const it of GN) {
-    const bez = itemSum(s.gn[it.key]?.rows || mkRows())
-    const sP  = bez * (1 + pri)
-    gnT[it.key] = { bez, sP }
-    gnSumBez += bez
-  }
-  const gnSumS = gnSumBez * (1 + pri)
-  const gnZisk = gnSumS - num(s.vypl_gn)
-
-  const dofBez    = DOF.reduce((a, it) => a + itemSum(s.dof[it.key]?.rows || mkRows()), 0)
-  const dofegdBez = DOFEGD.reduce((a, it) => a + itemSum(s.dofegd[it.key]?.rows || mkRows()), 0)
-  const dofAllBez = dofBez + dofegdBez
-  const dofSumS   = dofAllBez * (1 + pri)
-
-  // Materiál vlastní a zhotovitele = automatické výpočty
-  const matVlastni = computeMatVlastni(s.zemni)
-  const matZhot = computeMatZhot(s.zemni, matVlastni)
-  const prispSklad = num(s.prispevek_sklad)
-  const gzsKc = itemSum(s.dof['gzs']?.rows || mkRows())
-  const stimulKc = itemSum(s.dof['stimul_prirazka']?.rows || mkRows())
-  // matVlastni do bazové ceny — písek/štěrk/beton/roura_pe jsou noIdx a NEjsou v zemniSumBez
-  // Protlak neřízený stroj (první řádek protlak sekce = stroj 250) se přičítá samostatně
-  const protlakStrojKc = num(s.zemni['protlak']?.rows?.[0]?.castka || 0)
-  const bazova = mzdySumHzs + mechSumBez + zemniSumBez + gnSumBez + dofBez + matVlastni + prispSklad + gzsKc + stimulKc + protlakStrojKc
-  const celkemZisk = mzdyZisk + mechZisk + zemniZisk + gnZisk
-
-  return { mzdyT, mzdySumBez, mzdySumS, mzdySumHzs, mzdyZisk, hodMont, hodZem, mechT, mechSumBez, mechSumS, mechZisk, zemniT, zemniSumBez, zemniSumS, zemniZisk, gnT, gnSumBez, gnSumS, gnZisk, dofBez, dofegdBez, dofAllBez, dofSumS, matVlastni, matZhot, prispSklad, gzsKc, stimulKc, bazova, celkemZisk }
-}
-
-// ── Dialog: Sazby stavby (plovoucí, přetahovatelný) ────
-function SazbyInfoDialog({ T, s, onClose }) {
-  const [pos, setPos] = useState({ x: window.innerWidth - 420, y: 160 })
-  const drag = useRef(null)
-  const num = v => parseFloat(String(v).replace(/\s/g,'').replace(',','.')) || 0
-
+// ── useDraggable hook — jednotný drag pro všechna plovoucí okna ───────────────
+// w, h = šířka a výška okna v px (pro výpočet středu); lze předat 0 pokud neznáme
+function useDraggable(w = 600, h = 500) {
+  const iW = typeof window !== "undefined" ? window.innerWidth : 1200;
+  const iH = typeof window !== "undefined" ? window.innerHeight : 800;
+  const [pos, setPos] = useState({
+    x: Math.max(10, Math.round(iW / 2 - Math.min(w, iW * 0.97) / 2)),
+    y: Math.max(10, Math.round(iH / 2 - Math.min(h, iH * 0.9) / 2)),
+  });
+  const dragging = useRef(false);
+  const offset = useRef({ x: 0, y: 0 });
   const onMouseDown = (e) => {
-    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
-    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
-
-  const rows = [
-    { l:'Přirážka',    v: `${(num(s.prirazka)*100).toFixed(2)} %` },
-    { l:'HZS montáž',  v: `${s.hzs_mont} Kč/h` },
-    { l:'HZS zemní',   v: `${s.hzs_zem} Kč/h` },
-    { l:'ZMES montáž', v: `${s.zmes_mont} Kč/h` },
-    { l:'ZMES zemní',  v: `${s.zmes_zem} Kč/h` },
-  ]
-
-  return (
-    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:3000, width:320, background:T.card, border:'1px solid #10b981', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
-      <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(16,185,129,0.08)', borderRadius:'14px 14px 0 0' }}>
-        <span style={{ color:'#10b981', fontWeight:800, fontSize:14 }}>📋 Sazby stavby</span>
-        <button onClick={onClose} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
-      </div>
-      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:6 }}>
-        {rows.map(({l,v}) => (
-          <div key={l} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'rgba(255,255,255,0.04)', borderRadius:6 }}>
-            <span style={{ color:T.muted, fontSize:12 }}>{l}</span>
-            <span style={{ color:T.text, fontFamily:'monospace', fontSize:12, fontWeight:600 }}>{v}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
+    if (e.button !== 0) return;
+    dragging.current = true;
+    offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+    const onMove = (ev) => {
+      if (!dragging.current) return;
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 60, ev.clientX - offset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 40, ev.clientY - offset.current.y)),
+      });
+    };
+    const onUp = () => {
+      dragging.current = false;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+  return { pos, onMouseDown };
 }
 
-// ── Dialog: rozpis bázové ceny (plovoucí, přetahovatelný) ────
-function RozpisDialog({ T, c, s, fmt, itemSum, mkRows, onClose }) {
-  const [pos, setPos] = useState({ x: window.innerWidth - 500, y: 100 })
-  const drag = useRef(null)
+// Sdílený styl pro drag header
+const dragHeaderStyle = (extraStyle = {}) => ({
+  padding: "13px 20px",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  cursor: "grab",
+  userSelect: "none",
+  background: "rgba(255,255,255,0.03)",
+  borderRadius: "16px 16px 0 0",
+  ...extraStyle,
+});
 
-  const onMouseDown = (e) => {
-    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
-    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
+const dragHint = <span style={{ fontSize: 10, color: "rgba(255,255,255,0.2)", fontWeight: 400, marginLeft: 8 }}>⠿ přetáhnout</span>;
 
-  const rows = [
-    { l:'Mzdy (HZS)',           v: c.mzdySumHzs },
-    { l:'Mechanizace',           v: c.mechSumBez },
-    { l:'Zemní práce',           v: c.zemniSumBez },
-    { l:'Globální náklady',      v: c.gnSumBez },
-    { l:'Ostatní náklady (DOF)', v: c.dofBez },
-    { l:'Materiál zhotovitele',  v: c.matZhot },
-    { l:'Příspěvek na sklad',    v: c.prispSklad },
-    { l:'GZS',                   v: itemSum(s.dof['gzs']?.rows || mkRows()) },
-    { l:'Stimulační přirážka',   v: itemSum(s.dof['stimul_prirazka']?.rows || mkRows()) },
-  ]
-
-  return (
-    <div style={{ position:'fixed', left:pos.x, top:pos.y, zIndex:3000, width:380, background:T.card, border:'1px solid #10b981', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
-      <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(16,185,129,0.08)', borderRadius:'14px 14px 0 0' }}>
-        <span style={{ color:'#10b981', fontWeight:800, fontSize:14 }}>🔍 Rozpis bázové ceny</span>
-        <button onClick={onClose} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
-      </div>
-      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:6 }}>
-        {rows.map(({l,v}) => (
-          <div key={l} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'5px 8px', background:'rgba(255,255,255,0.04)', borderRadius:6 }}>
-            <span style={{ color:T.muted, fontSize:12 }}>{l}</span>
-            <span style={{ color:T.text, fontFamily:'monospace', fontSize:12, fontWeight:600 }}>{fmt(v)} Kč</span>
-          </div>
-        ))}
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 8px', background:'rgba(16,185,129,0.12)', borderRadius:6, borderTop:'1px solid #10b98140', marginTop:4 }}>
-          <span style={{ color:'#10b981', fontSize:13, fontWeight:800 }}>BÁZOVÁ CENA</span>
-          <span style={{ color:'#10b981', fontFamily:'monospace', fontSize:14, fontWeight:800 }}>{fmt(c.bazova)} Kč</span>
-        </div>
-      </div>
-    </div>
-  )
+function Lbl({ children }) {
+  return <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 10, fontWeight: 700, letterSpacing: 0.8, marginBottom: 5, textTransform: "uppercase" }}>{children}</div>;
 }
 
-// ── Dialog: sazby po EBC importu ────────────────────────────
-function SazbyDialog({ T, nazev, defaultSazby, onConfirm, onCancel }) {
-  const [vals, setVals] = useState({ prirazka: defaultSazby?.prirazka||'', hzs_mont: defaultSazby?.hzs_mont||'', hzs_zem: defaultSazby?.hzs_zem||'', zmes_mont: defaultSazby?.zmes_mont||'', zmes_zem: defaultSazby?.zmes_zem||'' })
-  const [pos, setPos] = useState({ x: Math.max(0, window.innerWidth/2 - 220), y: 120 })
-  const drag = useRef(null)
+function NativeSelect({ value, onChange, options, style, isDark = true }) {
+  const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
+  const ref = useRef(null);
+  const dropRef = useRef(null);
 
-  const onMouseDown = (e) => {
-    drag.current = { ox: e.clientX - pos.x, oy: e.clientY - pos.y }
-    const onMove = (e) => setPos({ x: e.clientX - drag.current.ox, y: e.clientY - drag.current.oy })
-    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
+  // Zavřít při kliknutí mimo
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && ref.current.contains(e.target)) return;
+      if (dropRef.current && dropRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const openDropdown = () => {
+    if (ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const estimatedHeight = Math.min(options.length * 38, 280);
+      const goUp = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      setDropUp(goUp);
+      setDropPos({ top: goUp ? rect.top : rect.bottom, left: rect.left, width: rect.width });
+    }
+    setOpen(true);
+  };
+
+  const handleLeave = (e) => {
+    const to = e.relatedTarget;
+    if (ref.current && ref.current.contains(to)) return;
+    if (dropRef.current && dropRef.current.contains(to)) return;
+    setOpen(false);
+  };
+
+  const bg = isDark ? "#1e293b" : "#fff";
+  const border = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)";
+  const textColor = isDark ? "#e2e8f0" : "#1e293b";
+  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const dropBg = isDark ? "#1e293b" : "#fff";
+  const dropShadow = isDark ? "0 8px 24px rgba(0,0,0,0.5)" : "0 8px 24px rgba(0,0,0,0.12)";
+
+  // Portál — renderuje přímo do body, mimo jakýkoliv overflow/stacking context
+  const dropdown = open ? createPortal(
+    <div ref={dropRef} onMouseLeave={handleLeave}
+      style={{ position: "fixed", top: dropUp ? "auto" : dropPos.top, bottom: dropUp ? window.innerHeight - dropPos.top : "auto", left: dropPos.left, minWidth: Math.max(dropPos.width, 220), background: dropBg, border: `1px solid ${border}`, borderRadius: 8, zIndex: 999999, boxShadow: dropShadow, overflow: "auto", maxHeight: 280, fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      {options.map(o => (
+        <div key={o}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onChange(o); setOpen(false); }}
+          style={{ padding: "9px 14px", color: o === value ? (isDark ? "#60a5fa" : "#2563eb") : textColor, background: o === value ? (isDark ? "rgba(37,99,235,0.15)" : "rgba(37,99,235,0.08)") : "transparent", cursor: "pointer", fontSize: 13, whiteSpace: "nowrap" }}
+          onMouseEnter={e => { if (o !== value) e.currentTarget.style.background = hoverBg; }}
+          onMouseLeave={e => { if (o !== value) e.currentTarget.style.background = "transparent"; }}
+        >{o}</div>
+      ))}
+    </div>,
+    document.body
+  ) : null;
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:2000 }}>
-      <div style={{ position:'fixed', left:pos.x, top:pos.y, width:420, background:T.card, border:'1px solid #3b82f6', borderRadius:14, boxShadow:'0 20px 60px rgba(0,0,0,0.5)', userSelect:'none' }}>
-        <div onMouseDown={onMouseDown} style={{ padding:'12px 16px', borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'grab', background:'rgba(59,130,246,0.08)', borderRadius:'14px 14px 0 0' }}>
-          <span style={{ color:'#3b82f6', fontWeight:800, fontSize:14 }}>⚙️ Zadej sazby pro stavbu</span>
-          <button onClick={onCancel} style={{ background:'none', border:'none', color:T.muted, fontSize:16, cursor:'pointer', padding:'0 4px' }}>✕</button>
-        </div>
-        <div style={{ padding:'16px 20px' }}>
-          <div style={{ color:T.muted, fontSize:12, marginBottom:16 }}>{nazev}</div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:20 }}>
-            {[
-              { l:'Přirážka %', k:'prirazka' },
-              { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
-              { l:'HZS zemní (Kč/h)', k:'hzs_zem' },
-              { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
-              { l:'ZMES zemní (Kč/h)', k:'zmes_zem' },
-            ].map(({l,k}) => (
-              <div key={k}>
-                <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:4 }}>{l}</div>
-                <input type="text" value={vals[k]} onChange={e => setVals(v => ({...v, [k]: e.target.value}))}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const isLast = k === 'zmes_zem'
-                      if (isLast) { onConfirm(vals) }
-                      else {
-                        const inputs = Array.from(document.querySelectorAll('input'))
-                        const idx = inputs.indexOf(e.target)
-                        if (idx >= 0 && idx < inputs.length - 1) inputs[idx + 1].focus()
-                      }
-                    }
-                  }}
-                  style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid #3b82f640', borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
-              </div>
-            ))}
-          </div>
-          <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-            <button onClick={onCancel}
-              style={{ padding:'9px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
-            <button onClick={() => onConfirm(vals)}
-              style={{ padding:'9px 24px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>✓ Použít import</button>
-          </div>
-        </div>
-      </div>
+    <div ref={ref} style={{ position: "relative", display: "inline-block", ...style }}
+      onMouseEnter={openDropdown}
+      onMouseLeave={handleLeave}
+    >
+      <button onClick={(e) => { e.stopPropagation(); open ? setOpen(false) : openDropdown(); }}
+        style={{ width: "auto", padding: "0 20px 0 10px", height: 28, background: bg, border: `1px solid ${border}`, borderRadius: 7, color: textColor, cursor: "pointer", fontSize: 12, textAlign: "left", display: "inline-flex", alignItems: "center", whiteSpace: "nowrap", position: "relative", minWidth: 80 }}>
+        <span>{value}</span>
+        <span style={{ position: "absolute", right: 6, top: "50%", transform: `translateY(-50%) rotate(${open ? 180 : 0}deg)`, fontSize: 9, color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)", pointerEvents: "none", transition: "transform 0.15s" }}>▼</span>
+      </button>
+      {dropdown}
     </div>
-  )
+  );
 }
 
-// ── Dialog: schválení nové položky do katalogu ───────────
-function KatalogDialog({ popis, sekce, vsechnySekce, T, onConfirm, onCancel }) {
-  const [jeStandard, setJeStandard] = useState(false)
-  const [cilSekce, setCilSekce] = useState(sekce)
-  return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
-      <div style={{ background:T.card, border:`1px solid #3b82f6`, borderRadius:14, padding:28, maxWidth:440, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
-        <div style={{ color:'#3b82f6', fontWeight:800, fontSize:15, marginBottom:6 }}>📋 Nová položka v katalogu</div>
-        <div style={{ color:T.muted, fontSize:13, marginBottom:18 }}>
-          Položka <strong style={{ color:T.text }}>„{popis}"</strong> dosud není v katalogu. Zařadit ji?
-        </div>
+// ============================================================
+// HISTORIE ZMĚN MODAL
+// ============================================================
+const FIELD_LABELS = {
+  firma: "Firma", cislo_stavby: "Č. stavby", nazev_stavby: "Název stavby",
+  ps_i: "Plán. stavby I", snk_i: "SNK I", bo_i: "Běžné opravy I",
+  ps_ii: "Plán. stavby II", bo_ii: "Běžné opravy II", poruch: "Poruchy",
+  vyfakturovano: "Vyfakturováno", ukonceni: "Ukončení", zrealizovano: "Zrealizováno",
+  sod: "SOD", ze_dne: "Ze dne", objednatel: "Objednatel", stavbyvedouci: "Stavbyvedoucí",
+  nabidkova_cena: "Nab. cena", cislo_faktury: "Č. faktury", castka_bez_dph: "Č. bez DPH",
+  splatna: "Splatná", poznamka: "Poznámka",
+};
 
-        <div style={{ marginBottom:14 }}>
-          <div style={{ color:T.muted, fontSize:11, fontWeight:700, marginBottom:6, textTransform:'uppercase', letterSpacing:1 }}>Do které sekce patří?</div>
-          <select value={cilSekce} onChange={e => setCilSekce(e.target.value)}
-            style={{ width:'100%', background:T.bg, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none' }}>
-            {vsechnySekce.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
-          </select>
-        </div>
-
-        <div style={{ marginBottom:20 }}>
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
-            <div onClick={() => setJeStandard(v => !v)}
-              style={{ width:38, height:22, borderRadius:11, background: jeStandard ? '#3b82f6' : T.border, position:'relative', transition:'background 0.2s', flexShrink:0 }}>
-              <div style={{ position:'absolute', top:3, left: jeStandard ? 19 : 3, width:16, height:16, borderRadius:8, background:'#fff', transition:'left 0.2s' }}/>
-            </div>
-            <div>
-              <div style={{ color:T.text, fontSize:13, fontWeight:600 }}>Standardní položka</div>
-              <div style={{ color:T.muted, fontSize:11 }}>Nabízet automaticky u všech příštích staveb</div>
-            </div>
-          </label>
-        </div>
-
-        <div style={{ display:'flex', gap:10 }}>
-          <button onClick={() => onConfirm(cilSekce, jeStandard)}
-            style={{ flex:1, padding:'10px 0', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-            ✓ Zařadit do katalogu
-          </button>
-          <button onClick={onCancel}
-            style={{ padding:'10px 16px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, fontSize:13, cursor:'pointer' }}>
-            Přeskočit
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── komponenty ───────────────────────────────────────────
-
-// Input pro rozbor — top-level komponenta, drží lokální stav, Enter/Tab přeskakuje na další pole
-function RbInput({ value, onChange, placeholder, style, numeric=false, tabIndex }) {
-  const [local, setLocal] = useState(String(value || ''))
-  const [isFocused, setIsFocused] = useState(false)
-  const skipBlur = useRef(false)
+function HistorieModal({ row, isDark, onClose, isDemo }) {
+  const [zaznamy, setZaznamy] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { pos, onMouseDown: onDragStart } = useDraggable(680, 560);
 
   useEffect(() => {
-    if (!isFocused) setLocal(String(value || ''))
-  }, [value, isFocused])
+    if (isDemo) { setLoading(false); return; } // demo — žádná DB
+    const load = async () => {
+      try {
+        const res = await sb(`log_aktivit?order=cas.desc&limit=500`);
+        const idStr = String(row.id);
+        const filtered = (res || []).filter(r => {
+          if (!r.detail) return false;
+          if (r.akce === "Přidání stavby" && r.detail === (row.nazev_stavby || "")) return true;
+          const match = r.detail.match(/^ID:\s*(\d+)[,\s]/);
+          return match && match[1] === idStr;
+        });
+        setZaznamy(filtered);
+      } catch { setZaznamy([]); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, [row.id, row.nazev_stavby, isDemo]);
 
-  const commit = (val) => {
-    const clean = val.replace(/\s/g, '').replace(',', '.')
-    onChange(clean)
-  }
+  const fmtCas = (cas) => {
+    if (!cas) return "";
+    const d = new Date(cas);
+    return d.toLocaleString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
 
-  const goNext = () => {
-    const inputs = Array.from(document.querySelectorAll('input[data-rb]'))
-    const myTab = tabIndex || 0
-    const next = inputs.find(i => parseInt(i.getAttribute('data-rb')) === myTab + 1)
-    if (next) next.focus()
-  }
+  // Parsuj JSON diff z detailu pokud existuje
+  const parseDetail = (detail) => {
+    if (!detail) return null;
+    try {
+      const jsonStart = detail.indexOf("{");
+      if (jsonStart === -1) return null;
+      return JSON.parse(detail.slice(jsonStart));
+    } catch { return null; }
+  };
 
-  const display = isFocused
-    ? local
-    : (numeric && num(local) > 0 ? num(local).toLocaleString('cs-CZ', {minimumFractionDigits:0, maximumFractionDigits:2}) : local)
+  const AKCE_STYLE = {
+    "Přidání stavby":  { bg: "rgba(34,197,94,0.15)",  border: "rgba(34,197,94,0.4)",  color: "#4ade80",  icon: "➕" },
+    "Editace stavby":  { bg: "rgba(251,191,36,0.12)",  border: "rgba(251,191,36,0.4)", color: "#fbbf24",  icon: "✏️" },
+    "Smazání stavby":  { bg: "rgba(239,68,68,0.12)",   border: "rgba(239,68,68,0.4)",  color: "#f87171",  icon: "🗑️" },
+  };
 
-  return (
-    <input
-      data-rb={tabIndex || 0}
-      tabIndex={tabIndex || 0}
-      value={display}
-      placeholder={placeholder}
-      onChange={e => setLocal(e.target.value)}
-      onFocus={() => { setIsFocused(true); setLocal(String(value || '')) }}
-      onBlur={e => {
-        if (skipBlur.current) { skipBlur.current = false; return }
-        setIsFocused(false)
-        commit(e.target.value)
-      }}
-      onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Tab') {
-          e.preventDefault()
-          skipBlur.current = true
-          setIsFocused(false)
-          commit(local)
-          setTimeout(goNext, 30)
-        }
-      }}
-      style={style}
-    />
-  )
-}
-
-// RozborMzdy — top-level komponenta pro sekci Mzdy montáže v rozboru
-function RozborMzdy({ s, T, c, sRef, setS }) {
-  const pri = num(s.prirazka)
-  const hzsM = num(s.hzs_mont)
-  const rb = s.rozbor || {}
-  // Výchozí index z profilu (default_sazby.index_rozbor) nebo -15
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-
-  const setRb = (key, field, val) => {
-    setS(prev => {
-      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
-      const newS = { ...prev, rozbor: newRozbor }
-      sRef.current = newS
-      return newS
-    })
-  }
-
-  // Vrátí index pro daný klíč — z rozboru nebo výchozí
-  const getIdx = (key) => {
-    const v = rb[key]?.idx
-    return v !== undefined && v !== '' ? num(v) : defaultIdx
-  }
-
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-
-  const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
-  )
-
-  const RowAuto = ({label, bez, rbKey, ti, hod, zmes}) => {
-    const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri)
-    // K vyplacení: Montážní práce = hod × ZMES × (1+idx/100), ostatní = (bez×0.6) × (1+idx/100)
-    const kVypl = hod !== undefined && zmes !== undefined
-      ? hod * zmes * (1 + idx/100)
-      : (bez * 0.6) * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    // ZISK = Cena+přirážka - vyplaceno × 1.34
-    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
-        <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
-
-  const RowManual = ({label, rbKey, ti}) => {
-    const bez = num(rb[rbKey]?.bez||0)
-    const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri)
-    // K vyplacení = (bez / HZS_mont) × ZMES_zem × (1 + index/100)
-    const hodZemni = hzsM > 0 ? bez / hzsM : 0
-    const zmesZ = num(s.zmes_zem)
-    const kVypl = hodZemni * zmesZ * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    // ZISK = (Cena + přirážka) - vyplaceno × 1.34
-    const zisk = vypl > 0 ? sP - vypl * 1.34 : null
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)', background:'rgba(59,130,246,0.04)' }}>
-        <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={ti} value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
-            style={{ width:'100%', background:'rgba(59,130,246,0.1)', border:'1px solid #3b82f6', borderRadius:4, color:'#60a5fa', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti+1} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={ti+2} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti+3} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
-
-  // Hodiny montáže z compute (mont_vn + mont_nn, bez opto)
-  const hodMont    = (c.mzdyT?.['mont_vn']?.hod || 0) + (c.mzdyT?.['mont_nn']?.hod || 0)
-  const zmesM      = num(s.zmes_mont)
-  const montBez    = hodMont * hzsM
-  const ppnBez     = itemSum(s.gn['pripl_ppn']?.rows||[])
-  const stimulBez  = itemSum(s.dof['stimul_prirazka']?.rows||[])
-  const fasadyBez  = itemSum(s.zemni['def_fasady']?.rows||[])
-  const strechyBez = itemSum(s.zemni['def_str']?.rows||[])
-  const bruskaBez  = itemSum(s.zemni['uhlova_bruska']?.rows||[])
-  const inzBez     = itemSum(s.gn['inzenyrska']?.rows||[])
-  const zemniMzdyBez = num(rb['mzdy_zemni']?.bez||0)
-  const rezervBez    = num(rb['mzdy_rezerv']?.bez||0)
-
-  const celkemBez  = montBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
-  const celkemSP   = celkemBez * (1 + pri)
-  const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
-    .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
-
-  // Celkem K vyplacení = součet K vyplacení z jednotlivých řádků
-  const rowKVypl = (bez, rbKey, hod, zmes) => {
-    const idx = getIdx(rbKey)
-    if (hod !== undefined && zmes !== undefined) return hod * zmes * (1 + idx/100)
-    const bezNum = num(bez)
-    return (bezNum * 0.6) * (1 + idx/100)
-  }
-  const zemniKVypl = (() => {
-    const bez = zemniMzdyBez
-    const idx = getIdx('mzdy_zemni')
-    const hodZemni = hzsM > 0 ? bez / hzsM : 0
-    return hodZemni * num(s.zmes_zem) * (1 + idx/100)
-  })()
-  const rezervKVypl = (() => {
-    const bez = rezervBez
-    const idx = getIdx('mzdy_rezerv')
-    const hodZemni = hzsM > 0 ? bez / hzsM : 0
-    return hodZemni * num(s.zmes_zem) * (1 + idx/100)
-  })()
-  const celkemKVypl =
-    rowKVypl(montBez,    'mzdy_mont',    hodMont, zmesM) +
-    zemniKVypl +
-    rowKVypl(ppnBez,     'mzdy_ppn') +
-    rowKVypl(stimulBez,  'mzdy_stimul') +
-    rowKVypl(fasadyBez,  'mzdy_fasady') +
-    rowKVypl(strechyBez, 'mzdy_strechy') +
-    rowKVypl(bruskaBez,  'mzdy_bruska') +
-    rowKVypl(inzBez,     'mzdy_inz') +
-    rezervKVypl
-  const rowZisk = (sP, rbKey) => {
-    const vypl = num(rb[rbKey]?.vypl||0)
-    return vypl > 0 ? sP - vypl * 1.34 : 0
-  }
-  const montSP    = montBez * (1 + pri)
-  const zemniSP   = zemniMzdyBez * (1 + pri)
-  const ppnSP     = ppnBez * (1 + pri)
-  const stimulSP  = stimulBez * (1 + pri)
-  const fasadySP  = fasadyBez * (1 + pri)
-  const strechySP = strechyBez * (1 + pri)
-  const bruskaSP  = bruskaBez * (1 + pri)
-  const inzSP     = inzBez * (1 + pri)
-  const rezervSP  = rezervBez * (1 + pri)
-  const celkemZiskSum =
-    rowZisk(montSP,    'mzdy_mont') +
-    rowZisk(zemniSP,   'mzdy_zemni') +
-    rowZisk(ppnSP,     'mzdy_ppn') +
-    rowZisk(stimulSP,  'mzdy_stimul') +
-    rowZisk(fasadySP,  'mzdy_fasady') +
-    rowZisk(strechySP, 'mzdy_strechy') +
-    rowZisk(bruskaSP,  'mzdy_bruska') +
-    rowZisk(inzSP,     'mzdy_inz') +
-    rowZisk(rezervSP,  'mzdy_rezerv')
-  const celkemZisk = celkemVypl > 0 ? celkemZiskSum : null
+  const modalBg  = isDark ? "#1e293b" : "#fff";
+  const textC    = isDark ? "#e2e8f0" : "#1e293b";
+  const mutedC   = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.45)";
+  const borderC  = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
 
   return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:8 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6' }} className='rozbor-mzdy-header'>
-        <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:13 }}>👷 Mzdy montáže</div>
-        <TH>Cena bez přirážky</TH>
-        <TH>Přirážka</TH>
-        <TH>Cena + přirážka</TH>
-        <TH>Index</TH>
-        <TH>K vyplacení</TH>
-        <TH>Vyplaceno</TH>
-        <TH>ZISK MZDY</TH>
-        <TH left>Poznámka</TH>
-      </div>
-      <RowAuto  label="Montážní práce"       bez={montBez}    hod={hodMont} zmes={zmesM}  rbKey="mzdy_mont"    ti={1} />
-      <RowManual label="Zemní práce"                                                    rbKey="mzdy_zemni"   ti={4} />
-      <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}         rbKey="mzdy_ppn"     ti={8} />
-      <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}   rbKey="mzdy_stimul"  ti={11} />
-      <RowAuto  label="Def. úprava fasád"    bez={fasadyBez}   rbKey="mzdy_fasady"  ti={14} />
-      <RowAuto  label="Def. úprava střech"   bez={strechyBez} rbKey="mzdy_strechy" ti={17} />
-      <RowAuto  label="Úhlová bruska"        bez={bruskaBez}   rbKey="mzdy_bruska"  ti={20} />
-      <RowAuto  label="Inženýrská činnost"   bez={inzBez}         rbKey="mzdy_inz"     ti={23} />
-      <RowManual label="Rezerv. mont."                                                  rbKey="mzdy_rezerv"  ti={26} />
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
-        <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>CELKEM MZDY</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
-        <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-        <div/>
-      </div>
-    </div>
-  )
-}
-
-// RozborMech — sekce Mechanizace
-function RozborMech({ s, T, c, sRef, setS }) {
-  const pri = num(s.prirazka)
-  const rb = s.rozbor || {}
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-
-  const setRb = (key, field, val) => {
-    setS(prev => {
-      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
-      const newS = { ...prev, rozbor: newRozbor }
-      sRef.current = newS
-      return newS
-    })
-  }
-
-  const getIdx = (key) => {
-    const v = rb[key]?.idx
-    return v !== undefined && v !== '' ? num(v) : defaultIdx
-  }
-
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-
-  const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
-  )
-
-  const Row = ({label, bez, rbKey, ti}) => {
-    const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri)
-    const kVypl = (bez * 0.6) * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl : null
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
-        <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
+    <div style={{ position: "fixed", inset: 0, zIndex: 1300, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ position: "fixed", left: pos.x, top: pos.y, pointerEvents: "all", background: modalBg, borderRadius: 16, width: "min(680px,96vw)", maxHeight: "88vh", display: "flex", flexDirection: "column", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)"}`, boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}>
+        {/* header — táhlo */}
+        <div onMouseDown={onDragStart} style={dragHeaderStyle()}>
+          <div>
+            <span style={{ color: isDark ? "#fff" : "#1e293b", fontWeight: 700, fontSize: 15 }}>🕐 Historie změn{dragHint}</span>
+            <div style={{ color: mutedC, fontSize: 12, marginTop: 2 }}>{row.cislo_stavby && <span style={{ fontWeight: 700, color: isDark ? "#60a5fa" : "#2563eb" }}>{row.cislo_stavby} · </span>}{row.nazev_stavby}</div>
+          </div>
+          <button onClick={onClose} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: mutedC, fontSize: 20, cursor: "pointer", lineHeight: 1, marginLeft: 16 }}>✕</button>
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
 
-  const ROWS = [
-    { label:'Jeřáb',        rbKey:'mech_jerab',    bez: itemSum(s.mech['jerab']?.rows||[]) },
-    { label:'Nákladní auto', rbKey:'mech_nakladni', bez: itemSum(s.mech['nakladni']?.rows||[]) },
-    { label:'Traktor',      rbKey:'mech_traktor',  bez: itemSum(s.mech['traktor']?.rows||[]) },
-    { label:'Plošina',      rbKey:'mech_plosina',  bez: itemSum(s.mech['plosina']?.rows||[]) },
-    { label:'Dodávka',      rbKey:'mech_dodavka',  bez: itemSum(s.mech['dodavka']?.rows||[]) },
-    { label:'Kango',        rbKey:'mech_kango',    bez: itemSum(s.mech['kango']?.rows||[]) },
-    { label:'Pila',         rbKey:'mech_pila',     bez: itemSum(s.mech['pila']?.rows||[]) },
-  ]
-
-  const celkemBez  = ROWS.reduce((a,r) => a + r.bez, 0)
-  const celkemSP   = celkemBez * (1 + pri)
-  const celkemVypl = ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
-  const celkemKVypl = ROWS.reduce((a,r) => {
-    const idx = getIdx(r.rbKey)
-    return a + (r.bez * 0.6) * (1 + idx/100)
-  }, 0)
-  const celkemZisk = celkemVypl > 0
-    ? ROWS.reduce((a,r) => {
-        const idx = getIdx(r.rbKey)
-        const sP = r.bez * (1 + pri)
-        const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl : 0)
-      }, 0)
-    : null
-
-  return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #f59e0b' }} className='rozbor-mech-header'>
-        <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:13 }}>🚜 Mechanizace</div>
-        <TH>Cena bez přirážky</TH>
-        <TH>Přirážka</TH>
-        <TH>Cena + přirážka</TH>
-        <TH>Index ZMES</TH>
-        <TH>K vyplacení</TH>
-        <TH>Vyplaceno</TH>
-        <TH>ZISK</TH>
-        <TH left>Poznámka</TH>
-      </div>
-      {ROWS.map((r, i) => <Row key={r.rbKey} label={r.label} bez={r.bez} rbKey={r.rbKey} ti={100 + i*3} />)}
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(245,158,11,0.3)' }}>
-        <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:12 }}>CELKEM MECHANIZACE</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(celkemSP)}</div>
-        <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-        <div/>
-      </div>
-    </div>
-  )
-}
-
-// RozborZemni — sekce Zemní práce
-function RozborZemni({ s, T, c, sRef, setS }) {
-  const pri = num(s.prirazka)
-  const rb = s.rozbor || {}
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-
-  const setRb = (key, field, val) => {
-    setS(prev => {
-      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
-      const newS = { ...prev, rozbor: newRozbor }
-      sRef.current = newS
-      return newS
-    })
-  }
-
-  const getIdx = (key) => {
-    const v = rb[key]?.idx
-    return v !== undefined && v !== '' ? num(v) : defaultIdx
-  }
-
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-
-  const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
-  )
-
-  // Normální řádek — K vyplacení = (bez × 0.8) × (1 + index/100)
-  const Row = ({label, rbKey, ti, locked=false}) => {
-    const bez = itemSum(s.zemni[rbKey.replace('zemni_rb_','')]?.rows||[])
-    const idx = locked ? 0 : getIdx(rbKey)
-    const priRow = locked ? 0 : pri
-    const sP = bez * (1 + priRow)
-    const kVypl = (bez * 0.8) * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl : null
-    const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)', background:bg }}>
-        <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          {locked
-            ? <div style={{ padding:'3px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#f97316' }}>0 %</div>
-            : <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-                style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-          }
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={locked?-1:ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={locked?-1:ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
-
-  const ROWS_NORMAL = [
-    { label:'Zemní práce',            rbKey:'zemni_rb_zemni_prace' },
-    { label:'Zádlažby',               rbKey:'zemni_rb_zadlazby' },
-    { label:'Bagr',                   rbKey:'zemni_rb_bagr' },
-    { label:'Kompresor',              rbKey:'zemni_rb_kompresor' },
-    { label:'Řezač asfaltu',          rbKey:'zemni_rb_rezac' },
-    { label:'Motorový pěch',          rbKey:'zemni_rb_mot_pech' },
-    { label:'Naložení a doprava sutě', rbKey:'zemni_rb_nalosute' },
-    { label:'Stav. práce m. rozsahu', rbKey:'zemni_rb_stav_prace' },
-    { label:'Optotrubka',             rbKey:'zemni_rb_optotrubka' },
-    { label:'Protlak',                rbKey:'zemni_rb_protlak' },
-    { label:'Asfalt',                 rbKey:'zemni_rb_asfalt' },
-    { label:'Rezerv. zemní',          rbKey:'zemni_rb_rezerv_zemni' },
-  ]
-  const ROWS_LOCKED = [
-    { label:'Roura PE - říz. protlaky', rbKey:'zemni_rb_roura_pe' },
-    { label:'Písek',                    rbKey:'zemni_rb_pisek' },
-    { label:'Štěrk',                    rbKey:'zemni_rb_sterk' },
-    { label:'Beton',                    rbKey:'zemni_rb_beton' },
-  ]
-  const ALL_ROWS = [...ROWS_NORMAL, ...ROWS_LOCKED]
-
-  const getBez = (rbKey) => itemSum(s.zemni[rbKey.replace('zemni_rb_','')]?.rows||[])
-  const isLocked = (rbKey) => ROWS_LOCKED.some(l => l.rbKey === rbKey)
-
-  const celkemBez   = ALL_ROWS.reduce((a,r) => a + getBez(r.rbKey), 0)
-  const celkemSP    = ALL_ROWS.reduce((a,r) => {
-    const bez = getBez(r.rbKey)
-    return a + bez * (1 + (isLocked(r.rbKey) ? 0 : pri))
-  }, 0)
-  const celkemVypl  = ALL_ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
-  const celkemKVypl = ALL_ROWS.reduce((a,r) => {
-    const bez = getBez(r.rbKey)
-    const idx = isLocked(r.rbKey) ? 0 : getIdx(r.rbKey)
-    return a + (bez * 0.8) * (1 + idx/100)
-  }, 0)
-  const celkemZisk  = celkemVypl > 0
-    ? ALL_ROWS.reduce((a,r) => {
-        const bez = getBez(r.rbKey)
-        const sP  = bez * (1 + (isLocked(r.rbKey) ? 0 : pri))
-        const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl : 0)
-      }, 0)
-    : null
-
-  return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #ef4444' }} className='rozbor-zemni-header'>
-        <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:13 }}>⛏️ Zemní práce</div>
-        <TH>Cena bez přirážky</TH>
-        <TH>Přirážka</TH>
-        <TH>Cena + přirážka</TH>
-        <TH>Index zemní</TH>
-        <TH>K vyplacení</TH>
-        <TH>Vyplaceno</TH>
-        <TH>ZISK</TH>
-        <TH left>Poznámka</TH>
-      </div>
-      {ROWS_NORMAL.map((r, i) => <Row key={r.rbKey} label={r.label} rbKey={r.rbKey} ti={200 + i*3} locked={false} />)}
-      {ROWS_LOCKED.map((r, i) => <Row key={r.rbKey} label={r.label} rbKey={r.rbKey} ti={250 + i*3} locked={true} />)}
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(239,68,68,0.3)' }}>
-        <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:12 }}>CELKEM ZEMNÍ PRÁCE</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#ef4444' }}>{fmt(celkemSP)}</div>
-        <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-        <div/>
-      </div>
-    </div>
-  )
-}
-
-// RozborGN — sekce Globální náklady
-function RozborGN({ s, T, c, sRef, setS }) {
-  const pri = num(s.prirazka)
-  const rb = s.rozbor || {}
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-
-  const setRb = (key, field, val) => {
-    setS(prev => {
-      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
-      const newS = { ...prev, rozbor: newRozbor }
-      sRef.current = newS
-      return newS
-    })
-  }
-
-  const getIdx = (key) => {
-    const v = rb[key]?.idx
-    return v !== undefined && v !== '' ? num(v) : defaultIdx
-  }
-
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-
-  const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
-  )
-
-  const Row = ({label, bez, rbKey, ti}) => {
-    const idx = getIdx(rbKey)
-    const sP = bez * (1 + pri)
-    const kVypl = (bez * 0.8) * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl : null
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
-        <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-            style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
-
-  const ROWS = [
-    { label:'Geodetické práce',      rbKey:'gn_rb_geodetika',     bez: itemSum(s.gn['geodetika']?.rows||[]) },
-    { label:'TE - tech. evidence',   rbKey:'gn_rb_te_evidence',   bez: itemSum(s.gn['te_evidence']?.rows||[]) },
-    { label:'Výchozí revize',        rbKey:'gn_rb_vychozi_revize',bez: itemSum(s.gn['vychozi_revize']?.rows||[]) },
-    { label:'Ekolog. likv. odpadů',  rbKey:'gn_rb_ekolog_likv',   bez: itemSum(s.gn['ekolog_likv']?.rows||[]) },
-    { label:'Materiál výnosový',     rbKey:'gn_rb_material_vyn',  bez: itemSum(s.gn['material_vyn']?.rows||[]) },
-    { label:'Doprava mat. na stavbu',rbKey:'gn_rb_doprava_mat',   bez: itemSum(s.gn['doprava_mat']?.rows||[]) },
-    { label:'Popl. za veřej. prostr.',rbKey:'gn_rb_popl_ver',     bez: itemSum(s.dof['popl_ver_prostranstvi']?.rows||[]) },
-    { label:'Příplatek Capex/Opex',  rbKey:'gn_rb_pripl_capex',   bez: itemSum(s.gn['pripl_capex']?.rows||[]) },
-    { label:'Kolaudace',             rbKey:'gn_rb_kolaudace',     bez: itemSum(s.gn['kolaudace']?.rows||[]) },
-  ]
-
-  const celkemBez   = ROWS.reduce((a,r) => a + r.bez, 0)
-  const celkemSP    = ROWS.reduce((a,r) => a + r.bez * (1 + pri), 0)
-  const celkemVypl  = ROWS.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
-  const celkemKVypl = ROWS.reduce((a,r) => {
-    const idx = getIdx(r.rbKey)
-    return a + (r.bez * 0.8) * (1 + idx/100)
-  }, 0)
-  const celkemZisk  = celkemVypl > 0
-    ? ROWS.reduce((a,r) => {
-        const sP = r.bez * (1 + pri)
-        const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl : 0)
-      }, 0)
-    : null
-
-  return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #10b981' }} className='rozbor-gn-header'>
-        <div style={{ padding:'8px 8px', color:'#10b981', fontWeight:800, fontSize:13 }}>📋 Globální náklady</div>
-        <TH>Cena bez přirážky</TH>
-        <TH>Přirážka</TH>
-        <TH>Cena + přirážka</TH>
-        <TH>Index GN</TH>
-        <TH>K vyplacení</TH>
-        <TH>Vyplaceno</TH>
-        <TH>ZISK</TH>
-        <TH left>Poznámka</TH>
-      </div>
-      {ROWS.map((r, i) => <Row key={r.rbKey} label={r.label} bez={r.bez} rbKey={r.rbKey} ti={300 + i*3} />)}
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(16,185,129,0.3)' }}>
-        <div style={{ padding:'8px 8px', color:'#10b981', fontWeight:800, fontSize:12 }}>CELKEM GN</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#10b981' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#10b981' }}>{fmt(celkemSP)}</div>
-        <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-        <div/>
-      </div>
-    </div>
-  )
-}
-
-// RozborOstatni — sekce Ostatní položky + Celkem za stavbu
-function RozborOstatni({ s, T, c, sRef, setS }) {
-  const pri = num(s.prirazka)
-  const rb = s.rozbor || {}
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-
-  const setRb = (key, field, val) => {
-    setS(prev => {
-      const newRozbor = { ...prev.rozbor, [key]: { ...(prev.rozbor||{})[key], [field]: val } }
-      const newS = { ...prev, rozbor: newRozbor }
-      sRef.current = newS
-      return newS
-    })
-  }
-
-  const getIdx = (key) => {
-    const v = rb[key]?.idx
-    return v !== undefined && v !== '' ? num(v) : defaultIdx
-  }
-
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-
-  const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
-  )
-
-  const Row = ({label, bez, rbKey, ti, locked=false}) => {
-    const idx = locked ? 0 : getIdx(rbKey)
-    const priRow = locked ? 0 : pri
-    const sP = bez * (1 + priRow)
-    const kVypl = (bez * 0.8) * (1 + idx/100)
-    const vypl = num(rb[rbKey]?.vypl||0)
-    const zisk = vypl > 0 ? sP - vypl : null
-    const bg = locked ? 'rgba(251,146,60,0.08)' : 'transparent'
-    return (
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)', background:bg }}>
-        <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          {locked
-            ? <div style={{ padding:'3px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#f97316' }}>0 %</div>
-            : <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
-                style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-          }
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput numeric tabIndex={locked?-1:ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
-            style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
-        </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{zisk!==null?fmt(zisk):'—'}</div>
-        <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
-          <RbInput tabIndex={locked?-1:ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
-            style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
-        </div>
-      </div>
-    )
-  }
-
-  const matZhotBez = c.matZhot || 0
-  const prispBez   = num(s.prispevek_sklad)
-  const gzsBez     = itemSum(s.dof['gzs']?.rows||[])
-  const dofBez     = itemSum(s.dof['dio']?.rows||[]) + itemSum(s.dof['vytyc_siti']?.rows||[]) +
-                     itemSum(s.dof['neplanvykon']?.rows||[]) + itemSum(s.dof['spravni_popl']?.rows||[]) +
-                     itemSum(s.dof['omezeni_dopr']?.rows||[]) + itemSum(s.dof['popl_omez_zeleznice']?.rows||[]) +
-                     itemSum(s.dof['archeolog_dozor']?.rows||[])
-
-  const ROWS_CALC = [
-    { rbKey:'ost_rb_mat_zhot', bez: matZhotBez, locked: true },
-    { rbKey:'ost_rb_prisp',    bez: prispBez,   locked: false },
-    { rbKey:'ost_rb_gzs',      bez: gzsBez,     locked: false },
-  ]
-  const celkemBez   = ROWS_CALC.reduce((a,r) => a + r.bez, 0)
-  const celkemSP    = ROWS_CALC.reduce((a,r) => a + r.bez * (1 + (r.locked ? 0 : pri)), 0)
-  const celkemVypl  = ROWS_CALC.reduce((a,r) => a + num(rb[r.rbKey]?.vypl||0), 0)
-  const celkemKVypl = ROWS_CALC.reduce((a,r) => {
-    const idx = r.locked ? 0 : getIdx(r.rbKey)
-    return a + (r.bez * 0.8) * (1 + idx/100)
-  }, 0)
-  const celkemZisk  = celkemVypl > 0
-    ? ROWS_CALC.reduce((a,r) => {
-        const sP = r.bez * (1 + (r.locked ? 0 : pri))
-        const vypl = num(rb[r.rbKey]?.vypl||0)
-        return a + (vypl > 0 ? sP - vypl : 0)
-      }, 0)
-    : null
-
-  return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #8b5cf6' }} className='rozbor-ost-header'>
-        <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:13 }}>🔧 Ostatní položky</div>
-        <TH>Cena bez přirážky</TH>
-        <TH>Přirážka</TH>
-        <TH>Cena + přirážka</TH>
-        <TH>Index</TH>
-        <TH>K vyplacení</TH>
-        <TH>Vyplaceno</TH>
-        <TH>ZISK</TH>
-        <TH left>Poznámka</TH>
-      </div>
-      <Row label="Mat. zhotovitele"   bez={matZhotBez} rbKey="ost_rb_mat_zhot"  ti={400} locked={true} />
-      <Row label="Příspěvek na sklad" bez={prispBez}   rbKey="ost_rb_prisp"     ti={403} />
-      <Row label="GZS"                bez={gzsBez}     rbKey="ost_rb_gzs"       ti={406} />
-      {/* Doloženo fakturou — info řádek */}
-      <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}40`, background:'rgba(59,130,246,0.04)' }}>
-        <div style={{ padding:'6px 8px', color:'#60a5fa', fontSize:13, fontWeight:600, borderRight:'1px solid rgba(100,116,139,0.6)' }}>Doloženo fakturou</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{dofBez>0?fmt(dofBez):'—'}</div>
-        <div style={{ gridColumn:'3/10', padding:'6px 8px', color:'#f59e0b', fontSize:11, fontStyle:'italic' }}>
-          DIO, vytýčení sítí, správní poplatky, omezení dopravy … bude dofakturováno
-        </div>
-      </div>
-      {/* CELKEM OSTATNÍ */}
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(139,92,246,0.3)', marginBottom:16 }}>
-        <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:12 }}>CELKEM OSTATNÍ</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#8b5cf6' }}>{fmt(celkemBez)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:10, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#8b5cf6' }}>{fmt(celkemSP)}</div>
-        <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
-        <div/>
-      </div>
-    </div>
-  )
-}
-
-// RozborCelkem — řádek CELKEM ZA STAVBU
-function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
-  const pri = num(s.prirazka)
-  const rb = rbProp || s.rozbor || {}
-  const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
-  const defaultIdx = num(s.default_index_rozbor ?? -15)
-  const getIdx = (k) => { const v = rb[k]?.idx; return v !== undefined && v !== '' ? num(v) : defaultIdx }
-  const vypl = (k) => rb[k]?.vypl
-  const hasVypl = (k) => vypl(k) !== undefined && vypl(k) !== ''
-
-  // Zisk řádku Mzdy (× 1.34)
-  const ziskMzdy = (rbKey, sP) => {
-    if (!hasVypl(rbKey)) return null
-    return sP - num(vypl(rbKey)) * 1.34
-  }
-  // Zisk řádku Mech/Zemní/GN/Ost (bez × 1.34)
-  const ziskRow = (rbKey, sP) => {
-    if (!hasVypl(rbKey)) return null
-    return sP - num(vypl(rbKey))
-  }
-
-  // --- MZDY ---
-  const hodMont = c.hodMont || 0
-  const hodZem  = c.hodZem  || 0
-  const hzsMont = num(s.hzs_mont)
-  const zmesMont= num(s.zmes_mont)
-  const zmesZem = num(s.zmes_zem)
-
-  const mzdyRows = [
-    { k:'mzdy_mont',    sP: (itemSum(s.mzdy['mont_vn']?.rows||[])+itemSum(s.mzdy['mont_nn']?.rows||[]))*hzsMont*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_zemni',   sP: num(rb['mzdy_zemni']?.bez||0)*(1+pri),  ziskFn: ziskMzdy },
-    { k:'mzdy_ppn',     sP: itemSum(s.gn['pripl_ppn']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_stimul',  sP: itemSum(s.dof['stimul_prirazka']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_fasady',  sP: itemSum(s.zemni['def_fasady']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_strechy', sP: itemSum(s.zemni['def_str']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_bruska',  sP: itemSum(s.zemni['uhlova_bruska']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_inz',     sP: itemSum(s.gn['inzenyrska']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
-    { k:'mzdy_rezerv',  sP: num(rb['mzdy_rezerv']?.bez||0)*(1+pri), ziskFn: ziskMzdy },
-  ]
-
-  // --- MECH ---
-  const mechKeys = ['mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila']
-  const mechMap  = { mech_jerab:'jerab', mech_nakladni:'nakladni', mech_traktor:'traktor', mech_plosina:'plosina', mech_dodavka:'dodavka', mech_kango:'kango', mech_pila:'pila' }
-  const mechRows = mechKeys.map(k => ({ k, sP: itemSum(s.mech[mechMap[k]]?.rows||[])*(1+pri), ziskFn: ziskRow }))
-
-  // --- ZEMNÍ ---
-  const zemniMap = { zemni_rb_zemni_prace:'zemni_prace', zemni_rb_zadlazby:'zadlazby', zemni_rb_bagr:'bagr', zemni_rb_kompresor:'kompresor', zemni_rb_rezac:'rezac', zemni_rb_mot_pech:'mot_pech', zemni_rb_nalosute:'nalosute', zemni_rb_stav_prace:'stav_prace', zemni_rb_optotrubka:'optotrubka', zemni_rb_protlak:'protlak', zemni_rb_asfalt:'asfalt', zemni_rb_rezerv_zemni:'rezerv_zemni' }
-  const zemniLocked = ['zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton']
-  const zemniLockedMap = { zemni_rb_roura_pe:'roura_pe', zemni_rb_pisek:'pisek', zemni_rb_sterk:'sterk', zemni_rb_beton:'beton' }
-  const zemniRows = [
-    ...Object.entries(zemniMap).map(([k,zk]) => ({ k, sP: itemSum(s.zemni[zk]?.rows||[])*(1+pri), ziskFn: ziskRow })),
-    ...zemniLocked.map(k => ({ k, sP: itemSum(s.zemni[zemniLockedMap[k]]?.rows||[]), ziskFn: ziskRow })),
-  ]
-
-  // --- GN ---
-  const gnMap = { gn_rb_geodetika:'geodetika', gn_rb_te_evidence:'te_evidence', gn_rb_vychozi_revize:'vychozi_revize', gn_rb_ekolog_likv:'ekolog_likv', gn_rb_material_vyn:'material_vyn', gn_rb_doprava_mat:'doprava_mat', gn_rb_pripl_capex:'pripl_capex', gn_rb_kolaudace:'kolaudace' }
-  const gnRows = [
-    ...Object.entries(gnMap).map(([k,gk]) => ({ k, sP: itemSum(s.gn[gk]?.rows||[])*(1+pri), ziskFn: ziskRow })),
-    { k:'gn_rb_popl_ver', sP: itemSum(s.dof['popl_ver_prostranstvi']?.rows||[])*(1+pri), ziskFn: ziskRow },
-  ]
-
-  // --- OSTATNÍ ---
-  const ostRows = [
-    { k:'ost_rb_mat_zhot', sP: (c.matZhot||0),         ziskFn: ziskRow },
-    { k:'ost_rb_prisp',    sP: num(s.prispevek_sklad)*(1+pri), ziskFn: ziskRow },
-    { k:'ost_rb_gzs',      sP: itemSum(s.dof['gzs']?.rows||[])*(1+pri), ziskFn: ziskRow },
-  ]
-
-  const ALL_ROWS = [...mzdyRows, ...mechRows, ...zemniRows, ...gnRows, ...ostRows]
-  const VYPL_KEYS = ALL_ROWS.map(r => r.k)
-
-  // Kompletní = všechna pole vyplněna
-  const kompletni = VYPL_KEYS.every(k => hasVypl(k))
-
-  // Celkem vyplaceno
-  const celkemVypl = VYPL_KEYS.filter(k => hasVypl(k)).reduce((a,k) => a + num(vypl(k)), 0)
-
-  // Zisk = součet zisků z vyplněných řádků
-  const ziskCelkem = ALL_ROWS.reduce((a, r) => {
-    const z = r.ziskFn(r.k, r.sP)
-    return z !== null ? a + z : a
-  }, 0)
-  const hasAnyVypl = VYPL_KEYS.some(k => hasVypl(k))
-  const ziskSP = c.bazova * (1 + pri)
-  const ziskPct = hasAnyVypl && ziskSP > 0 ? (ziskCelkem / ziskSP * 100).toFixed(1) : null
-  const ziskColor = kompletni ? '#10b981' : '#059669'
-
-  return (
-    <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.18)', borderRadius:8 }}>
-        <div style={{ padding:'10px 8px', color:'#60a5fa', fontWeight:900, fontSize:14 }}>CELKEM ZA STAVBU</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:'#64748b' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
-        <div/>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
-        <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right' }}>
-          {hasAnyVypl ? (
-            <div>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8 }}>
-                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</span>
-                {ziskPct && <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:ziskColor }}>{ziskPct} %</span>}
+        {/* obsah */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "16px 22px" }}>
+          {loading && <div style={{ textAlign: "center", color: mutedC, padding: 40 }}>Načítám historii...</div>}
+          {!loading && zaznamy.length === 0 && (
+            <div style={{ textAlign: "center", padding: 48 }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>📭</div>
+              <div style={{ color: mutedC, fontSize: 14 }}>{isDemo ? "Demo režim — historie se neukládá" : "Žádné záznamy v historii"}</div>
+              {isDemo && <div style={{ color: mutedC, fontSize: 12, marginTop: 6 }}>V ostré verzi se zde zobrazí kompletní přehled změn.</div>}
+              <div style={{ color: mutedC, fontSize: 12, marginTop: 6 }}>Historie se zapisuje od tohoto buildu.</div>
+            </div>
+          )}
+          {!loading && zaznamy.map((z, i) => {
+            const style = AKCE_STYLE[z.akce] || { bg: "rgba(100,116,139,0.1)", border: "rgba(100,116,139,0.3)", color: "#94a3b8", icon: "•" };
+            const diff  = parseDetail(z.detail);
+            return (
+              <div key={i} style={{ marginBottom: 12, padding: "12px 14px", background: style.bg, border: `1px solid ${style.border}`, borderRadius: 10 }}>
+                {/* řádek: ikona akce + čas + uživatel */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: diff ? 10 : 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ fontSize: 14 }}>{style.icon}</span>
+                    <span style={{ color: style.color, fontWeight: 700, fontSize: 13 }}>{z.akce}</span>
+                    <span style={{ color: mutedC, fontSize: 12 }}>— {z.uzivatel}</span>
+                  </div>
+                  <span style={{ color: mutedC, fontSize: 11, whiteSpace: "nowrap", marginLeft: 12 }}>{fmtCas(z.cas)}</span>
+                </div>
+                {/* diff tabulka */}
+                {diff && diff.zmeny && diff.zmeny.length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                      <thead>
+                        <tr>
+                          {["Pole","Původní hodnota","Nová hodnota"].map(h => (
+                            <th key={h} style={{ padding: "4px 8px", textAlign: "left", color: mutedC, fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${borderC}` }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {diff.zmeny.map((z2, j) => (
+                          <tr key={j} style={{ borderBottom: `1px solid ${borderC}` }}>
+                            <td style={{ padding: "4px 8px", color: mutedC, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>{FIELD_LABELS[z2.pole] || z2.pole}</td>
+                            <td style={{ padding: "4px 8px", color: "#f87171", fontSize: 11, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{z2.stare === "" || z2.stare == null ? <em style={{ opacity: 0.5 }}>prázdné</em> : String(z2.stare)}</td>
+                            <td style={{ padding: "4px 8px", color: "#4ade80", fontSize: 11, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{z2.nove === "" || z2.nove == null ? <em style={{ opacity: 0.5 }}>prázdné</em> : String(z2.nove)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {/* starý formát detailu bez diffu */}
+                {!diff && z.detail && <div style={{ color: mutedC, fontSize: 11, marginTop: 4 }}>{z.detail}</div>}
               </div>
-              <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>
-                {kompletni ? '✓ kompletní data' : '⚠ neúplná data'}
+            );
+          })}
+        </div>
+
+        <div style={{ padding: "12px 22px", borderTop: `1px solid ${borderC}`, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8 }}>
+            {/* PDF export */}
+            <button onClick={() => {
+              const rows = zaznamy.map((z, i) => {
+                const diff = (() => { try { const s = z.detail?.indexOf("{"); return s >= 0 ? JSON.parse(z.detail.slice(s)) : null; } catch { return null; } })();
+                const cas = z.cas ? new Date(z.cas).toLocaleString("cs-CZ") : "";
+                const akceColor = z.akce === "Přidání stavby" ? "#166534" : z.akce === "Editace stavby" ? "#854D0E" : z.akce === "Smazání stavby" ? "#991B1B" : "#1e293b";
+                const akceBg    = z.akce === "Přidání stavby" ? "#dcfce7" : z.akce === "Editace stavby" ? "#fef9c3" : z.akce === "Smazání stavby" ? "#fee2e2" : "#f8fafc";
+                const zmenyHtml = diff?.zmeny?.length ? `<table style="width:100%;border-collapse:collapse;margin-top:6px;font-size:10px"><thead><tr><th style="background:#e2e8f0;padding:3px 6px;text-align:left">Pole</th><th style="background:#e2e8f0;padding:3px 6px;text-align:left;color:#991b1b">Původní</th><th style="background:#e2e8f0;padding:3px 6px;text-align:left;color:#166534">Nová</th></tr></thead><tbody>${diff.zmeny.map(z2 => `<tr><td style="padding:3px 6px;border-bottom:1px solid #e2e8f0">${FIELD_LABELS[z2.pole]||z2.pole}</td><td style="padding:3px 6px;border-bottom:1px solid #e2e8f0;color:#991b1b">${z2.stare??""}</td><td style="padding:3px 6px;border-bottom:1px solid #e2e8f0;color:#166534">${z2.nove??""}</td></tr>`).join("")}</tbody></table>` : "";
+                return `<tr><td style="padding:8px 10px;background:${akceBg};border:1px solid #e2e8f0;vertical-align:top;white-space:nowrap;font-size:11px;color:${akceColor};font-weight:700">${z.akce||""}</td><td style="padding:8px 10px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #e2e8f0;vertical-align:top;white-space:nowrap;font-size:11px">${cas}</td><td style="padding:8px 10px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #e2e8f0;vertical-align:top;font-size:11px">${z.uzivatel||""}</td><td style="padding:8px 10px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #e2e8f0;vertical-align:top;font-size:11px">${zmenyHtml || (z.detail||"")}</td></tr>`;
+              }).join("");
+              const w = window.open("","_blank");
+              w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Historie – ${row.nazev_stavby}</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{margin:0 0 2px;font-size:14px}p{margin:0 0 10px;color:#64748b;font-size:10px}table{width:100%;border-collapse:collapse}th{background:#1e3a8a;color:#fff;padding:7px 10px;text-align:left;font-size:11px}@media print{button{display:none}}</style></head><body><h2>🕐 Historie změn – ${row.cislo_stavby||""} ${row.nazev_stavby||""}</h2><p>Vygenerováno: ${new Date().toLocaleDateString("cs-CZ")} | ${zaznamy.length} záznamů</p><table><thead><tr><th>Akce</th><th>Datum a čas</th><th>Uživatel</th><th>Detail změn</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script></body></html>`);
+              w.document.close();
+            }} style={{ padding: "7px 14px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🖨️ PDF tisk</button>
+
+            {/* XLSX export — jako HTML tabulka (.xls) */}
+            <button onClick={() => {
+              const headers = `<tr><th style="background:#1E3A8A;color:#fff;padding:6px 10px;border:1px solid #2563EB;font-size:10px">Akce</th><th style="background:#1E3A8A;color:#fff;padding:6px 10px;border:1px solid #2563EB;font-size:10px">Datum a čas</th><th style="background:#1E3A8A;color:#fff;padding:6px 10px;border:1px solid #2563EB;font-size:10px">Uživatel</th><th style="background:#1E3A8A;color:#fff;padding:6px 10px;border:1px solid #2563EB;font-size:10px">Detail změn</th></tr>`;
+              const AKCE_BG = { "Přidání stavby":"#dcfce7","Editace stavby":"#fef9c3","Smazání stavby":"#fee2e2" };
+              const rows = zaznamy.map((z, i) => {
+                const cas = z.cas ? new Date(z.cas).toLocaleString("cs-CZ") : "";
+                const bg = AKCE_BG[z.akce] || (i%2===0?"#f8fafc":"#fff");
+                const diff = (() => { try { const s = z.detail?.indexOf("{"); return s>=0 ? JSON.parse(z.detail.slice(s)) : null; } catch { return null; } })();
+                const detail = diff?.zmeny?.map(x => `${FIELD_LABELS[x.pole]||x.pole}: ${x.stare} → ${x.nove}`).join("; ") || z.detail || "";
+                return `<tr><td style="padding:5px 8px;background:${bg};border:1px solid #E2E8F0;font-size:10px;font-weight:700">${z.akce||""}</td><td style="padding:5px 8px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #E2E8F0;font-size:10px;white-space:nowrap">${cas}</td><td style="padding:5px 8px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #E2E8F0;font-size:10px">${z.uzivatel||""}</td><td style="padding:5px 8px;background:${i%2===0?"#f8fafc":"#fff"};border:1px solid #E2E8F0;font-size:10px">${detail}</td></tr>`;
+              }).join("");
+              const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table><thead>${headers}</thead><tbody>${rows}</tbody></table></body></html>`;
+              const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+              const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+              a.download = `historie_${row.cislo_stavby||row.id}_${new Date().toISOString().slice(0,10)}.xls`; a.click();
+            }} style={{ padding: "7px 14px", background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.3)", borderRadius: 7, color: "#4ade80", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📊 Excel</button>
+          </div>
+          <button onClick={onClose} style={{ padding: "8px 20px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Zavřít</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// LOG MODAL (kompletní log zakázek pro admina)
+// ============================================================
+function LogModal({ isDark, firmy, onClose, isDemo }) {
+  const [zaznamy, setZaznamy] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const { pos, onMouseDown: onDragStart } = useDraggable(900, 580);
+  const [filterUser, setFilterUser]   = useState("");
+  const [filterAkce, setFilterAkce]   = useState("");
+  const [filterOd,   setFilterOd]     = useState("");
+  const [filterDo,   setFilterDo]     = useState("");
+
+  const AKCE_ZAKÁZKY = ["Přidání stavby","Editace stavby","Smazání stavby"];
+  const [totalLoaded, setTotalLoaded] = useState(0);
+
+  useEffect(() => {
+    if (isDemo) { setLoading(false); return; } // demo — žádná DB
+    const load = async () => {
+      try {
+        const res = await sb(`log_aktivit?order=cas.desc&limit=10000`);
+        const all = res || [];
+        setTotalLoaded(all.length);
+        setZaznamy(all.filter(r => AKCE_ZAKÁZKY.includes(r.akce)));
+      } catch { setZaznamy([]); }
+      finally { setLoading(false); }
+    };
+    load();
+  }, [isDemo]);
+
+  const users  = [...new Set(zaznamy.map(r => r.uzivatel).filter(Boolean))];
+  const akceList = [...new Set(zaznamy.map(r => r.akce).filter(Boolean))];
+
+  const filtered = zaznamy.filter(r => {
+    if (filterUser && r.uzivatel !== filterUser) return false;
+    if (filterAkce && r.akce !== filterAkce) return false;
+    if (filterOd) {
+      const d = new Date(r.cas); const od = new Date(filterOd);
+      if (d < od) return false;
+    }
+    if (filterDo) {
+      const d = new Date(r.cas); const doo = new Date(filterDo); doo.setHours(23,59,59);
+      if (d > doo) return false;
+    }
+    return true;
+  });
+
+  const fmtCas = (cas) => cas ? new Date(cas).toLocaleString("cs-CZ", { day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+
+  const parseDetail = (detail) => {
+    if (!detail) return null;
+    try { const s = detail.indexOf("{"); return s >= 0 ? JSON.parse(detail.slice(s)) : null; } catch { return null; }
+  };
+
+  const AKCE_STYLE = {
+    "Přidání stavby":  { bg: "rgba(34,197,94,0.12)",  border: "rgba(34,197,94,0.35)",  color: "#4ade80",  pdfBg: "#dcfce7", pdfColor: "#166534" },
+    "Editace stavby":  { bg: "rgba(251,191,36,0.1)",   border: "rgba(251,191,36,0.35)", color: "#fbbf24",  pdfBg: "#fef9c3", pdfColor: "#854D0E" },
+    "Smazání stavby":  { bg: "rgba(239,68,68,0.1)",    border: "rgba(239,68,68,0.35)",  color: "#f87171",  pdfBg: "#fee2e2", pdfColor: "#991B1B" },
+  };
+
+  const modalBg = isDark ? "#1e293b" : "#fff";
+  const textC   = isDark ? "#e2e8f0" : "#1e293b";
+  const mutedC  = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.45)";
+  const borderC = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+  const inputS  = { padding: "6px 10px", background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, color: textC, fontSize: 12, outline: "none" };
+
+  // ── exporty ──────────────────────────────────────────────
+  const doXLSX = () => {
+    const headers = `<tr><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Akce</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Datum a čas</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Uživatel</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Název stavby</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Detail změn</th></tr>`;
+    const rows = filtered.map((z, i) => {
+      const diff = parseDetail(z.detail);
+      const zmenyText = diff?.zmeny?.map(x => `${FIELD_LABELS[x.pole]||x.pole}: ${x.stare} → ${x.nove}`).join("; ") || z.detail || "";
+      const nazev = diff?.nazev || z.detail?.replace(/^ID:\s*\d+,\s*/,"").split(" {")[0] || "";
+      const rowBg = i%2===0 ? "#f8fafc" : "#fff";
+      return `<tr><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px;font-weight:700">${z.akce||""}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px;white-space:nowrap">${fmtCas(z.cas)}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${z.uzivatel||""}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${nazev}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${zmenyText}</td></tr>`;
+    }).join("");
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table><thead>${headers}</thead><tbody>${rows}</tbody></table></body></html>`;
+    const ts = new Date().toISOString().slice(0,10);
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `log_zakazek_${ts}.xls`; a.click();
+  };
+
+  const doXLSColor = () => {
+    const headers = `<tr><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Akce</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Datum a čas</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Uživatel</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Název stavby</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB;font-size:11px">Detail změn</th></tr>`;
+    const rows = filtered.map((z, i) => {
+      const st = AKCE_STYLE[z.akce] || {};
+      const diff = parseDetail(z.detail);
+      const zmenyText = diff?.zmeny?.map(x => `${FIELD_LABELS[x.pole]||x.pole}: ${x.stare} → ${x.nove}`).join("; ") || z.detail || "";
+      const nazev = diff?.nazev || z.detail?.replace(/^ID:\s*\d+,\s*/,"").split(" {")[0] || "";
+      const rowBg = i%2===0 ? "#f8fafc" : "#fff";
+      return `<tr><td style="padding:5px 10px;background:${st.pdfBg||rowBg};color:${st.pdfColor||"#1e293b"};font-weight:700;border:1px solid #E2E8F0;white-space:nowrap;font-size:10px">${z.akce||""}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;white-space:nowrap;font-size:10px">${fmtCas(z.cas)}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${z.uzivatel||""}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${nazev}</td><td style="padding:5px 10px;background:${rowBg};border:1px solid #E2E8F0;font-size:10px">${zmenyText}</td></tr>`;
+    }).join("");
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table><thead>${headers}</thead><tbody>${rows}</tbody></table></body></html>`;
+    const ts = new Date().toISOString().slice(0,10);
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `log_zakazek_barevny_${ts}.xls`; a.click();
+  };
+
+  const doPDF = () => {
+    const rows = filtered.map((z, i) => {
+      const st = AKCE_STYLE[z.akce] || {};
+      const diff = parseDetail(z.detail);
+      const zmenyHtml = diff?.zmeny?.length
+        ? `<div style="margin-top:4px;font-size:9px">${diff.zmeny.map(x => `<span style="color:#64748b">${FIELD_LABELS[x.pole]||x.pole}:</span> <span style="color:#991b1b">${x.stare}</span> → <span style="color:#166534">${x.nove}</span>`).join(" &nbsp;|&nbsp; ")}</div>`
+        : `<div style="color:#64748b;font-size:9px">${z.detail||""}</div>`;
+      const nazev = diff?.nazev || z.detail?.replace(/^ID:\s*\d+,\s*/,"").split(" {")[0] || "";
+      const rowBg = i%2===0 ? "#f8fafc" : "#fff";
+      return `<tr><td style="padding:6px 8px;background:${st.pdfBg||rowBg};color:${st.pdfColor||"#1e293b"};font-weight:700;border:1px solid #e2e8f0;white-space:nowrap;font-size:10px;vertical-align:top">${z.akce||""}</td><td style="padding:6px 8px;background:${rowBg};border:1px solid #e2e8f0;white-space:nowrap;font-size:10px;vertical-align:top">${fmtCas(z.cas)}</td><td style="padding:6px 8px;background:${rowBg};border:1px solid #e2e8f0;font-size:10px;vertical-align:top">${z.uzivatel||""}</td><td style="padding:6px 8px;background:${rowBg};border:1px solid #e2e8f0;font-size:10px;vertical-align:top"><div style="font-weight:600">${nazev}</div>${zmenyHtml}</td></tr>`;
+    }).join("");
+    const w = window.open("","_blank");
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Log zakázek</title><style>@page{size:A4 landscape;margin:10mm}body{font-family:Arial,sans-serif;font-size:11px;color:#1e293b;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{margin:0 0 2px;font-size:14px}p{margin:0 0 10px;color:#64748b;font-size:10px}table{width:100%;border-collapse:collapse}th{background:#1e3a8a;color:#fff;padding:7px 10px;text-align:left;font-size:10px}@media print{button{display:none}}</style></head><body><h2>📜 Log zakázek – Stavby Znojmo</h2><p>Vygenerováno: ${new Date().toLocaleDateString("cs-CZ")} | ${filtered.length} záznamů${filterUser?" | Uživatel: "+filterUser:""}${filterAkce?" | Akce: "+filterAkce:""}</p><table><thead><tr><th>Akce</th><th>Datum a čas</th><th>Uživatel</th><th>Název stavby / Detail</th></tr></thead><tbody>${rows}</tbody></table><script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script></body></html>`);
+    w.document.close();
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1250, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ position: "fixed", left: pos.x, top: pos.y, pointerEvents: "all", background: modalBg, borderRadius: 16, width: "min(900px,97vw)", maxHeight: "92vh", display: "flex", flexDirection: "column", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)"}`, boxShadow: "0 32px 80px rgba(0,0,0,0.65)" }}>
+
+        {/* header — táhlo */}
+        <div onMouseDown={onDragStart} style={dragHeaderStyle()}>
+          <div>
+            <span style={{ color: isDark ? "#fff" : "#1e293b", fontWeight: 700, fontSize: 15 }}>📜 Log zakázek{dragHint}</span>
+            <div style={{ color: mutedC, fontSize: 12, marginTop: 2 }}>Přidání · Editace · Smazání staveb</div>
+          </div>
+          <button onClick={onClose} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: mutedC, fontSize: 20, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* RLS varování pokud se zdá že vidíme jen své záznamy */}
+        {!loading && totalLoaded > 0 && zaznamy.length > 0 && (() => {
+          const uniqueUsers = new Set(zaznamy.map(r => r.uzivatel).filter(Boolean));
+          if (uniqueUsers.size <= 1) return (
+            <div style={{ margin: "10px 22px 0", padding: "10px 14px", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 8, fontSize: 11, color: "#fbbf24", display: "flex", gap: 10, alignItems: "flex-start" }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Vidíte jen záznamy jednoho uživatele — pravděpodobně blokuje RLS v Supabase.</div>
+                <div style={{ color: "rgba(251,191,36,0.8)", marginBottom: 6 }}>Spusťte v Supabase Dashboard → SQL Editor:</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <code style={{ background: "rgba(0,0,0,0.3)", padding: "4px 10px", borderRadius: 5, fontFamily: "monospace", fontSize: 10, color: "#fff", flex: 1 }}>CREATE POLICY "admin_read_all" ON log_aktivit FOR SELECT USING (true);</code>
+                  <button onClick={() => { navigator.clipboard.writeText('CREATE POLICY "admin_read_all" ON log_aktivit FOR SELECT USING (true);'); }} style={{ padding: "4px 10px", background: "rgba(251,191,36,0.2)", border: "1px solid rgba(251,191,36,0.4)", borderRadius: 5, color: "#fbbf24", cursor: "pointer", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>📋 Kopírovat</button>
+                </div>
               </div>
             </div>
-          ) : '—'}
+          );
+          return null;
+        })()}
+
+        {/* filtry */}
+        <div style={{ padding: "10px 22px", borderBottom: `1px solid ${borderC}`, display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <select value={filterUser} onChange={e => setFilterUser(e.target.value)} style={inputS}>
+            <option value="">Všichni uživatelé</option>
+            {users.map(u => <option key={u} value={u}>{u}</option>)}
+          </select>
+          <select value={filterAkce} onChange={e => setFilterAkce(e.target.value)} style={inputS}>
+            <option value="">Všechny akce</option>
+            {akceList.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: mutedC, fontSize: 12 }}>Od:</span>
+            <input type="date" value={filterOd} onChange={e => setFilterOd(e.target.value)} style={inputS} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ color: mutedC, fontSize: 12 }}>Do:</span>
+            <input type="date" value={filterDo} onChange={e => setFilterDo(e.target.value)} style={inputS} />
+          </div>
+          {(filterUser||filterAkce||filterOd||filterDo) && (
+            <button onClick={() => { setFilterUser(""); setFilterAkce(""); setFilterOd(""); setFilterDo(""); }} style={{ padding: "6px 12px", background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: 12 }}>✕ Reset</button>
+          )}
+          <span style={{ marginLeft: "auto", color: mutedC, fontSize: 12, fontWeight: 600 }}>{filtered.length} záznamů</span>
         </div>
-        <div/>
+
+        {/* seznam */}
+        <div style={{ overflowY: "auto", flex: 1, padding: "12px 22px" }}>
+          {loading && <div style={{ textAlign: "center", color: mutedC, padding: 40 }}>Načítám log...</div>}
+          {!loading && filtered.length === 0 && (
+            <div style={{ textAlign: "center", padding: 48 }}>
+              <div style={{ fontSize: 32, marginBottom: 10 }}>📭</div>
+              <div style={{ color: mutedC, fontSize: 14 }}>{isDemo ? "Demo režim — log se neukládá do databáze" : "Žádné záznamy"}</div>
+              {isDemo && <div style={{ color: mutedC, fontSize: 12, marginTop: 6 }}>V ostré verzi se zde zobrazí veškeré akce na zakázkách.</div>}
+            </div>
+          )}
+          {!loading && filtered.map((z, i) => {
+            const st   = AKCE_STYLE[z.akce] || { bg: "rgba(100,116,139,0.08)", border: "rgba(100,116,139,0.2)", color: "#94a3b8" };
+            const diff = parseDetail(z.detail);
+            const nazev = diff?.nazev || z.detail?.replace(/^ID:\s*\d+,\s*/,"").split(" {")[0] || "";
+            return (
+              <div key={i} style={{ marginBottom: 8, padding: "10px 14px", background: st.bg, border: `1px solid ${st.border}`, borderRadius: 9 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ color: st.color, fontWeight: 700, fontSize: 12 }}>{z.akce}</span>
+                    {nazev && <span style={{ color: textC, fontSize: 12, fontWeight: 600 }}>· {nazev}</span>}
+                    <span style={{ color: mutedC, fontSize: 11 }}>— {z.uzivatel}</span>
+                  </div>
+                  <span style={{ color: mutedC, fontSize: 11, whiteSpace: "nowrap", flexShrink: 0 }}>{fmtCas(z.cas)}</span>
+                </div>
+                {diff?.zmeny?.length > 0 && (
+                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: "4px 14px" }}>
+                    {diff.zmeny.map((x, j) => (
+                      <span key={j} style={{ fontSize: 11, color: mutedC }}>
+                        <span style={{ fontWeight: 600, color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)" }}>{FIELD_LABELS[x.pole]||x.pole}:</span>{" "}
+                        <span style={{ color: "#f87171" }}>{String(x.stare||"–")}</span>{" → "}
+                        <span style={{ color: "#4ade80" }}>{String(x.nove||"–")}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* footer — exporty */}
+        <div style={{ padding: "12px 22px", borderTop: `1px solid ${borderC}`, display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={doXLSX}     style={{ padding: "7px 14px", background: "rgba(34,197,94,0.12)",  border: "1px solid rgba(34,197,94,0.3)",  borderRadius: 7, color: "#4ade80", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>📊 XLSX</button>
+            <button onClick={doXLSColor} style={{ padding: "7px 14px", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 7, color: "#fbbf24", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🎨 Barevný Excel</button>
+            <button onClick={doPDF}      style={{ padding: "7px 14px", background: "rgba(239,68,68,0.12)",  border: "1px solid rgba(239,68,68,0.3)",  borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🖨️ PDF tisk</button>
+          </div>
+          <button onClick={onClose} style={{ padding: "8px 20px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Zavřít</button>
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-function ItemRow({ row, color, T, onChange, onRemove, canRemove, katalogItems, secKey, onNewPopis }) {
-  const [open, setOpen] = useState(false)
-  const userEdited = useRef(false)  // true pouze když uživatel skutečně psal — ne při kopírování/označování
-  const val = row.popis || ''
-  const suggestions = katalogItems
-    ? katalogItems.filter(k => k.sekce === secKey && k.popis.toLowerCase().includes(val.toLowerCase()) && k.popis !== val)
-    : []
+// ============================================================
+// GRAF MODAL
+// ============================================================
+function GrafModal({ data, firmy, isDark, onClose }) {
+  const [mode, setMode] = useState("firma"); // "firma" | "mesic" | "kat"
+  const { pos, onMouseDown: onDragStart } = useDraggable(1100, 560);
 
-  const handleBlur = () => {
+  const firmaColorMap = Object.fromEntries(firmy.map(f => [f.hodnota, f.barva || "#3b82f6"]));
+
+  // KAT I = ps_i + snk_i + bo_i   |   KAT II = ps_ii + bo_ii + poruch
+  const katI  = r => (Number(r.ps_i)||0) + (Number(r.snk_i)||0) + (Number(r.bo_i)||0);
+  const katII = r => (Number(r.ps_ii)||0) + (Number(r.bo_ii)||0) + (Number(r.poruch)||0);
+
+  const grafData = useMemo(() => {
+    if (mode === "firma") {
+      const map = {};
+      data.forEach(r => {
+        const key = r.firma || "Bez firmy";
+        if (!map[key]) map[key] = { name: key, nabidka: 0, vyfakturovano: 0, zrealizovano: 0 };
+        map[key].nabidka      += Number(r.nabidka) || 0;
+        map[key].vyfakturovano += Number(r.vyfakturovano) || 0;
+        map[key].zrealizovano  += Number(r.zrealizovano) || 0;
+      });
+      return Object.values(map);
+    } else if (mode === "mesic") {
+      const map = {};
+      data.forEach(r => {
+        if (!r.ze_dne) return;
+        const parts = r.ze_dne.trim().split(".");
+        if (parts.length < 3) return;
+        const key   = `${parts[2]}-${parts[1].padStart(2,"0")}`;
+        const label = `${parts[1]}/${parts[2]}`;
+        if (!map[key]) map[key] = { name: label, _sort: key, nabidka: 0, vyfakturovano: 0, zrealizovano: 0 };
+        map[key].nabidka      += Number(r.nabidka) || 0;
+        map[key].vyfakturovano += Number(r.vyfakturovano) || 0;
+        map[key].zrealizovano  += Number(r.zrealizovano) || 0;
+      });
+      return Object.values(map).sort((a, b) => a._sort.localeCompare(b._sort));
+    } else {
+      // mode === "kat" — každá firma, rozpad na jednotlivé složky
+      const firmaKeys = [...new Set(data.map(r => r.firma || "Bez firmy"))];
+      return firmaKeys.map(firma => {
+        const rows = data.filter(r => (r.firma || "Bez firmy") === firma);
+        return {
+          name: firma,
+          ps_i:  rows.reduce((s,r) => s+(Number(r.ps_i)||0),  0),
+          snk_i: rows.reduce((s,r) => s+(Number(r.snk_i)||0), 0),
+          bo_i:  rows.reduce((s,r) => s+(Number(r.bo_i)||0),  0),
+          ps_ii: rows.reduce((s,r) => s+(Number(r.ps_ii)||0), 0),
+          bo_ii: rows.reduce((s,r) => s+(Number(r.bo_ii)||0), 0),
+          poruch:rows.reduce((s,r) => s+(Number(r.poruch)||0),0),
+          kat1:  rows.reduce((s,r) => s+katI(r),  0),
+          kat2:  rows.reduce((s,r) => s+katII(r), 0),
+        };
+      });
+    }
+  }, [data, mode]);
+
+  const fmtTick = (v) => v >= 1000000 ? `${(v/1000000).toFixed(1)}M` : v >= 1000 ? `${(v/1000).toFixed(0)}k` : String(v);
+  const fmtVal  = (v) => Number(v).toLocaleString("cs-CZ", { minimumFractionDigits: 0 });
+
+  const modalBg = isDark ? "#1e293b" : "#fff";
+  const textC   = isDark ? "#e2e8f0" : "#1e293b";
+  const mutedC  = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+  const gridC   = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+
+  const renderBars = () => {
+    const isKat  = mode === "kat";
+    // Kat mode: 2 skupiny sloupků (I a II), každá stacked ze složek
+    // Složky Kat. I: ps_i=#818cf8, snk_i=#38bdf8, bo_i=#4ade80
+    // Složky Kat. II: ps_ii=#fb923c, bo_ii=#f87171, poruch=#e879f9
+    const KAT_I_KEYS   = ["ps_i","snk_i","bo_i"];
+    const KAT_II_KEYS  = ["ps_ii","bo_ii","poruch"];
+    const KAT_I_COLORS = ["#818cf8","#38bdf8","#4ade80"];
+    const KAT_II_COLORS= ["#fb923c","#f87171","#e879f9"];
+    const KAT_I_LABELS = ["Plán. I","SNK","Běžné op. I"];
+    const KAT_II_LABELS= ["Plán. II","Běžné op. II","Poruchy"];
+
+    const KEYS    = isKat ? ["kat1","kat2"] : ["nabidka","vyfakturovano","zrealizovano"];
+    const LABELS  = isKat ? ["Kat. I","Kat. II"] : ["Nabídka","Vyfakturováno","Zrealizováno"];
+    const COLORS  = isKat ? ["#818cf8","#fb923c"] : ["#60a5fa","#4ade80","#fbbf24"];
+
+    const maxVal = Math.max(...grafData.map(d => isKat
+      ? Math.max(
+          KAT_I_KEYS.reduce((s,k)=>s+(d[k]||0),0),
+          KAT_II_KEYS.reduce((s,k)=>s+(d[k]||0),0)
+        )
+      : Math.max(...KEYS.map(k => d[k] || 0))
+    ), 1);
+
+    const W = 700, H = 280, PAD_L = 68, PAD_B = 30, PAD_T = 20, PAD_R = 20;
+    const chartW = W - PAD_L - PAD_R;
+    const chartH = H - PAD_T - PAD_B;
+    const groupW = chartW / Math.max(grafData.length, 1);
+    const numBars = isKat ? 2 : KEYS.length;
+    const barW = Math.min(Math.max(10, groupW / (numBars + 1) - 2), 36);
+    const scaleY = v => PAD_T + chartH - (v / maxVal) * chartH;
+    const offsets = Array.from({length: numBars}, (_,ki) => (ki - (numBars-1)/2) * (barW + 4));
+
+    return (
+      <>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 280, minWidth: 500 }}>
+        {/* grid */}
+        {[0, 0.25, 0.5, 0.75, 1].map(p => {
+          const y = PAD_T + p * chartH;
+          return <g key={p}>
+            <line x1={PAD_L} x2={W - PAD_R} y1={y} y2={y} stroke={gridC} strokeWidth={1}/>
+            <text x={PAD_L - 6} y={y + 4} textAnchor="end" fill={mutedC} fontSize={9}>{fmtTick(maxVal * (1 - p))}</text>
+          </g>;
+        })}
+        <line x1={PAD_L} x2={W - PAD_R} y1={PAD_T + chartH} y2={PAD_T + chartH} stroke={isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"} strokeWidth={1}/>
+        {/* bars */}
+        {grafData.map((d, gi) => {
+          const cx = PAD_L + gi * groupW + groupW / 2;
+          if (isKat) {
+            // Stacked bars pro KAT I a KAT II
+            return [
+              { keys: KAT_I_KEYS,  colors: KAT_I_COLORS,  off: offsets[0] },
+              { keys: KAT_II_KEYS, colors: KAT_II_COLORS, off: offsets[1] },
+            ].map(({ keys, colors, off }, gi2) => {
+              let stackY = PAD_T + chartH;
+              return keys.map((k, ki) => {
+                const val = d[k] || 0;
+                if (val <= 0) return null;
+                const bh = Math.max(2, (val / maxVal) * chartH);
+                stackY -= bh;
+                return <rect key={k} x={cx + off - barW/2} y={stackY} width={barW} height={bh} fill={colors[ki]} rx={ki === keys.length-1 ? 3 : 0} opacity={0.9}/>;
+              });
+            });
+          }
+          // Normal grouped bars
+          return KEYS.map((k, ki) => {
+            const val = d[k] || 0;
+            const bh  = Math.max(1, (val / maxVal) * chartH);
+            const by  = scaleY(val);
+            const bx  = cx + offsets[ki];
+            const fill = mode === "firma" && ki === 0 ? (firmaColorMap[d.name] || COLORS[0]) : COLORS[ki];
+            return <rect key={k} x={bx - barW/2} y={by} width={barW} height={bh} fill={fill} rx={3} opacity={0.88}/>;
+          });
+        })}
+        {/* x labels */}
+        {grafData.map((d, gi) => {
+          const cx  = PAD_L + gi * groupW + groupW / 2;
+          const lbl = d.name.length > 16 ? d.name.slice(0, 15) + "…" : d.name;
+          return <text key={gi} x={cx} y={H - PAD_B + 18} textAnchor="middle" fill={mutedC} fontSize={11} fontWeight={600}>{lbl}</text>;
+        })}
+        {/* legend */}
+        {isKat ? (
+          <g>
+            {/* legend moved to HTML below SVG */}
+          </g>
+        ) : null}
+      </svg>
+      {/* HTML Legend */}
+      {isKat ? (
+        <div style={{ display: "flex", gap: 24, padding: "10px 16px 4px", flexWrap: "wrap" }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: isDark ? "#818cf8" : "#4f46e5", marginBottom: 5, letterSpacing: 0.5 }}>── KAT. I ──</div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              {KAT_I_LABELS.map((l,i) => (
+                <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, background: KAT_I_COLORS[i], flexShrink: 0 }}/>
+                  <span style={{ fontSize: 11, color: mutedC }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: isDark ? "#fb923c" : "#ea580c", marginBottom: 5, letterSpacing: 0.5 }}>── KAT. II ──</div>
+            <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
+              {KAT_II_LABELS.map((l,i) => (
+                <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div style={{ width: 11, height: 11, borderRadius: 3, background: KAT_II_COLORS[i], flexShrink: 0 }}/>
+                  <span style={{ fontSize: 11, color: mutedC }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", gap: 14, padding: "10px 16px 4px", flexWrap: "wrap" }}>
+          {LABELS.map((l,i) => (
+            <div key={l} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 11, height: 11, borderRadius: 3, background: COLORS[i], flexShrink: 0 }}/>
+              <span style={{ fontSize: 11, color: mutedC }}>{l}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      </>
+    );
+  };
+
+  // Souhrn pro kat mode — speciální struktura
+  const renderTable = () => {
+    if (mode === "kat") {
+      const cols = [
+        { key: "ps_i",   label: "Plán. I",     color: "#818cf8" },
+        { key: "snk_i",  label: "SNK",          color: "#38bdf8" },
+        { key: "bo_i",   label: "Běžné op. I",  color: "#4ade80" },
+        { key: "ps_ii",  label: "Plán. II",     color: "#fb923c" },
+        { key: "bo_ii",  label: "Běžné op. II", color: "#f87171" },
+        { key: "poruch", label: "Poruchy",       color: "#e879f9" },
+      ];
+      return (
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+          <thead>
+            <tr style={{ background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}>
+              <th style={{ padding: "7px 10px", textAlign: "left", color: mutedC, fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>Firma</th>
+              {cols.map(c => (
+                <th key={c.key} style={{ padding: "7px 8px", textAlign: "right", color: c.color, fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, whiteSpace: "nowrap" }}>{c.label}</th>
+              ))}
+              <th style={{ padding: "7px 10px", textAlign: "right", color: "#818cf8", fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>Kat. I</th>
+              <th style={{ padding: "7px 10px", textAlign: "right", color: "#fb923c", fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>Kat. II</th>
+              <th style={{ padding: "7px 10px", textAlign: "right", color: isDark ? "#93c5fd" : "#2563eb", fontWeight: 700, fontSize: 10, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>Celkem</th>
+            </tr>
+          </thead>
+          <tbody>
+            {grafData.map((d, i) => (
+              <tr key={i} style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}` }}>
+                <td style={{ padding: "5px 10px", color: textC, fontWeight: 600, whiteSpace: "nowrap" }}>
+                  <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: firmaColorMap[d.name] || "#3b82f6", marginRight: 6, verticalAlign: "middle" }}/>
+                  {d.name}
+                </td>
+                {cols.map(c => (
+                  <td key={c.key} style={{ padding: "5px 8px", textAlign: "right", color: d[c.key] > 0 ? c.color : mutedC, fontFamily: "monospace", fontSize: 11 }}>{d[c.key] > 0 ? fmtVal(d[c.key]) : "—"}</td>
+                ))}
+                <td style={{ padding: "5px 10px", textAlign: "right", color: "#818cf8", fontFamily: "monospace", fontSize: 11, fontWeight: 700 }}>{fmtVal(d.kat1)}</td>
+                <td style={{ padding: "5px 10px", textAlign: "right", color: "#fb923c", fontFamily: "monospace", fontSize: 11, fontWeight: 700 }}>{fmtVal(d.kat2)}</td>
+                <td style={{ padding: "5px 10px", textAlign: "right", color: isDark ? "#93c5fd" : "#2563eb", fontFamily: "monospace", fontSize: 11, fontWeight: 700 }}>{fmtVal((d.kat1||0)+(d.kat2||0))}</td>
+              </tr>
+            ))}
+            <tr style={{ background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)" }}>
+              <td style={{ padding: "6px 10px", color: textC, fontWeight: 700, fontSize: 11 }}>CELKEM</td>
+              {cols.map(c => (
+                <td key={c.key} style={{ padding: "6px 8px", textAlign: "right", color: c.color, fontFamily: "monospace", fontSize: 11, fontWeight: 700 }}>{fmtVal(grafData.reduce((s,d)=>s+(d[c.key]||0),0))}</td>
+              ))}
+              <td style={{ padding: "6px 10px", textAlign: "right", color: "#818cf8", fontFamily: "monospace", fontWeight: 700 }}>{fmtVal(grafData.reduce((s,d)=>s+(d.kat1||0),0))}</td>
+              <td style={{ padding: "6px 10px", textAlign: "right", color: "#fb923c", fontFamily: "monospace", fontWeight: 700 }}>{fmtVal(grafData.reduce((s,d)=>s+(d.kat2||0),0))}</td>
+              <td style={{ padding: "6px 10px", textAlign: "right", color: isDark ? "#93c5fd" : "#2563eb", fontFamily: "monospace", fontWeight: 700 }}>{fmtVal(grafData.reduce((s,d)=>s+(d.kat1||0)+(d.kat2||0),0))}</td>
+            </tr>
+          </tbody>
+        </table>
+      );
+    }
+    // standardní tabulka
+    return (
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)" }}>
+            {[mode === "firma" ? "Firma" : "Měsíc", "Nabídka", "Vyfakturováno", "Zrealizováno"].map((h, i) => (
+              <th key={h} style={{ padding: "7px 12px", textAlign: i === 0 ? "left" : "right", color: mutedC, fontWeight: 700, fontSize: 11, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {grafData.map((d, i) => (
+            <tr key={i} style={{ borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"}` }}>
+              <td style={{ padding: "6px 12px", color: textC, fontWeight: 600 }}>
+                {mode === "firma" && <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: firmaColorMap[d.name] || "#3b82f6", marginRight: 7, verticalAlign: "middle" }}/>}
+                {d.name}
+              </td>
+              {["nabidka","vyfakturovano","zrealizovano"].map(k => (
+                <td key={k} style={{ padding: "6px 12px", textAlign: "right", color: isDark ? "#93c5fd" : "#2563eb", fontFamily: "monospace", fontSize: 12 }}>
+                  {fmtVal(d[k])}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1200, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ position: "fixed", left: pos.x, top: pos.y, pointerEvents: "all", background: modalBg, borderRadius: 16, width: "min(1100px,97vw)", maxHeight: "95vh", display: "flex", flexDirection: "column", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)"}`, boxShadow: "0 32px 80px rgba(0,0,0,0.6)" }}>
+        {/* header — táhlo */}
+        <div onMouseDown={onDragStart} style={dragHeaderStyle({ flexWrap: "wrap", gap: 10 })}>
+          <div>
+            <span style={{ color: isDark ? "#fff" : "#1e293b", fontWeight: 700, fontSize: 15 }}>📊 Graf nákladů{dragHint}</span>
+            <div style={{ color: mutedC, fontSize: 11, marginTop: 2 }}>
+              {mode === "kat" ? "Kat. I (Plán.+SNK+Běžné op.) vs Kat. II (Plán.+Běžné op.+Poruchy)" : "Nabídka · Vyfakturováno · Zrealizováno"}
+            </div>
+          </div>
+          <div onMouseDown={e => e.stopPropagation()} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ display: "flex", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, overflow: "hidden" }}>
+              {[["firma","🏢 Firma"],["mesic","📅 Měsíc"],["kat","📂 Kat. I / II"]].map(([val, lbl]) => (
+                <button key={val} onClick={() => setMode(val)} style={{ padding: "6px 13px", background: mode === val ? (isDark ? "rgba(37,99,235,0.4)" : "rgba(37,99,235,0.15)") : "transparent", border: "none", borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`, color: mode === val ? "#60a5fa" : mutedC, cursor: "pointer", fontSize: 12, fontWeight: mode === val ? 700 : 400, transition: "all 0.15s", whiteSpace: "nowrap" }}>{lbl}</button>
+              ))}
+            </div>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: mutedC, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          </div>
+        </div>
+        {/* graf */}
+        <div style={{ padding: "16px 22px 8px", overflowX: "auto", overflowY: "hidden", flexShrink: 0 }}>
+          {grafData.length === 0
+            ? <div style={{ textAlign: "center", color: mutedC, padding: 48 }}>Žádná data k zobrazení</div>
+            : renderBars()
+          }
+        </div>
+        {/* tabulka */}
+        <div style={{ padding: "0 22px 18px", flex: 1, overflowY: "auto", overflowX: "auto" }}>
+          {renderTable()}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function Login({ onLogin, users, onLogAction }) {
+  const [email, setEmail] = useState("");
+  const [pass, setPass] = useState("");
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handle = () => {
+    setLoading(true);
     setTimeout(() => {
-      setOpen(false)
-      // Dialog katalogu jen když uživatel skutečně editoval text (ne kopírování/označování)
-      if (userEdited.current && val.trim().length > 2 && katalogItems && !katalogItems.find(k => k.popis === val.trim())) {
-        onNewPopis && onNewPopis(val.trim(), secKey)
+      if (email.trim().toLowerCase() === "demo" && pass === "demo") {
+        onLogin(DEMO_USER);
+        return;
       }
-      userEdited.current = false
-    }, 200)
+      const u = users.find(u => u.email === email && u.password === pass);
+      if (u) { onLogAction(u.email, "Přihlášení", ""); onLogin(u); }
+      else { setErr("Nesprávný email nebo heslo"); setLoading(false); }
+    }, 600);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f2027 100%)", display: "flex", alignItems: "flex-start", justifyContent: "center", overflowY: "auto", padding: "clamp(16px,5vh,60px) 0 24px", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(20px)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 20, padding: "clamp(24px,5vw,48px) clamp(18px,5vw,40px)", width: "min(380px, 94vw)", boxShadow: "0 32px 80px rgba(0,0,0,0.5)" }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none" style={{ display: "block", margin: "0 auto 14px" }}>
+            <defs>
+              <radialGradient id="lgbg" cx="50%" cy="35%" r="70%">
+                <stop offset="0%" stopColor="#2563eb" />
+                <stop offset="100%" stopColor="#0f172a" />
+              </radialGradient>
+            </defs>
+            <circle cx="40" cy="40" r="38" fill="url(#lgbg)" stroke="#2563eb" strokeWidth="1.5" strokeOpacity="0.5" />
+            <polygon points="47,10 30,42 40,42 33,68 52,36 42,36" fill="#facc15" />
+            <circle cx="18" cy="24" r="2.2" fill="#facc15" opacity="0.55" />
+            <circle cx="62" cy="22" r="1.8" fill="#facc15" opacity="0.45" />
+            <circle cx="65" cy="56" r="2" fill="#facc15" opacity="0.4" />
+            <circle cx="15" cy="58" r="1.6" fill="#facc15" opacity="0.5" />
+          </svg>
+          <h1 style={{ color: "#fff", fontSize: 28, fontWeight: 800, margin: 0 }}>Stavby Znojmo</h1>
+          <p style={{ color: "rgba(255,255,255,0.5)", margin: "6px 0 0", fontSize: 15, letterSpacing: 2, textTransform: "uppercase" }}>kategorie 1 & 2</p>
+        </div>
+
+        <div style={{ marginBottom: 14 }}><Lbl>Email</Lbl><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="vas@email.cz" style={inputSx} onKeyDown={e => e.key === "Enter" && handle()} /></div>
+        <div style={{ marginBottom: 22 }}><Lbl>Heslo</Lbl><input type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" style={inputSx} onKeyDown={e => e.key === "Enter" && handle()} /></div>
+
+        {err && <div style={{ color: "#f87171", fontSize: 13, marginBottom: 14, textAlign: "center" }}>{err}</div>}
+
+        <button onClick={handle} disabled={loading} style={{ width: "100%", padding: 14, background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 10, color: "#fff", fontSize: 15, fontWeight: 600, cursor: "pointer", opacity: loading ? 0.7 : 1 }}>
+          {loading ? "Přihlašuji..." : "Přihlásit se →"}
+        </button>
+        <div style={{ marginTop: 16, textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: 12 }}>
+          Zapomenuté heslo? Kontaktuj administrátora.
+        </div>
+        <div style={{ marginTop: 16, padding: "16px 18px", background: "rgba(251,191,36,0.18)", border: "2px solid rgba(251,191,36,0.7)", borderRadius: 10, textAlign: "center" }}>
+          <div style={{ color: "#fbbf24", fontSize: 13, fontWeight: 800, marginBottom: 8, letterSpacing: 0.5 }}>🎮 DEMO PŘÍSTUP</div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 20 }}>
+            <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 7, padding: "5px 14px" }}>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, display: "block", marginBottom: 1 }}>email</span>
+              <span style={{ color: "#fff", fontSize: 15, fontWeight: 800, letterSpacing: 1 }}>demo</span>
+            </div>
+            <div style={{ background: "rgba(0,0,0,0.3)", borderRadius: 7, padding: "5px 14px" }}>
+              <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, display: "block", marginBottom: 1 }}>heslo</span>
+              <span style={{ color: "#fff", fontSize: 15, fontWeight: 800, letterSpacing: 1 }}>demo</span>
+            </div>
+          </div>
+          <div style={{ color: "#fde68a", fontSize: 11, marginTop: 8, fontWeight: 600 }}>Plný přístup admin · Data se neukládají · Max 15 staveb</div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SUMMARY CARDS
+// ============================================================
+function SummaryCards({ data, firmy, isDark, firmaColors, isMobile }) {
+  const sum = (firma, fields) => data.filter(r => r.firma === firma).reduce((a, r) => { fields.forEach(f => a += Number(r[f])||0); return a; }, 0);
+  const sumAll = (fields) => data.reduce((a, r) => { fields.forEach(f => a += Number(r[f])||0); return a; }, 0);
+  const bg = isDark ? "#0f172a" : "#f1f5f9";
+  const textMuted = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
+  const textMain = isDark ? "#fff" : "#1e293b";
+  const groupBorder = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.08)";
+
+  const totalI = sumAll(["ps_i","snk_i","bo_i"]);
+  const totalII = sumAll(["ps_ii","bo_ii","poruch"]);
+  const totalCelkem = totalI + totalII;
+
+  if (isMobile) {
+    return (
+      <div style={{ background: bg, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {/* Celkem — kompaktní řádek */}
+        <div style={{ background: isDark ? "rgba(249,115,22,0.1)" : "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.4)", borderRadius: 10, padding: "8px 12px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ color: "#f97316", fontSize: 11, fontWeight: 700 }}>CELKEM VŠE</span>
+          <span style={{ color: textMain, fontSize: 16, fontWeight: 800 }}>{fmt(totalCelkem)}</span>
+          <div style={{ display: "flex", gap: 6 }}>
+            <span style={{ fontSize: 10, color: "#f97316" }}>I: <strong style={{ color: textMain }}>{fmt(totalI)}</strong></span>
+            <span style={{ fontSize: 10, color: "#f97316" }}>II: <strong style={{ color: textMain }}>{fmt(totalII)}</strong></span>
+          </div>
+        </div>
+        {/* Firmy — kompaktní řádky */}
+        {firmy.map((firma) => {
+          const color = firmaColors[firma] || "#2563eb";
+          const katI = sum(firma, ["ps_i","snk_i","bo_i"]);
+          const katII = sum(firma, ["ps_ii","bo_ii","poruch"]);
+          const celkem = katI + katII;
+          if (celkem === 0) return null;
+          return (
+            <div key={firma} style={{ background: isDark ? `${color}12` : `${color}10`, border: `1px solid ${color}40`, borderRadius: 10, padding: "7px 12px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: color, flexShrink: 0 }} />
+                <span style={{ color, fontSize: 11, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{firma}</span>
+              </div>
+              <span style={{ color: textMain, fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{fmt(celkem)}</span>
+              <div style={{ display: "flex", gap: 5, flexShrink: 0 }}>
+                <span style={{ fontSize: 10, color: textMuted }}>I: <strong style={{ color: textMain }}>{fmt(katI)}</strong></span>
+                <span style={{ fontSize: 10, color: textMuted }}>II: <strong style={{ color: textMain }}>{fmt(katII)}</strong></span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   }
 
   return (
-    <div style={{ display:'grid', gridTemplateColumns:'1fr 140px 28px', gap:6, marginBottom:5, position:'relative' }}>
-      <div style={{ position:'relative' }}>
-        <input value={val} placeholder="Popis…"
-          onChange={e => { onChange({ ...row, popis: e.target.value }); setOpen(true); userEdited.current = true }}
-          onFocus={() => setOpen(true)}
-          onBlur={handleBlur}
-          style={{ width:'100%', background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color:T.text, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'system-ui', boxSizing:'border-box' }} />
-        {open && suggestions.length > 0 && (
-          <div style={{ position:'absolute', top:'100%', left:0, right:0, background:T.card, border:`1px solid ${T.border}`, borderRadius:6, zIndex:200, boxShadow:'0 8px 24px rgba(0,0,0,0.3)', overflow:'hidden' }}>
-            {suggestions.slice(0, 6).map(s => (
-              <div key={s.id} onMouseDown={() => { onChange({ ...row, popis: s.popis }); setOpen(false) }}
-                style={{ padding:'7px 11px', cursor:'pointer', fontSize:12, color:T.text, borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', gap:8 }}>
-                {s.je_standard && <span style={{ fontSize:9, background:'#3b82f620', color:'#3b82f6', padding:'1px 5px', borderRadius:3, fontWeight:700 }}>STD</span>}
-                {s.popis}
-              </div>
-            ))}
+    <div style={{ overflowX: "auto", background: bg, padding: "10px 18px" }}>
+      <div style={{ display: "flex", gap: 6, minWidth: "max-content", alignItems: "stretch" }}>
+
+        {/* CELKEM VŠE */}
+        <div style={{ background: isDark ? "rgba(249,115,22,0.1)" : "rgba(249,115,22,0.08)", border: `1px solid rgba(249,115,22,0.4)`, borderRadius: 12, padding: "10px 16px", minWidth: 180, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ color: "#f97316", fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>CELKEM VŠE</div>
+          <div style={{ color: textMain, fontSize: 22, fontWeight: 800, marginBottom: 8 }}>{fmt(totalCelkem)}</div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ background: isDark ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.12)", borderRadius: 6, padding: "4px 10px", textAlign: "center" }}>
+              <div style={{ color: "#f97316", fontSize: 9, fontWeight: 700 }}>KAT. I</div>
+              <div style={{ color: textMain, fontSize: 13, fontWeight: 700 }}>{fmt(totalI)}</div>
+            </div>
+            <div style={{ background: isDark ? "rgba(249,115,22,0.15)" : "rgba(249,115,22,0.12)", borderRadius: 6, padding: "4px 10px", textAlign: "center" }}>
+              <div style={{ color: "#f97316", fontSize: 9, fontWeight: 700 }}>KAT. II</div>
+              <div style={{ color: textMain, fontSize: 13, fontWeight: 700 }}>{fmt(totalII)}</div>
+            </div>
           </div>
-        )}
+        </div>
+
+        {/* Separator */}
+        <div style={{ width: 2, background: groupBorder, borderRadius: 2, margin: "2px 40px" }} />
+
+        {/* Skupiny firem */}
+        {firmy.map((firma) => {
+          const color = firmaColors[firma] || "#2563eb";
+          const katI = sum(firma, ["ps_i","snk_i","bo_i"]);
+          const katII = sum(firma, ["ps_ii","bo_ii","poruch"]);
+          const celkem = katI + katII;
+          return (
+            <div key={firma} style={{ background: isDark ? `${color}12` : `${color}10`, border: `1px solid ${color}40`, borderRadius: 12, padding: "10px 16px", minWidth: 210, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ color, fontSize: 11, fontWeight: 700, letterSpacing: 0.5, marginBottom: 6 }}>{firma.toUpperCase()}</div>
+              <div style={{ color: textMain, fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{fmt(celkem)}</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ background: isDark ? `${color}18` : `${color}12`, border: `1px solid ${color}25`, borderRadius: 6, padding: "4px 12px", textAlign: "center" }}>
+                  <div style={{ color, fontSize: 9, fontWeight: 700 }}>KAT. I</div>
+                  <div style={{ color: textMain, fontSize: 13, fontWeight: 700 }}>{fmt(katI)}</div>
+                </div>
+                <div style={{ background: isDark ? `${color}18` : `${color}12`, border: `1px solid ${color}25`, borderRadius: 6, padding: "4px 12px", textAlign: "center" }}>
+                  <div style={{ color, fontSize: 9, fontWeight: 700 }}>KAT. II</div>
+                  <div style={{ color: textMain, fontSize: 13, fontWeight: 700 }}>{fmt(katII)}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <input value={row.castka} placeholder="0" onChange={e => onChange({ ...row, castka: e.target.value })}
-        onKeyDown={onEnterNext}
-        style={{ background:'rgba(255,255,255,0.04)', border:`1px solid ${T.border}`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', fontFamily:'monospace', textAlign:'right' }} />
-      <button onClick={onRemove} style={{ background:'none', border:'none', color: canRemove ? '#ef4444' : 'transparent', fontSize:14, cursor: canRemove ? 'pointer' : 'default', padding:0 }}>✕</button>
     </div>
-  )
+  );
 }
 
-// Jednoduchá sekce pro GZS a Stimulační – stejný vzhled jako položky v Sekce
-function OstatniSekce({ secKey, label, data, color, T, handlers, katalog, onNewPopis, onLabelChange, editLabel }) {
-  const { toggle, addRow, changeRow, removeRow } = handlers
-  const sec = data[secKey] || { rows: [{ id: 'r1', popis: '', castka: '' }], open: false }
-  const rowTotal = sec.rows.reduce((a, r) => a + (parseFloat(r.castka) || 0), 0)
-  const cnt = sec.rows.length
+// ============================================================
+// FORM MODAL (Add + Edit)
+// ============================================================
+function FormField({ label, value, onChange, full, type }) {
+  const [err, setErr] = useState("");
+
+  // Číslo 0 zobrazuj jako prázdné pole
+  const displayValue = type === "number" && (value === 0 || value === "0") ? "" : (value ?? "");
+
+  const handleChange = (v) => {
+    if (type === "number") {
+      if (v !== "" && v !== "-" && isNaN(v.replace(",", "."))) {
+        setErr("Zadejte číslo");
+      } else {
+        setErr("");
+      }
+    } else if (type === "date") {
+      if (v !== "" && !/^\d{0,2}\.?\d{0,2}\.?\d{0,4}$/.test(v)) {
+        setErr("Formát: DD.MM.RRRR");
+      } else {
+        setErr("");
+      }
+    }
+    onChange(v);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" || (e.key === "Tab" && !e.shiftKey)) {
+      // Najdi všechny focusovatelné inputy ve formuláři
+      const modal = e.target.closest("[data-modal]");
+      if (!modal) return;
+      const inputs = Array.from(modal.querySelectorAll("input:not([disabled]), select:not([disabled])"));
+      const idx = inputs.indexOf(e.target);
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (idx < inputs.length - 1) inputs[idx + 1].focus();
+      }
+      // Tab necháme výchozí chování
+    }
+  };
+
   return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
-      <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ color, fontWeight:800, fontSize:14, flex:1 }}>{label}</span>
-        <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč</span>
-      </div>
-      <div style={{ padding:'10px 14px' }}>
-        <div style={{ marginBottom:6 }}>
-          <div onClick={() => toggle('dof', secKey)}
-            style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:6, cursor:'pointer',
-              background: sec.open ? `${color}12` : 'transparent',
-              border:`1px solid ${sec.open ? color+'30' : T.border}` }}>
-            <div style={{ width:7, height:7, borderRadius:2, background: rowTotal!=0 ? color : T.border, flexShrink:0 }}/>
-            <span style={{ color: sec.open ? color : rowTotal!=0 ? T.text : T.muted, fontSize:13, fontWeight: sec.open?700:400, flex:1 }}>
-              {editLabel ? (data[secKey]?.customLabel || label) : label}
-            </span>
-            {cnt > 1 && <span style={{ background:`${color}22`, color, fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4 }}>{cnt}×</span>}
-            <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: rowTotal!=0?700:400, color: sec.open ? color : rowTotal!=0 ? T.text : T.muted }}>
-              {rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})}
-            </span>
-            <span style={{ color:T.muted, fontSize:10 }}>{sec.open?'▲':'▼'}</span>
+    <div style={full ? { gridColumn: "1 / -1" } : {}}>
+      <Lbl>{label}{type === "number" && <span style={{ color: "rgba(255,255,255,0.2)", fontWeight: 400, marginLeft: 4 }}>123</span>}{type === "date" && <span style={{ color: "rgba(255,255,255,0.2)", fontWeight: 400, marginLeft: 4 }}>DD.MM.RRRR</span>}</Lbl>
+      <input
+        type="text"
+        value={displayValue}
+        onChange={e => handleChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        style={{ ...inputSx, borderColor: err ? "#f87171" : "rgba(255,255,255,0.15)" }}
+      />
+      {err && <div style={{ color: "#f87171", fontSize: 11, marginTop: 3 }}>{err}</div>}
+    </div>
+  );
+}
+
+function FormSelectField({ label, value, onChange, options, allowEmpty }) {
+  return (
+    <div>
+      <Lbl>{label}</Lbl>
+      <NativeSelect value={value ?? ""} onChange={onChange} options={allowEmpty ? ["", ...options] : options} />
+    </div>
+  );
+}
+
+function FormModal({ title, initial, onSave, onClose, firmy, objednatele, stavbyvedouci: svList }) {
+  const [form, setForm] = useState({ ...initial });
+  const [saveErr, setSaveErr] = useState("");
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const computed = computeRow(form);
+  const { pos, onMouseDown: onDragStart } = useDraggable(1100, 560);
+
+  const handleSave = () => {
+    for (const k of NUM_FIELDS) {
+      const v = form[k];
+      if (v !== "" && v != null && isNaN(String(v).replace(",", "."))) {
+        setSaveErr(`Pole "${k}" musí být číslo!`);
+        return;
+      }
+    }
+    for (const k of DATE_FIELDS) {
+      const v = form[k];
+      if (v && !/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(v.trim())) {
+        setSaveErr(`Pole "${k}" musí být datum ve formátu DD.MM.RRRR`);
+        return;
+      }
+    }
+    if (!form.nazev_stavby?.trim()) { setSaveErr("Název stavby je povinný!"); return; }
+    setSaveErr("");
+    onSave(computeRow(form));
+  };
+
+  const modalRef = useRef(null);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div ref={modalRef} style={{ position: "fixed", left: pos.x, top: pos.y, pointerEvents: "all", background: "#1e293b", borderRadius: 16, width: "min(1100px, 97vw)", maxHeight: "95vh", overflow: "hidden", display: "flex", flexDirection: "column", border: "1px solid rgba(255,255,255,0.2)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+
+        {/* Header — táhlo */}
+        <div onMouseDown={onDragStart} style={dragHeaderStyle({ gap: 16 })}>
+          <h3 style={{ color: "#fff", margin: 0, fontSize: 16, flexShrink: 0 }}>{title}{dragHint}</h3>
+          <input onMouseDown={e => e.stopPropagation()} value={form["nazev_stavby"] ?? ""} onChange={e => set("nazev_stavby", e.target.value)} placeholder="Název stavby..." onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); const modal = modalRef.current; if (modal) { const inputs = Array.from(modal.querySelectorAll("input:not([disabled]),select:not([disabled])")); const idx = inputs.indexOf(e.target); if (idx < inputs.length - 1) inputs[idx + 1].focus(); } } }} style={{ flex: 1, padding: "7px 14px", background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 8, color: "#fff", fontSize: 15, fontWeight: 600, outline: "none", cursor: "text" }} />
+          <button onClick={onClose} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 20, cursor: "pointer", flexShrink: 0 }}>✕</button>
+        </div>
+
+        {/* Body – dva sloupce */}
+        <div style={{ padding: "16px 24px", overflowY: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+          {/* LEVÝ SLOUPEC */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Základní info */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#60a5fa", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #60a5fa", paddingLeft: 8 }}>ZÁKLADNÍ INFORMACE</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <FormField label="Číslo stavby" value={form["cislo_stavby"]} onChange={v => set("cislo_stavby", v)} />
+                <FormSelectField label="Firma" value={form["firma"]} onChange={v => set("firma", v)} options={firmy} />
+              </div>
+            </div>
+
+            {/* Kategorie I */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#818cf8", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #818cf8", paddingLeft: 8 }}>KATEGORIE I</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <FormField label="Plán. stavby I" value={form["ps_i"]} onChange={v => set("ps_i", v)} type="number" />
+                <FormField label="SNK I" value={form["snk_i"]} onChange={v => set("snk_i", v)} type="number" />
+                <FormField label="Běžné opravy I" value={form["bo_i"]} onChange={v => set("bo_i", v)} type="number" />
+              </div>
+            </div>
+
+            {/* Kategorie II */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#fb923c", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #fb923c", paddingLeft: 8 }}>KATEGORIE II</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <FormField label="Plán. stavby II" value={form["ps_ii"]} onChange={v => set("ps_ii", v)} type="number" />
+                <FormField label="Běžné opravy II" value={form["bo_ii"]} onChange={v => set("bo_ii", v)} type="number" />
+                <FormField label="Poruchy" value={form["poruch"]} onChange={v => set("poruch", v)} type="number" />
+              </div>
+            </div>
+
+            {/* Ostatní */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#f472b6", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #f472b6", paddingLeft: 8 }}>OSTATNÍ</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <FormField label="SOD" value={form["sod"]} onChange={v => set("sod", v)} />
+                <FormField label="Ze dne" value={form["ze_dne"]} onChange={v => set("ze_dne", v)} type="date" />
+                <FormSelectField label="Objednatel" value={form["objednatel"]} onChange={v => set("objednatel", v)} options={objednatele} allowEmpty />
+                <FormSelectField label="Stavbyvedoucí" value={form["stavbyvedouci"]} onChange={v => set("stavbyvedouci", v)} options={svList} allowEmpty />
+              </div>
+            </div>
           </div>
-          {sec.open && (
-            <div style={{ padding:'10px 10px 6px', background:`${color}08`, borderRadius:'0 0 6px 6px', border:`1px solid ${color}20`, borderTop:'none' }}>
-              {editLabel && (
-                <div style={{ marginBottom:8 }}>
-                  <input value={data[secKey]?.customLabel || ''} placeholder={label + ' (název…)'}
-                    onClick={e => e.stopPropagation()}
-                    onChange={e => onLabelChange && onLabelChange('dof', secKey, e.target.value)}
-                    style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:`1px solid ${color}40`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', boxSizing:'border-box', fontStyle:'italic' }} />
+
+          {/* PRAVÝ SLOUPEC */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+
+            {/* Realizace */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#34d399", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #34d399", paddingLeft: 8 }}>REALIZACE</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <FormField label="Vyfakturováno" value={form["vyfakturovano"]} onChange={v => set("vyfakturovano", v)} type="number" />
+                <FormField label="Ukončení" value={form["ukonceni"]} onChange={v => set("ukonceni", v)} type="date" />
+                <FormField label="Zrealizováno" value={form["zrealizovano"]} onChange={v => set("zrealizovano", v)} type="number" />
+              </div>
+              <div style={{ marginTop: 10, background: "rgba(37,99,235,0.08)", border: "1px solid rgba(37,99,235,0.2)", borderRadius: 8, padding: "8px 14px", display: "flex", gap: 24 }}>
+                <div><span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Nabídka: </span><span style={{ color: "#60a5fa", fontWeight: 700 }}>{fmt(computed.nabidka)}</span></div>
+                <div><span style={{ color: "rgba(255,255,255,0.4)", fontSize: 11 }}>Rozdíl: </span><span style={{ color: computed.rozdil >= 0 ? "#4ade80" : "#f87171", fontWeight: 700 }}>{fmt(computed.rozdil)}</span></div>
+              </div>
+            </div>
+
+            {/* Faktura 1 */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#fbbf24", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #fbbf24", paddingLeft: 8 }}>FAKTURA 1</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                <FormField label="Nabídková cena" value={form["nabidkova_cena"]} onChange={v => set("nabidkova_cena", v)} type="number" />
+                <FormField label="Číslo faktury" value={form["cislo_faktury"]} onChange={v => set("cislo_faktury", v)} />
+                <FormField label="Částka bez DPH" value={form["castka_bez_dph"]} onChange={v => set("castka_bez_dph", v)} type="number" />
+                <div />
+                <FormField label="Splatná" value={form["splatna"]} onChange={v => set("splatna", v)} type="date" />
+              </div>
+            </div>
+
+            {/* Faktura 2 */}
+            <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+              <div style={{ color: "#f59e0b", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #f59e0b", paddingLeft: 8, opacity: 0.7 }}>FAKTURA 2</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <FormField label="Č. faktury 2" value={form["cislo_faktury_2"]} onChange={v => set("cislo_faktury_2", v)} />
+                <FormField label="Částka bez DPH 2" value={form["castka_bez_dph_2"]} onChange={v => set("castka_bez_dph_2", v)} type="number" />
+                <FormField label="Splatná 2" value={form["splatna_2"]} onChange={v => set("splatna_2", v)} type="date" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Poznámka */}
+        <div style={{ padding: "0 24px 12px" }}>
+          <div style={{ background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: "12px 14px", border: "1px solid rgba(255,255,255,0.07)" }}>
+            <div style={{ color: "#a78bfa", fontWeight: 700, fontSize: 11, letterSpacing: 0.8, marginBottom: 10, borderLeft: "3px solid #a78bfa", paddingLeft: 8 }}>💬 POZNÁMKA</div>
+            <textarea
+              value={form["poznamka"] || ""}
+              onChange={e => set("poznamka", e.target.value)}
+              placeholder="Volný komentář ke stavbě..."
+              rows={3}
+              style={{ width: "100%", padding: "9px 11px", background: "#0f172a", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 7, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box", resize: "vertical", fontFamily: "inherit" }}
+            />
+          </div>
+        </div>
+
+        {saveErr && <div style={{ padding: "8px 24px", background: "rgba(239,68,68,0.15)", borderTop: "1px solid rgba(239,68,68,0.3)", color: "#f87171", fontSize: 13 }}>⚠️ {saveErr}</div>}
+
+        <div style={{ padding: "14px 24px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+          <button onClick={handleSave} style={{ padding: "9px 22px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Uložit</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SETTINGS MODAL
+// ============================================================
+function ListEditor({ label, color, list, setList, nv, setNv, isDark }) {
+  const add = () => { const v = nv.trim(); if (v && !list.includes(v)) { setList([...list, v]); setNv(""); } };
+  const rem = (v) => setList(list.filter(x => x !== v));
+  const itemBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const itemBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const itemText = isDark ? "#e2e8f0" : "#1e293b";
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ color, fontWeight: 700, fontSize: 12, letterSpacing: 0.5, marginBottom: 10, borderLeft: `3px solid ${color}`, paddingLeft: 8 }}>{label}</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+        <input value={nv} onChange={e => setNv(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
+          placeholder="Přidat..." style={{ ...inputSx, flex: 1, fontSize: 12, background: isDark ? "#0f172a" : "#f8fafc", color: itemText, border: `1px solid ${itemBorder}` }} />
+        <button onClick={add} style={{ padding: "8px 12px", background: `${color}33`, border: `1px solid ${color}55`, borderRadius: 7, color, cursor: "pointer", fontWeight: 700 }}>+</button>
+      </div>
+      {list.map(v => (
+        <div key={v} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", marginBottom: 5, background: itemBg, borderRadius: 6, border: `1px solid ${itemBorder}` }}>
+          <span style={{ color: itemText, fontSize: 13 }}>{v}</span>
+          <button onClick={() => rem(v)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14 }}>✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function FirmyEditor({ list, setList, isDark, onNvChange, stavbyData }) {
+  const [newNazev, setNewNazev] = useState("");
+  const [newBarva, setNewBarva] = useState("#3b82f6");
+  const [confirmDelete, setConfirmDelete] = useState(null); // { hodnota, count }
+  const [confirmStep2, setConfirmStep2] = useState(false);
+  const PRESET_COLORS = ["#3b82f6","#facc15","#a855f7","#ef4444","#0ea5e9","#f97316","#10b981","#ec4899","#f59e0b","#6366f1"];
+  const itemBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const itemBorder = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const itemText = isDark ? "#e2e8f0" : "#1e293b";
+
+  const setNazev = (v) => { setNewNazev(v); onNvChange?.(v); };
+
+  const add = () => {
+    const v = newNazev.trim();
+    if (v && !list.find(f => f.hodnota === v)) {
+      setList([...list, { hodnota: v, barva: newBarva }]);
+      setNewNazev(""); onNvChange?.("");
+    }
+  };
+
+  const tryRem = (hodnota) => {
+    const count = (stavbyData || []).filter(s => s.firma === hodnota).length;
+    if (count > 0) {
+      setConfirmDelete({ hodnota, count });
+    } else {
+      setList(list.filter(f => f.hodnota !== hodnota));
+    }
+  };
+
+  const changeBarva = (hodnota, barva) => setList(list.map(f => f.hodnota === hodnota ? { ...f, barva } : f));
+
+  return (
+    <div style={{ flex: 1 }}>
+      <div style={{ color: "#60a5fa", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, marginBottom: 10, borderLeft: "3px solid #60a5fa", paddingLeft: 8 }}>Firmy</div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 10, alignItems: "center" }}>
+        <input value={newNazev} onChange={e => setNazev(e.target.value)} onKeyDown={e => e.key === "Enter" && add()}
+          placeholder="Název firmy..." style={{ ...inputSx, flex: 1, fontSize: 12, background: isDark ? "#0f172a" : "#f8fafc", color: itemText, border: `1px solid ${itemBorder}` }} />
+        <input type="color" value={newBarva} onChange={e => setNewBarva(e.target.value)}
+          style={{ width: 36, height: 36, border: "none", borderRadius: 6, cursor: "pointer", background: "none", padding: 2 }} />
+        <button onClick={add} style={{ padding: "8px 12px", background: "rgba(37,99,235,0.3)", border: "1px solid rgba(37,99,235,0.5)", borderRadius: 7, color: "#60a5fa", cursor: "pointer", fontWeight: 700 }}>+</button>
+      </div>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+        {PRESET_COLORS.map(c => (
+          <div key={c} onClick={() => setNewBarva(c)} style={{ width: 20, height: 20, borderRadius: 4, background: c, cursor: "pointer", border: newBarva === c ? "2px solid #fff" : "2px solid transparent" }} />
+        ))}
+      </div>
+      {list.map(f => (
+        <div key={f.hodnota} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", marginBottom: 5, background: itemBg, borderRadius: 6, border: `1px solid ${itemBorder}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ width: 14, height: 14, borderRadius: 3, background: f.barva || "#3b82f6" }} />
+            <span style={{ color: itemText, fontSize: 13 }}>{f.hodnota}</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="color" value={f.barva || "#3b82f6"} onChange={e => changeBarva(f.hodnota, e.target.value)}
+              style={{ width: 28, height: 28, border: "none", borderRadius: 4, cursor: "pointer", background: "none", padding: 1 }} />
+            <button onClick={() => tryRem(f.hodnota)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 14 }}>✕</button>
+          </div>
+        </div>
+      ))}
+
+      {/* Dialog 1 – firma má stavby */}
+      {confirmDelete && !confirmStep2 && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 400, border: "1px solid rgba(239,68,68,0.3)", boxShadow: "0 24px 60px rgba(0,0,0,0.5)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <div style={{ color: isDark ? "#f8fafc" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Firma má přiřazené stavby</div>
+            <div style={{ color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)", fontSize: 13, marginBottom: 24 }}>
+              Firma <strong>{confirmDelete.hodnota}</strong> má <strong>{confirmDelete.count} {confirmDelete.count === 1 ? "stavbu" : confirmDelete.count < 5 ? "stavby" : "staveb"}</strong>.<br/>Opravdu chceš tuto firmu smazat?
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setConfirmDelete(null)} style={{ padding: "9px 20px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+              <button onClick={() => setConfirmStep2(true)} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Ano, smazat firmu</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog 2 – co se stavbami */}
+      {confirmDelete && confirmStep2 && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 420, border: "1px solid rgba(239,68,68,0.3)", boxShadow: "0 24px 60px rgba(0,0,0,0.5)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🏗️</div>
+            <div style={{ color: isDark ? "#f8fafc" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Co se stavbami?</div>
+            <div style={{ color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)", fontSize: 13, marginBottom: 24 }}>
+              {confirmDelete.count} {confirmDelete.count === 1 ? "stavba zůstane" : "staveb zůstane"} v databázi bez přiřazené firmy.
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
+              <button onClick={() => { setConfirmDelete(null); setConfirmStep2(false); }} style={{ padding: "9px 20px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+              <button onClick={() => {
+                setList(list.filter(f => f.hodnota !== confirmDelete.hodnota));
+                setConfirmDelete(null); setConfirmStep2(false);
+              }} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#f97316,#ea580c)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Ponechat stavby</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettingsModal({ firmy, objednatele, stavbyvedouci, users, onChange, onChangeUsers, onClose, onLoadLog, isAdmin, isSuperAdmin, isDark, appVerze, appDatum, onSaveAppInfo, stavbyData, onResetColWidths, onResetColOrder, isDemo, notifyEmails, onSaveNotifyEmails }) {
+  const [tab, setTab] = useState("ciselniky");
+  const [f, setF] = useState([...firmy]);
+  const [o, setO] = useState([...objednatele]);
+  const [s, setS] = useState([...stavbyvedouci]);
+  const [newF, setNewF] = useState("");
+  const [newO, setNewO] = useState("");
+  const [newS, setNewS] = useState("");
+  const [pendingWarn, setPendingWarn] = useState(null);
+  const [localLogData, setLocalLogData] = useState([]);
+  const [logFilterUser, setLogFilterUser] = useState("");
+  const [logFilterAkce, setLogFilterAkce] = useState("");
+  const localLogFiltered = localLogData.filter(r =>
+    (!logFilterUser || r.uzivatel === logFilterUser) &&
+    (!logFilterAkce || r.akce === logFilterAkce)
+  );
+
+  // Users
+  const [uList, setUList] = useState(users.map(u => ({ ...u })));
+  const [newEmail, setNewEmail] = useState("");
+  const [newPass, setNewPass] = useState("");
+  const [newRole, setNewRole] = useState("user");
+  const [newName, setNewName] = useState("");
+  const [userErr, setUserErr] = useState("");
+  const [editUserId, setEditUserId] = useState(null);
+  const [editUserPass, setEditUserPass] = useState("");
+  const [editUserRole, setEditUserRole] = useState("");
+
+  const add = (list, setList, val, setVal) => { const v = val.trim(); if (v && !list.includes(v)) { setList([...list, v]); setVal(""); } };
+
+  const addUser = () => {
+    setUserErr("");
+    if (!newEmail.trim() || !newPass.trim() || !newName.trim()) { setUserErr("Vyplň jméno, email a heslo."); return; }
+    if (uList.find(u => u.email === newEmail.trim())) { setUserErr("Uživatel s tímto emailem již existuje."); return; }
+    const nextId = uList.length > 0 ? Math.max(...uList.map(u => u.id)) + 1 : 1;
+    setUList([...uList, { id: nextId, email: newEmail.trim(), password: newPass.trim(), role: newRole, name: newName.trim() }]);
+    setNewEmail(""); setNewPass(""); setNewName(""); setNewRole("user");
+  };
+
+  const removeUser = (id) => setUList(uList.filter(u => u.id !== id));
+
+  const handleLoadLog = async () => {
+    if (isDemo) { setLocalLogData([]); return; }
+    try {
+      const res = await onLoadLog();
+      setLocalLogData(Array.isArray(res) ? res : []);
+    } catch(e) { setLocalLogData([]); }
+  };
+
+  useEffect(() => { if (tab === "log") handleLoadLog(); }, [tab]);
+
+  const fmtCas = (cas) => {
+    const d = new Date(cas);
+    return d.toLocaleString("cs-CZ", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  };
+
+  const AKCE_COLOR = { "Přihlášení": "#60a5fa", "Přidání stavby": "#4ade80", "Editace stavby": "#fbbf24", "Smazání stavby": "#f87171", "Nastavení": "#c084fc" };
+
+  const tabs = [
+    { key: "ciselniky", label: "📋 Číselníky" },
+    ...(isAdmin ? [{ key: "uzivatele", label: "👥 Uživatelé" }] : []),
+    ...(isAdmin ? [{ key: "log", label: "📜 Log aktivit" }] : []),
+    ...(isSuperAdmin ? [{ key: "aplikace", label: "⚙️ Aplikace" }] : []),
+  ];
+  const [editVerze, setEditVerze] = useState(appVerze);
+  const [confirmResetCols, setConfirmResetCols] = useState(false);
+  const [editDatum, setEditDatum] = useState(appDatum);
+  const [editNotifyEmails, setEditNotifyEmails] = useState(notifyEmails || "");
+
+  const modalBg = isDark ? "#1e293b" : "#ffffff";
+  const modalBorder = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+  const modalText = isDark ? "#fff" : "#1e293b";
+  const modalMuted = isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)";
+  const modalDivider = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+  const modalCardBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)";
+  const { pos, onMouseDown: onDragStart } = useDraggable(780, 560);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1100, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ position: "fixed", left: pos.x, top: pos.y, pointerEvents: "all", background: modalBg, borderRadius: 16, width: 780, maxHeight: "85vh", overflow: "hidden", display: "flex", flexDirection: "column", border: `1px solid ${modalBorder}`, boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+
+        {/* header — táhlo */}
+        <div onMouseDown={onDragStart} style={dragHeaderStyle()}>
+          <span style={{ color: modalText, fontWeight: 700, fontSize: 17 }}>⚙️ Nastavení{dragHint}</span>
+          <button onClick={onClose} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: modalMuted, fontSize: 20, cursor: "pointer" }}>✕</button>
+        </div>
+
+        {/* tabs */}
+        <div onMouseDown={e => e.stopPropagation()} style={{ display: "flex", gap: 4, padding: "10px 24px 0", borderBottom: `1px solid ${modalDivider}` }}>
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: "8px 18px", background: tab === t.key ? "rgba(37,99,235,0.2)" : "transparent", border: "none", borderBottom: tab === t.key ? "2px solid #2563eb" : "2px solid transparent", borderRadius: "6px 6px 0 0", color: tab === t.key ? "#60a5fa" : modalMuted, cursor: "pointer", fontSize: 13, fontWeight: tab === t.key ? 700 : 400 }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* body */}
+        <div style={{ padding: 24, overflowY: "auto", flex: 1, background: modalBg }}>
+          {tab === "ciselniky" && (
+            <div style={{ display: "flex", gap: 20 }}>
+              <FirmyEditor list={f} setList={setF} isDark={isDark} onNvChange={v => setNewF(v)} stavbyData={stavbyData} />
+              <ListEditor label="Objednatelé" color="#34d399" list={o} setList={setO} nv={newO} setNv={setNewO} isDark={isDark} />
+              <ListEditor label="Stavbyvedoucí" color="#f472b6" list={s} setList={setS} nv={newS} setNv={setNewS} isDark={isDark} />
+            </div>
+          )}
+
+          {tab === "uzivatele" && (
+            <div>
+              {/* Přidat uživatele */}
+              <div style={{ background: modalCardBg, border: `1px solid ${modalBorder}`, borderRadius: 10, padding: 16, marginBottom: 20 }}>
+                <div style={{ color: "#60a5fa", fontWeight: 700, fontSize: 12, letterSpacing: 0.5, marginBottom: 12, borderLeft: "3px solid #2563eb", paddingLeft: 8 }}>PŘIDAT UŽIVATELE</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 120px", gap: 10, marginBottom: 10 }}>
+                  <div><Lbl>Jméno</Lbl><input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Jan Novák" style={inputSx} /></div>
+                  <div><Lbl>Email</Lbl><input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jan@firma.cz" style={inputSx} /></div>
+                  <div><Lbl>Heslo</Lbl><input type="password" value={newPass} onChange={e => setNewPass(e.target.value)} placeholder="••••••••" style={inputSx} /></div>
+                  <div>
+                    <Lbl>Role</Lbl>
+                    <div style={{ position: "relative" }}>
+                      <select value={newRole} onChange={e => setNewRole(e.target.value)} style={{ ...inputSx, appearance: "none", cursor: "pointer" }}>
+                        <option value="user" style={{ background: "#1e293b" }}>User</option>
+                        <option value="user_e" style={{ background: "#1e293b" }}>User Editor</option>
+                        <option value="admin" style={{ background: "#1e293b" }}>Admin</option>
+                      </select>
+                      <span style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.4)", pointerEvents: "none", fontSize: 10 }}>▼</span>
+                    </div>
+                  </div>
+                </div>
+                {userErr && <div style={{ color: "#f87171", fontSize: 12, marginBottom: 8 }}>⚠ {userErr}</div>}
+                <button onClick={addUser} style={{ padding: "8px 18px", background: "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 7, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>+ Přidat uživatele</button>
+              </div>
+
+              {/* Seznam uživatelů */}
+              <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 11, fontWeight: 700, letterSpacing: 0.8, marginBottom: 10 }}>SEZNAM UŽIVATELŮ ({uList.filter(u => !isAdmin || isSuperAdmin ? true : u.role !== "superadmin").length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {uList.filter(u => !isAdmin || isSuperAdmin ? true : u.role !== "superadmin").map(u => {
+                  const roleLabel = u.role === "superadmin" ? "SUPERADMIN" : u.role === "admin" ? "ADMIN" : u.role === "user_e" ? "USER EDITOR" : "USER";
+                  const roleColor = u.role === "superadmin" ? "#c084fc" : u.role === "admin" ? "#fbbf24" : u.role === "user_e" ? "#4ade80" : "#94a3b8";
+                  const roleBg = u.role === "superadmin" ? "rgba(168,85,247,0.2)" : u.role === "admin" ? "rgba(245,158,11,0.2)" : u.role === "user_e" ? "rgba(34,197,94,0.15)" : "rgba(100,116,139,0.15)";
+                  const icon = u.role === "superadmin" ? "⚡" : u.role === "admin" ? "👑" : u.role === "user_e" ? "✏️" : "👤";
+                  return (
+                    <div key={u.id}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: "rgba(255,255,255,0.03)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.08)" }}>
+                        <div style={{ width: 32, height: 32, borderRadius: "50%", background: roleBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>{icon}</div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: modalText, fontSize: 13, fontWeight: 600 }}>{u.name}</div>
+                          <div style={{ color: "rgba(255,255,255,0.35)", fontSize: 11 }}>{u.email}</div>
+                        </div>
+                        <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: roleBg, color: roleColor }}>{roleLabel}</span>
+                        <button onClick={() => { setEditUserId(editUserId === u.id ? null : u.id); setEditUserPass(""); setEditUserRole(u.role); }} style={{ background: "none", border: "none", color: editUserId === u.id ? "#fbbf24" : "#60a5fa", cursor: "pointer", fontSize: 14, padding: "0 4px" }} title="Upravit">✏️</button>
+                        <button onClick={() => removeUser(u.id)} style={{ background: "none", border: "none", color: "#f87171", cursor: "pointer", fontSize: 16, padding: "0 4px" }} title="Smazat">✕</button>
+                      </div>
+                      {editUserId === u.id && (
+                        <div style={{ margin: "4px 0 2px 0", padding: "10px 14px", background: "rgba(37,99,235,0.08)", borderRadius: 8, border: "1px solid rgba(37,99,235,0.2)", display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ color: "#60a5fa", fontSize: 11, fontWeight: 700 }}>UPRAVIT UŽIVATELE</div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, minWidth: 70 }}>Nové heslo:</span>
+                            <input type="password" value={editUserPass} onChange={e => setEditUserPass(e.target.value)} placeholder="nové heslo (prázdné = beze změny)" style={{ flex: 1, padding: "6px 10px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, color: "#fff", fontSize: 12 }} />
+                          </div>
+                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                            <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, minWidth: 70 }}>Role:</span>
+                            <select value={editUserRole} onChange={e => setEditUserRole(e.target.value)} style={{ flex: 1, padding: "6px 10px", background: "#1e293b", border: "1px solid rgba(255,255,255,0.15)", borderRadius: 6, color: "#fff", fontSize: 12 }}>
+                              <option value="user">USER</option>
+                              <option value="user_e">USER EDITOR</option>
+                              <option value="admin">ADMIN</option>
+                              {isSuperAdmin && <option value="superadmin">SUPERADMIN</option>}
+                            </select>
+                          </div>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <button onClick={() => { setUList(uList.map(x => x.id === u.id ? { ...x, password: editUserPass.trim() || x.password, role: editUserRole } : x)); setEditUserId(null); }} style={{ padding: "6px 14px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 6, color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>💾 Uložit</button>
+                            <button onClick={() => setEditUserId(null)} style={{ padding: "6px 14px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 6, color: "rgba(255,255,255,0.5)", cursor: "pointer", fontSize: 12 }}>Zrušit</button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {tab === "aplikace" && isSuperAdmin && (
+            <div style={{ padding: "10px 0", maxWidth: 400 }}>
+              <div style={{ color: modalMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 20 }}>INFORMACE O APLIKACI</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div>
+                  <div style={{ color: modalMuted, fontSize: 11, marginBottom: 6 }}>VERZE APLIKACE</div>
+                  <input value={editVerze} onChange={e => setEditVerze(e.target.value)} placeholder="např. 1.0.0" style={{ width: "100%", padding: "9px 12px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: `1px solid ${modalBorder}`, borderRadius: 8, color: modalText, fontSize: 14, boxSizing: "border-box" }}/>
+                </div>
+                <div>
+                  <div style={{ color: modalMuted, fontSize: 11, marginBottom: 6 }}>ROK / DATUM</div>
+                  <input value={editDatum} onChange={e => setEditDatum(e.target.value)} placeholder="např. 2025" style={{ width: "100%", padding: "9px 12px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: `1px solid ${modalBorder}`, borderRadius: 8, color: modalText, fontSize: 14, boxSizing: "border-box" }}/>
+                </div>
+                <button onClick={() => { onSaveAppInfo(editVerze, editDatum); onClose(); }} style={{ padding: "10px 20px", background: "linear-gradient(135deg,#7c3aed,#6d28d9)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>💾 Uložit a zavřít</button>
+                <div style={{ color: modalMuted, fontSize: 11, marginTop: 8 }}>
+                  Zobrazí se ve footeru: © {editDatum} Stavby Znojmo – Martin Dočekal &amp; Claude AI | v{editVerze}
+                </div>
+                <div style={{ borderTop: `1px solid ${modalBorder}`, paddingTop: 16, marginTop: 8 }}>
+                  <div style={{ color: modalMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>ŠÍŘKY SLOUPCŮ</div>
+                  <button onClick={() => setConfirmResetCols(true)} style={{ padding: "10px 20px", background: "rgba(168,85,247,0.12)", border: "1px solid rgba(168,85,247,0.35)", borderRadius: 8, color: "#c084fc", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>↺ Reset šířek sloupců na výchozí</button>
+                  <button onClick={() => { onResetColOrder(); }} style={{ padding: "10px 20px", background: "rgba(59,130,246,0.12)", border: "1px solid rgba(59,130,246,0.35)", borderRadius: 8, color: "#60a5fa", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>↺ Reset pořadí sloupců na výchozí</button>
+                  <div style={{ color: modalMuted, fontSize: 11, marginTop: 8 }}>Obnoví původní šířky všech sloupců tabulky.</div>
+                </div>
+                <div style={{ borderTop: `1px solid ${modalBorder}`, paddingTop: 16, marginTop: 8 }}>
+                  <div style={{ color: modalMuted, fontSize: 11, fontWeight: 700, letterSpacing: 1, marginBottom: 4 }}>📧 EMAIL NOTIFIKACE — TERMÍNY</div>
+                  <div style={{ color: modalMuted, fontSize: 11, marginBottom: 10 }}>Emaily pro denní souhrn termínů (do 30 dní + prošlé). Oddělte čárkou nebo novým řádkem. Odesílá Supabase Edge Function každý den ráno.</div>
+                  <textarea
+                    value={editNotifyEmails}
+                    onChange={e => setEditNotifyEmails(e.target.value)}
+                    placeholder={"jan@firma.cz\neva@firma.cz"}
+                    rows={4}
+                    style={{ width: "100%", padding: "9px 12px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", border: `1px solid ${modalBorder}`, borderRadius: 8, color: modalText, fontSize: 13, boxSizing: "border-box", resize: "vertical", fontFamily: "monospace" }}
+                  />
+                  <button
+                    onClick={() => { onSaveNotifyEmails(editNotifyEmails); }}
+                    style={{ marginTop: 8, padding: "9px 20px", background: "linear-gradient(135deg,#0ea5e9,#0284c7)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}
+                  >💾 Uložit emaily</button>
+                  <div style={{ color: modalMuted, fontSize: 10, marginTop: 6 }}>Uloženo v databázi (tabulka nastaveni, klic = notify_emails)</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === "log" && (
+            <div>
+              {isDemo && (
+                <div style={{ marginBottom: 14, padding: "12px 16px", background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.35)", borderRadius: 8, color: "#fbbf24", fontSize: 12, display: "flex", gap: 10, alignItems: "center" }}>
+                  <span style={{ fontSize: 18 }}>🎮</span>
+                  <div><strong>Demo režim</strong> — log aktivit se neukládá do databáze. V ostré verzi se zde zobrazí přihlášení, editace, smazání a veškeré akce všech uživatelů.</div>
                 </div>
               )}
-              {sec.rows.map((row, idx) => (
-                <ItemRow key={row.id} row={row} color={color} T={T}
-                  onChange={r => changeRow('dof', secKey, idx, r)}
-                  onRemove={() => removeRow('dof', secKey, idx)}
-                  canRemove={sec.rows.length > 1}
-                  katalogItems={katalog} secKey={secKey} onNewPopis={onNewPopis} />
-              ))}
-              <button onClick={() => addRow('dof', secKey)}
-                style={{ width:'100%', padding:'5px 10px', background:'transparent', border:`1px dashed ${color}40`, borderRadius:5, color, fontSize:11, cursor:'pointer', marginBottom:6 }}>
-                + přidat řádek
-              </button>
-              <div style={{ display:'flex', justifyContent:'space-between', padding:'4px 8px' }}>
-                <span style={{ color:T.muted, fontSize:11 }}>Součet</span>
-                <span style={{ color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>{rowTotal.toLocaleString('cs-CZ',{minimumFractionDigits:2})} Kč</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {/* Filtr uživatel */}
+                  <select onChange={e => setLogFilterUser(e.target.value)} style={{ padding: "5px 10px", background: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`, borderRadius: 6, color: isDark ? "#e2e8f0" : "#1e293b", fontSize: 12, cursor: "pointer" }}>
+                    <option value="">Všichni uživatelé</option>
+                    {[...new Set(localLogData.map(r => r.uzivatel))].filter(Boolean).map(u => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
+                  {/* Filtr akce */}
+                  <select onChange={e => setLogFilterAkce(e.target.value)} style={{ padding: "5px 10px", background: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`, borderRadius: 6, color: isDark ? "#e2e8f0" : "#1e293b", fontSize: 12, cursor: "pointer" }}>
+                    <option value="">Všechny akce</option>
+                    {Object.keys(AKCE_COLOR).map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.5)", fontSize: 12 }}>{localLogFiltered.length} záznamů</span>
+                  <button onClick={handleLoadLog} style={{ padding: "5px 12px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 6, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 12 }}>🔄 Obnovit</button>
+                  <button onClick={() => {
+                    const akceColors = {
+                      "Přihlášení":    { bg: "#DBEAFE", color: "#1D4ED8" },
+                      "Přidání stavby":  { bg: "#DCFCE7", color: "#166534" },
+                      "Editace stavby":  { bg: "#FEF9C3", color: "#854D0E" },
+                      "Smazání stavby":  { bg: "#FEE2E2", color: "#991B1B" },
+                      "Nastavení":     { bg: "#F3E8FF", color: "#6B21A8" },
+                      "Záloha":        { bg: "#FFEDD5", color: "#9A3412" },
+                    };
+                    const rows = localLogFiltered.map((r, i) => {
+                      const c = akceColors[r.akce] || { bg: "#F8FAFC", color: "#334155" };
+                      const rowBg = i % 2 === 0 ? c.bg : "#FFFFFF";
+                      return `<tr>
+                        <td style="padding:6px 10px;border:1px solid #E2E8F0;background:${rowBg};color:#1E293B;white-space:nowrap">${r.cas ? new Date(r.cas).toLocaleString("cs-CZ") : ""}</td>
+                        <td style="padding:6px 10px;border:1px solid #E2E8F0;background:${rowBg};color:#1E293B">${r.uzivatel || ""}</td>
+                        <td style="padding:6px 10px;border:1px solid #E2E8F0;background:${c.bg};color:${c.color};font-weight:700;text-align:center">${r.akce || ""}</td>
+                        <td style="padding:6px 10px;border:1px solid #E2E8F0;background:${rowBg};color:#475569">${r.detail || ""}</td>
+                      </tr>`;
+                    }).join("");
+                    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>
+                      <table><thead><tr>
+                        <th style="padding:8px 10px;background:#1E3A8A;color:#fff;border:1px solid #2563EB;font-size:12px">Čas</th>
+                        <th style="padding:8px 10px;background:#1E3A8A;color:#fff;border:1px solid #2563EB;font-size:12px">Uživatel</th>
+                        <th style="padding:8px 10px;background:#1E3A8A;color:#fff;border:1px solid #2563EB;font-size:12px">Akce</th>
+                        <th style="padding:8px 10px;background:#1E3A8A;color:#fff;border:1px solid #2563EB;font-size:12px">Detail</th>
+                      </tr></thead><tbody>${rows}</tbody></table>
+                    </body></html>`;
+                    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+                    const a = document.createElement("a");
+                    a.href = URL.createObjectURL(blob);
+                    a.download = `log_aktivit_${new Date().toISOString().slice(0,10)}.xls`;
+                    a.click();
+                  }} style={{ padding: "5px 12px", background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 6, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 12 }}>📥 Export Excel</button>
+                </div>
+              </div>
+              <div style={{ overflowY: "auto", maxHeight: 400 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
+                  <thead>
+                    <tr style={{ background: isDark ? "#1a2744" : "#e2e8f0" }}>
+                      {["Čas", "Uživatel", "Akce", "Detail"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontWeight: 700, fontSize: 11, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}` }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {localLogFiltered.map((r, i) => (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? (isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)") : "transparent" }}>
+                        <td style={{ padding: "7px 12px", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.5)", whiteSpace: "nowrap" }}>{fmtCas(r.cas)}</td>
+                        <td style={{ padding: "7px 12px", color: isDark ? "#e2e8f0" : "#1e293b" }}>{r.uzivatel}</td>
+                        <td style={{ padding: "7px 12px" }}>
+                          <span style={{ background: (AKCE_COLOR[r.akce] || "#94a3b8") + "22", color: AKCE_COLOR[r.akce] || "#94a3b8", border: `1px solid ${(AKCE_COLOR[r.akce] || "#94a3b8")}44`, borderRadius: 5, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{r.akce}</span>
+                        </td>
+                        <td style={{ padding: "7px 12px", color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12 }}>{r.detail}</td>
+                      </tr>
+                    ))}
+                    {localLogFiltered.length === 0 && (
+                      <tr><td colSpan={4} style={{ padding: 24, textAlign: "center", color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)" }}>Žádné záznamy</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
         </div>
+
+        {/* footer */}
+        <div style={{ padding: "14px 24px", borderTop: `1px solid ${modalDivider}`, display: "flex", gap: 10, justifyContent: "flex-end", background: modalBg }}>
+          <button onClick={onClose} style={{ padding: "9px 18px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${modalBorder}`, borderRadius: 8, color: modalText, cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+
+          {/* Potvrzovací dialog reset šířek */}
+          {confirmResetCols && (
+            <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 360, border: "1px solid rgba(168,85,247,0.3)", boxShadow: "0 24px 60px rgba(0,0,0,0.5)", textAlign: "center" }}>
+                <div style={{ fontSize: 36, marginBottom: 12 }}>↺</div>
+                <div style={{ color: isDark ? "#f8fafc" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Reset šířek sloupců?</div>
+                <div style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 13, marginBottom: 24 }}>Všechny šířky sloupců se obnoví na výchozí hodnoty. Tuto akci nelze vrátit.</div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  <button onClick={() => setConfirmResetCols(false)} style={{ padding: "9px 20px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+                  <button onClick={() => { onResetColWidths(); setConfirmResetCols(false); onClose(); }} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#7c3aed,#6d28d9)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Ano, resetovat</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab !== "log" && tab !== "aplikace" && <button onClick={() => {
+            // Kontrola nevyplněných polí
+            const unfinished = [];
+            if (tab === "ciselniky") {
+              if (newF.trim()) unfinished.push("Firma");
+              if (newO.trim()) unfinished.push("Objednatel");
+              if (newS.trim()) unfinished.push("Stavbyvedoucí");
+            }
+            if (tab === "uzivatele") {
+              if (newEmail.trim() || newPass.trim() || newName?.trim()) unfinished.push("Uživatel");
+            }
+            if (unfinished.length > 0) {
+              setPendingWarn(unfinished);
+            } else {
+              onChange(f, o, s); onChangeUsers(uList); onClose();
+            }
+          }} style={{ padding: "9px 22px", background: "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Uložit vše</button>}
+        </div>
       </div>
+
+      {/* Varování – nevyplněná položka */}
+      {pendingWarn && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1400, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 380, border: `1px solid ${isDark ? "rgba(255,165,0,0.3)" : "rgba(255,165,0,0.4)"}`, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+            <div style={{ color: isDark ? "#f8fafc" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Nevyplněná položka</div>
+            <div style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 13, marginBottom: 24 }}>
+              Máš rozepsanou položku <strong>{pendingWarn.join(", ")}</strong> která nebyla přidána.<br/>
+              <span style={{ fontSize: 12, marginTop: 6, display: "block" }}>Chceš ji zahodit a uložit bez ní?</span>
+            </div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setPendingWarn(null)} style={{ padding: "9px 20px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>← Zpět doplnit</button>
+              <button onClick={() => { setPendingWarn(null); onChange(f, o, s); onChangeUsers(uList); onClose(); }} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Zahodit a uložit</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
-function Sekce({ secKey, items, data, color, icon, label, handlers, sumS, sumBez, zisk, T, onLabelChange, katalog, onNewPopis, hodMont, hodZem }) {
-  const { toggle, addRow, changeRow, removeRow } = handlers
-  const total = sumBez != null ? sumBez : sumS
+// ============================================================
+// MOBILE HOOK
+// ============================================================
+function useIsMobile(breakpoint = 768) {
+  const mq = window.matchMedia(`(max-width: ${breakpoint - 1}px)`);
+  const [isMobile, setIsMobile] = useState(() => mq.matches);
+  useEffect(() => {
+    const handler = (e) => setIsMobile(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
+}
+
+// ============================================================
+// STAVBA CARD (mobilní kartička)
+// ============================================================
+function StavbaCard({ row, isEditor, isAdmin, isDark, firmy, onEdit, onCopy, onDelete, onHistorie, showTooltip, hideTooltip }) {
+  const firmaColor = (firmy.find(f => f.hodnota === row.firma)?.barva) || "#3b82f6";
+
+  const parseDatumCard = (s) => {
+    if (!s) return null;
+    const p = s.trim().split(".");
+    if (p.length !== 3) return null;
+    const d = new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);
+    return isNaN(d) ? null : d;
+  };
+
+  const termínBadge = () => {
+    if (!row.ukonceni) return null;
+    const datum = parseDatumCard(row.ukonceni);
+    if (!datum) return null;
+    const dnes = new Date(); dnes.setHours(0,0,0,0);
+    const isFak = row.cislo_faktury && row.cislo_faktury.trim() !== "" && Number(row.castka_bez_dph) !== 0 && row.splatna;
+    if (isFak) return { label: "vyfakturováno", bg: "rgba(34,197,94,0.15)", color: "#4ade80", border: "rgba(34,197,94,0.4)" };
+    if (datum < dnes) return { label: "⚠️ prošlý termín", bg: "rgba(239,68,68,0.15)", color: "#f87171", border: "rgba(239,68,68,0.4)" };
+    const diff = Math.round((datum - dnes) / 86400000);
+    if (diff <= 10) return { label: `za ${diff} dní`, bg: "rgba(251,191,36,0.15)", color: "#fbbf24", border: "rgba(251,191,36,0.4)" };
+    return null;
+  };
+
+  const badge = termínBadge();
+  const cardBg = isDark ? "#1e293b" : "#ffffff";
+  const borderC = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+  const textC = isDark ? "#e2e8f0" : "#1e293b";
+  const mutedC = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
+  const metricBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  const dividerC = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
 
   return (
-    <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, marginBottom:12, overflow:'hidden' }}>
-      <div style={{ padding:'12px 16px', borderBottom:'1px solid rgba(100,116,139,0.5)', display:'flex', alignItems:'center', gap:8 }}>
-        <span style={{ fontSize:16 }}>{icon}</span>
-        <span style={{ color, fontWeight:800, fontSize:14, flex:1 }}>{label}</span>
-        {hodMont != null && (
-          <span style={{ color:T.muted, fontSize:11, fontFamily:'monospace', marginRight:8 }}>
-            mont. <span style={{ color, fontWeight:700 }}>{hodMont.toFixed(3)}</span> hod
-            {'  '}
-            zem. <span style={{ color, fontWeight:700 }}>{hodZem.toFixed(3)}</span> hod
-          </span>
-        )}
-        <span style={{ color:T.muted, fontFamily:'monospace', fontSize:12 }}>Σ {fmt(total)} Kč</span>
-      </div>
-      <div style={{ padding:'10px 14px' }}>
-        {[...items].sort((a, b) => {
-          const aVal = itemSum((data[a.key]?.rows || mkRows()))
-          const bVal = itemSum((data[b.key]?.rows || mkRows()))
-          if (aVal !== 0 && bVal === 0) return -1
-          if (aVal === 0 && bVal !== 0) return 1
-          return 0
-        }).map(it => {
-          const sec = data[it.key] || { rows: mkRows(), open: false }
-          const rowTotal = itemSum(sec.rows)
-          const cnt = sec.rows.length
-          // Label pro editovatelné sekce
-          const displayLabel = it.editLabel
-            ? (data[it.key]?.customLabel || it.label)
-            : it.label
-          const isProtlak = it.isProtlak
-          const protlakVal = isProtlak ? Math.abs(rowTotal) : 0
+    <div style={{ background: cardBg, borderRadius: 14, border: `1px solid ${borderC}`, fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
 
-          return (
-            <div key={it.key} style={{ marginBottom:6 }}>
-              <div onClick={() => toggle(secKey, it.key)}
-                style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 10px', borderRadius:6, cursor:'pointer',
-                  background: sec.open ? `${color}12` : 'transparent',
-                  border:`1px solid ${sec.open ? color+'30' : T.border}` }}>
-                <div style={{ width:7, height:7, borderRadius:2, background: rowTotal!=0 ? color : T.border, flexShrink:0 }}/>
-                <span style={{ color: sec.open ? color : rowTotal!=0 ? T.text : T.muted, fontSize:13, fontWeight: sec.open?700:400, flex:1 }}>
-                  {displayLabel}
-                  {isProtlak && rowTotal < 0 && <span style={{ color:'#f59e0b', fontSize:10, marginLeft:6 }}>→ Protlaky: {fmt(protlakVal)} Kč</span>}
-                </span>
-                {cnt > 1 && <span style={{ background:`${color}22`, color, fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4 }}>{cnt}×</span>}
-                <span style={{ fontFamily:'monospace', fontSize:12, fontWeight: rowTotal!=0?700:400, color: isProtlak&&rowTotal<0 ? '#f97316' : sec.open ? color : rowTotal!=0 ? T.text : T.muted }}>
-                  {fmt(rowTotal)}{isProtlak && rowTotal < 0 ? '' : ''}
-                </span>
-                <span style={{ color:T.muted, fontSize:10 }}>{sec.open?'▲':'▼'}</span>
+      {/* header */}
+      <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 14px", borderBottom: `1px solid ${dividerC}` }}>
+        <div style={{ width: 10, height: 10, borderRadius: "50%", background: firmaColor, flexShrink: 0 }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: firmaColor }}>{row.firma || "—"}</span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: mutedC }}>{row.cislo_stavby || ""}</span>
+      </div>
+
+      {/* název */}
+      <div style={{ padding: "10px 14px 8px" }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: textC, lineHeight: 1.35, marginBottom: 10 }}>{row.nazev_stavby || "—"}</div>
+
+        {/* metriky */}
+        <div style={{ display: "flex", gap: 7, marginBottom: 10 }}>
+          {[
+            { label: "nabídka", val: row.nabidka },
+            { label: "vyfakt.", val: row.vyfakturovano, green: Number(row.vyfakturovano) > 0 },
+            { label: "rozdíl", val: row.rozdil, colored: true },
+          ].map(m => (
+            <div key={m.label} style={{ flex: 1, background: metricBg, borderRadius: 8, padding: "7px 9px" }}>
+              <div style={{ fontSize: 10, color: mutedC, marginBottom: 2 }}>{m.label}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: m.colored ? (Number(m.val) >= 0 ? "#4ade80" : "#f87171") : m.green ? "#4ade80" : textC }}>
+                {m.val != null && m.val !== "" && Number(m.val) !== 0 ? Number(m.val).toLocaleString("cs-CZ", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : "—"}
               </div>
-              {sec.open && (
-                <div style={{ padding:'10px 10px 6px', background:`${color}08`, borderRadius:'0 0 6px 6px', border:`1px solid ${color}20`, borderTop:'none' }}>
-                  {/* Editovatelný label pro rezervy */}
-                  {it.editLabel && (
-                    <div style={{ marginBottom:8 }}>
-                      <input
-                        value={data[it.key]?.customLabel || ''}
-                        placeholder={it.label + ' (název…)'}
-                        onClick={e => e.stopPropagation()}
-                        onChange={e => onLabelChange && onLabelChange(secKey, it.key, e.target.value)}
-                        style={{ width:'100%', background:'rgba(255,255,255,0.06)', border:`1px solid ${color}40`, borderRadius:5, color, fontSize:12, padding:'5px 9px', outline:'none', boxSizing:'border-box', fontStyle:'italic' }}
-                      />
-                    </div>
-                  )}
-
-                  {sec.rows.map((row, idx) => (
-                    <ItemRow key={row.id} row={row} color={isProtlak ? '#f97316' : color} T={T}
-                      onChange={r => changeRow(secKey, it.key, idx, r)}
-                      onRemove={() => removeRow(secKey, it.key, idx)}
-                      canRemove={sec.rows.length > 1}
-                      katalogItems={katalog}
-                      secKey={it.key}
-                      onNewPopis={onNewPopis} />
-                  ))}
-                  <button onClick={() => addRow(secKey, it.key)}
-                    style={{ width:'100%', padding:'5px 10px', background:'transparent', border:`1px dashed ${color}40`, borderRadius:5, color, fontSize:11, cursor:'pointer', marginBottom:6 }}>
-                    + přidat řádek
-                  </button>
-                  <div style={{ display:'flex', justifyContent:'space-between', padding:'4px 8px' }}>
-                    <span style={{ color:T.muted, fontSize:11 }}>Součet</span>
-                    <span style={{ color: isProtlak&&rowTotal<0?'#f97316':color, fontFamily:'monospace', fontSize:13, fontWeight:800 }}>
-                      {fmt(rowTotal)} {it.isZem !== undefined ? 'hod' : 'Kč'}
-                    </span>
-                  </div>
-                </div>
-              )}
             </div>
-          )
-        })}
+          ))}
+        </div>
+
+        {/* termín + badge */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 11, color: mutedC }}>{row.ukonceni ? `ukončení: ${row.ukonceni}` : "bez termínu"}</span>
+          {badge && <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 20, background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>{badge.label}</span>}
+        </div>
       </div>
+
+      {/* poznámka */}
+      {row.poznamka && row.poznamka.trim() !== "" && (
+        <div style={{ display: "flex", gap: 7, alignItems: "flex-start", padding: "6px 14px", background: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", borderTop: `1px solid ${dividerC}` }}>
+          <span style={{ fontSize: 13, flexShrink: 0, marginTop: 1 }}>💬</span>
+          <span style={{ fontSize: 11, color: mutedC, lineHeight: 1.5 }}>{row.poznamka}</span>
+        </div>
+      )}
+
+      {/* faktury */}
+      {row.cislo_faktury && row.cislo_faktury.trim() !== "" && (
+        <div style={{ padding: "7px 14px", background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.03)", borderTop: `1px solid ${dividerC}` }}>
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 7 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#ef4444", flexShrink: 0, marginTop: 1, textShadow: "0 0 6px rgba(239,68,68,0.5)" }}>e</span>
+            <span style={{ fontSize: 11, color: mutedC, lineHeight: 1.6 }}>
+              <span style={{ color: textC, fontWeight: 600 }}>{row.cislo_faktury}</span>
+              {Number(row.castka_bez_dph) > 0 && <> · {Number(row.castka_bez_dph).toLocaleString("cs-CZ")} Kč</>}
+              {row.splatna && <> · spl. {row.splatna}</>}
+            </span>
+          </div>
+          {row.cislo_faktury_2 && row.cislo_faktury_2.trim() !== "" && (
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 7, marginTop: 5, paddingTop: 5, borderTop: `1px dashed ${dividerC}` }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#facc15", flexShrink: 0, marginTop: 1, textShadow: "0 0 6px rgba(250,204,21,0.5)" }}>S</span>
+              <span style={{ fontSize: 11, color: mutedC, lineHeight: 1.6 }}>
+                <span style={{ color: textC, fontWeight: 600 }}>{row.cislo_faktury_2}</span>
+                {Number(row.castka_bez_dph_2) > 0 && <> · {Number(row.castka_bez_dph_2).toLocaleString("cs-CZ")} Kč</>}
+                {row.splatna_2 && <> · spl. {row.splatna_2}</>}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* akce */}
+      {(isEditor || isAdmin) && (
+        <div style={{ display: "flex", gap: 6, padding: "8px 14px", borderTop: `1px solid ${dividerC}`, flexWrap: "wrap" }}>
+          <button onClick={() => onHistorie(row)} style={{ padding: "4px 10px", background: "transparent", border: `1px solid ${borderC}`, borderRadius: 6, color: mutedC, cursor: "pointer", fontSize: 11 }}>🕐 hist.</button>
+          <button onClick={() => onCopy(row)} style={{ padding: "4px 10px", background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 6, color: "#34d399", cursor: "pointer", fontSize: 11 }}>📋</button>
+          <button onClick={() => onEdit(row)} style={{ padding: "4px 10px", background: "rgba(37,99,235,0.15)", border: "1px solid rgba(37,99,235,0.3)", borderRadius: 6, color: "#60a5fa", cursor: "pointer", fontSize: 11, marginLeft: "auto" }}>✏️ editovat</button>
+          {isAdmin && <button onClick={() => onDelete(row.id)} style={{ padding: "4px 10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 6, color: "#f87171", cursor: "pointer", fontSize: 11 }}>🗑️</button>}
+        </div>
+      )}
     </div>
-  )
+  );
 }
 
-// ── hlavní stránka ────────────────────────────────────────
-export default function StavbaPage() {
-  const { dark, toggle: toggleTheme, T } = useTheme()
-  const router = useRouter()
-  const params = useParams()
-  const supabase = createClient()
-  const [s, setS]   = useState(null)
-  const [tab, setTab] = useState('vstup')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved]   = useState(false)
-  const [katalog, setKatalog] = useState([])
-  const [katalogDialog, setKatalogDialog] = useState(null)
-  const [importDialog, setImportDialog] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [confirmDialog, setConfirmDialog] = useState(null) // { title, text, onConfirm }
-  const [alertDialog, setAlertDialog] = useState(null)     // { title, text, color }
-  const [lastSaved, setLastSaved] = useState(null)
-  const [sazbyDialog, setSazbyDialog] = useState(null)
-  const [rozpisDialog, setRozpisDialog] = useState(false)
-  const [sazbyInfoOpen, setSazbyInfoOpen] = useState(false) // { parsedEBC, noveMzdy, noveMech, noveZemni }
+// ============================================================
+// MAIN APP
+// ============================================================
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [data, setData] = useState([]);
+  const [firmy, setFirmy] = useState([]);
+  const [objednatele, setObjednatele] = useState([]);
+  const [stavbyvedouci, setStavbyvedouci] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [dbError, setDbError] = useState(null);
+  const [filterFirma, setFilterFirma] = useState("Všechny firmy");
+  const [filterText, setFilterText] = useState("");
+  const [filterObjed, setFilterObjed] = useState("Všichni objednatelé");
+  const [filterSV, setFilterSV] = useState("Všichni stavbyvedoucí");
+  const [showAdvFilter, setShowAdvFilter] = useState(false);
+  const { pos: advFilterPos, onMouseDown: onAdvFilterDragStart } = useDraggable(340, 300);
+  const [filterRok, setFilterRok] = useState("");
+  const [filterCastkaOd, setFilterCastkaOd] = useState("");
+  const [filterCastkaDo, setFilterCastkaDo] = useState("");
+  const [filterProslé, setFilterProslé] = useState(false);
+  const [filterFakturace, setFilterFakturace] = useState("");
+  const [filterKat, setFilterKat] = useState("");
+  const [editRow, setEditRow] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [copyRow, setCopyRow] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const isMobile = useIsMobile(768);
+  const [cardView, setCardView] = useState(() => window.matchMedia("(max-width: 767px)").matches);
 
-  const importFileRef = useRef(null)
-  const sRef = useRef(null)  // vždy aktuální stav pro save při navigaci
-  // Načti katalog položek
+  const [showSettings, setShowSettings] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const { pos: helpPos, onMouseDown: onHelpDragStart } = useDraggable(680, 500);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // ── Graf ──────────────────────────────────────────────────
+  const [showGraf, setShowGraf] = useState(false);
+  // ── Log zakázek ──────────────────────────────────────────
+  const [showLog, setShowLog] = useState(false);
+  // ── Historie změn ────────────────────────────────────────
+  const [historieRow, setHistorieRow] = useState(null);
+  // ── Tečka v historii — svítí permanentně pokud má stavba záznamy v logu ──
+  const [historieNovinky, setHistorieNovinky] = useState({});
   useEffect(() => {
-    const loadKatalog = async () => {
-      const { data } = await supabase.from('katalog_polozek').select('*').order('je_standard', { ascending: false })
-      if (data) setKatalog(data)
-    }
-    loadKatalog()
-  }, [])
+    if (!user || user.email === "demo") return;
+    const checkNovinky = async () => {
+      try {
+        const res = await sb(`log_aktivit?order=cas.desc&limit=5000`);
+        const novinky = {};
+        (res || []).forEach(r => {
+          // Editace/Smazání — ID na začátku detailu
+          const match = r.detail?.match(/^ID:\s*(\d+)[,\s]/);
+          if (match) novinky[match[1]] = true;
+        });
+        setHistorieNovinky(novinky);
+      } catch { /* tiché selhání */ }
+    };
+    checkNovinky();
+  }, [user]);
+  // ── Auto-logout ──────────────────────────────────────────
+  const [autoLogoutWarning, setAutoLogoutWarning] = useState(false);
+  const [autoLogoutCountdown, setAutoLogoutCountdown] = useState(60);
+  const autoLogoutTimer = useRef(null);
+  const autoLogoutCountdownTimer = useRef(null);
+  const AUTO_LOGOUT_MINUTES = 15;
+  // ── Browser notifikace ───────────────────────────────────
+  const notifPermission = useRef(null);
+  const notifSentRef = useRef(false);
+  const notifIntervalRef = useRef(null);
+  const [tooltip, setTooltip] = useState({ visible: false, text: "", x: 0, y: 0 });
+  const tooltipTimer = useRef(null);
+  const showTooltip = (e, text) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    tooltipTimer.current = setTimeout(() => {
+      setTooltip({ visible: true, text, x: r.left + r.width / 2, y: r.bottom + 6 });
+    }, 600);
+  };
+  const hideTooltip = () => { clearTimeout(tooltipTimer.current); setTooltip(t => ({ ...t, visible: false })); };
+  // ── inline editing odstraněno – editace přes tlačítko ✏️
+  const [showExport, setShowExport] = useState(false);
+  const exportBtnRef = useRef(null);
+  const [exportPos, setExportPos] = useState({ top: 0, right: 0 });
+  const [confirmExport, setConfirmExport] = useState(null); // { type, label }
 
-  // Všechny sekce pro výběr v dialogu
-  const vsechnySekce = [
-    ...MECH.map(i => ({ key: i.key, label: 'Mech: ' + i.label })),
-    ...ZEMNI.filter(i => !i.noIdx && !i.isProtlak).map(i => ({ key: i.key, label: 'Zemní: ' + i.label })),
-  ]
+  // ── Toast notifikace (nahrazuje alert) ────────────────────
+  const [toast, setToast] = useState(null);
+  const showToast = useCallback((msg, type = "error") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
-  const handleNewPopis = (popis, sekce) => {
-    setKatalogDialog({ popis, sekce })
-  }
+  const doExportXLSColor = () => {
+    const firmaColorMap = Object.fromEntries(firmy.map(f => [f.hodnota, f.barva || "#3b82f6"]));
+    const cols = COLUMNS.filter(c => c.key !== "id");
+    const headers = cols.map(c => `<th style="padding:7px 10px;background:#1E3A8A;color:#fff;border:1px solid #2563EB;white-space:nowrap;font-size:11px">${c.label}</th>`).join("");
+    const rows = filtered.map((row, i) => {
+      const hex = firmaColorMap[row.firma] || "#3b82f6";
+      const rgb = hexToRgb(hex);
+      const bg = i % 2 === 0 ? `rgba(${rgb},0.18)` : `rgba(${rgb},0.07)`;
+      const cells = cols.map(c => {
+        const v = row[c.key] ?? "";
+        const isNum = c.type === "number" && v !== "" && Number(v) !== 0;
+        const display = isNum ? Number(v).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v;
+        const color = c.key === "rozdil" ? (Number(v) >= 0 ? "#166534" : "#991b1b") : "#1e293b";
+        const align = c.type === "number" ? "right" : ["cislo_stavby","ukonceni","sod","ze_dne","cislo_faktury","splatna"].includes(c.key) ? "center" : "left";
+        // Sloupec firma – zvýrazni barvou firmy
+        const cellBg = c.key === "firma" ? hex : bg;
+        const cellColor = c.key === "firma" ? "#fff" : color;
+        const cellWeight = c.key === "firma" ? "700" : "400";
+        return `<td style="padding:5px 10px;border:1px solid #E2E8F0;background:${cellBg};color:${cellColor};white-space:nowrap;text-align:${align};font-size:10px;font-weight:${cellWeight}">${display}</td>`;
+      }).join("");
+      return `<tr>${cells}</tr>`;
+    }).join("");
+    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"></head><body>
+      <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
+    </body></html>`;
+    const ts = new Date().toISOString().slice(0,16).replace("T","_").replace(":","-");
+    const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `stavby_znojmo_${ts}.xls`;
+    a.click();
+  };
+  const [logData, setLogData] = useState([]);
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem("theme") || "dark"; } catch { return "dark"; }
+  });
+  const [themeStrength, setThemeStrength] = useState(() => {
+    try { return parseInt(localStorage.getItem("themeStrength") || "50", 10); } catch { return 50; }
+  });
+  const [liquidGlass, setLiquidGlass] = useState(() => {
+    try { return localStorage.getItem("liquidGlass") === "1"; } catch { return false; }
+  });
+  const liquidGlassRef = useRef(false);
+  useEffect(() => { liquidGlassRef.current = liquidGlass; }, [liquidGlass]);
+  const [lgStrength, setLgStrength] = useState(() => {
+    try { return parseInt(localStorage.getItem("lgStrength") || "60", 10); } catch { return 60; }
+  });
 
-  const handleKatalogConfirm = async (cilSekce, jeStandard) => {
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data } = await supabase.from('katalog_polozek').insert({
-      sekce: cilSekce,
-      popis: katalogDialog.popis,
-      je_standard: jeStandard,
-      schvalil: user?.id,
-    }).select().single()
-    if (data) setKatalog(prev => [...prev, data])
-    setKatalogDialog(null)
-  }
+  // Univerzální slider — null | "theme" | "lg"
+  const [activeSlider, setActiveSlider] = useState(null);
+  const sliderTimer = useRef(null);
+
+  const sliderStartTimer = () => {
+    if (sliderTimer.current) clearTimeout(sliderTimer.current);
+    sliderTimer.current = setTimeout(() => setActiveSlider(null), 2000);
+  };
+  const sliderResetTimer = () => {
+    if (sliderTimer.current) clearTimeout(sliderTimer.current);
+    sliderTimer.current = setTimeout(() => setActiveSlider(null), 2000);
+  };
+  const sliderShow = (type) => {
+    setActiveSlider(type);
+    if (sliderTimer.current) clearTimeout(sliderTimer.current);
+    sliderTimer.current = setTimeout(() => setActiveSlider(null), 2000);
+  };
+
+  const changeThemeStrength = (v) => {
+    setThemeStrength(v);
+    try { localStorage.setItem("themeStrength", String(v)); } catch {}
+    sliderResetTimer();
+  };
+  const changeLgStrength = (v) => {
+    setLgStrength(v);
+    try { localStorage.setItem("lgStrength", String(v)); } catch {}
+    sliderResetTimer();
+  };
+  const [exportPreview, setExportPreview] = useState(null);
+
+  const isDarkComputed = (t) => t === "dark" || (t === "system" && typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+  const loadLog = useCallback(async () => {
+    try {
+      const res = await sb("log_aktivit?order=cas.desc&limit=1000");
+      setLogData(res);
+      return res;
+    } catch (e) { console.warn("Log load error:", e); return []; }
+  }, []);
+
+  const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const isSuperAdmin = user?.role === "superadmin";
+  const isEditor = user?.role === "user_e" || isAdmin;
+  const isDemo = user?.email === "demo";
+  const isStaging = typeof window !== "undefined" && (
+    window.location.hostname.includes("staging") ||
+    window.location.hostname.includes("preview") ||
+    window.location.hostname === "localhost"
+  );
+
+  // ── Šířky sloupců (jen superadmin) ─────────────────────────
+  const [colWidths, setColWidths] = useState({});
+  const [appVerze, setAppVerze] = useState("1.0");
+  const [appDatum, setAppDatum] = useState("2025");
+
+  // Pořadí sloupců — uloženo v localStorage
+  const defaultColOrder = COLUMNS.filter(c => c.key !== "id" && !c.hidden).map(c => c.key);
+  const [colOrder, setColOrder] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("colOrder") || "null");
+      if (Array.isArray(saved) && saved.length === defaultColOrder.length) return saved;
+    } catch {}
+    return defaultColOrder;
+  });
+  const dragColKey = useRef(null);
+  const dragOverKey = useRef(null);
+  const [dragOverState, setDragOverState] = useState(null); // pro vizuální highlight
+
+  const saveColOrder = (order) => {
+    try { localStorage.setItem("colOrder", JSON.stringify(order)); } catch {}
+  };
+  const resetColOrder = () => {
+    setColOrder(defaultColOrder);
+    saveColOrder(defaultColOrder);
+  };
+
+  // orderedCols — COLUMNS seřazené dle colOrder
+  const orderedCols = colOrder
+    .map(key => COLUMNS.find(c => c.key === key))
+    .filter(Boolean)
+    .filter(c => !c.hidden);
 
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase.from('stavby').select('*').eq('id', params.id).single()
-      if (!data) { router.push('/dashboard'); return }
-      const mzdy  = data.mzdy  || {}; for (const it of MZDY)  if (!mzdy[it.key])  mzdy[it.key]  = { rows: mkRows(), open: false }
-      const mech  = data.mech  || {}; for (const it of MECH)  if (!mech[it.key])  mech[it.key]  = { rows: mkRows(), open: false }
-      const zemni = data.zemni || {}; for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
-
-      const gn    = data.gn    || {}; for (const it of GN)    if (!gn[it.key])    gn[it.key]    = { rows: mkRows(), open: false }
-      const dof    = data.dof    || {}; for (const it of DOF)    if (!dof[it.key])    dof[it.key]    = { rows: mkRows(), open: false }
-      const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
-      const rozbor = data.rozbor || {}
-      const rbDefaults = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
-        'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila',
-        'zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac',
-        'zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak',
-        'zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton',
-        'gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn',
-        'gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace',
-        'ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
-      rbDefaults.forEach(k => { if (!rozbor[k]) rozbor[k] = { bez:'', vypl:'', pozn:'' } })
-      setS({ ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor })
-      sRef.current = { ...data, mzdy, mech, zemni, gn, dof, dofegd, rozbor }
-      if (data.updated_at) setLastSaved(new Date(data.updated_at))
-      // Načti profil uživatele
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: prof } = await supabase.from('profiles').select('role, default_sazby').eq('id', user.id).single()
-        setProfile(prof)
-        // Ulož výchozí index rozboru do stavby state pro RozborMzdy
-        if (prof?.default_sazby?.index_rozbor !== undefined) {
-          setS(prev => prev ? { ...prev, default_index_rozbor: prof.default_sazby.index_rozbor } : prev)
-        }
+    sb("nastaveni?klic=eq.app_info").then(res => {
+      if (res && res[0]) {
+        try {
+          const info = JSON.parse(res[0].hodnota);
+          if (info.verze) setAppVerze(info.verze);
+          if (info.datum) setAppDatum(info.datum);
+        } catch {}
       }
-    }
-    load()
-  }, [params.id])
+    }).catch(() => {});
+  }, []);
 
-  const save = async (data = s) => {
-    setSaving(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase.from('stavby')
-      .update({ ...data, user_id: user?.id || data.user_id, updated_at: new Date().toISOString() })
-      .eq('id', params.id)
-    if (error) {
-      console.error('Save error:', error)
-      setAlertDialog({ title: '⚠️ Chyba uložení', text: error.message, color: '#ef4444' })
-    }
-    setSaving(false); setSaved(true)
-    setLastSaved(new Date())
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  // Autosave při odchodu ze stránky (refresh/zavření)
+  // Notifikační emaily — uloženy v DB pod klicem notify_emails
+  const [notifyEmails, setNotifyEmails] = useState("");
   useEffect(() => {
-    if (!s) return
-    const handleBeforeUnload = () => save(s)
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [s])
+    if (isDemo) return;
+    sb("nastaveni?klic=eq.notify_emails").then(res => {
+      if (res && res[0]) setNotifyEmails(res[0].hodnota || "");
+    }).catch(() => {});
+  }, [isDemo]);
 
-  const deleteStavba = () => {
-    setConfirmDialog({
-      title: 'Smazat stavbu',
-      text: `Opravdu smazat stavbu "${s.nazev}"? Tato akce je nevratná.`,
-      color: '#ef4444',
-      onConfirm: () => {
-        setConfirmDialog({
-          title: 'Poslední upozornění',
-          text: `Stavba "${s.nazev}" bude trvale smazána. Pokračovat?`,
-          color: '#ef4444',
-          onConfirm: async () => {
-            await supabase.from('stavby').delete().eq('id', params.id)
-            router.push('/dashboard')
-          }
-        })
+  const saveNotifyEmails = async (val) => {
+    if (isDemo) return;
+    try {
+      await sb("nastaveni", { method: "POST", body: JSON.stringify({ klic: "notify_emails", hodnota: val }), prefer: "resolution=merge-duplicates,return=minimal" });
+      setNotifyEmails(val);
+    } catch {}
+  };
+
+  const saveAppInfo = async (verze, datum) => {
+    if (isDemo) { setAppVerze(verze); setAppDatum(datum); return; }
+    try {
+      await sb("nastaveni", { method: "POST", body: JSON.stringify({ klic: "app_info", hodnota: JSON.stringify({ verze, datum }) }), prefer: "resolution=merge-duplicates,return=minimal" });
+      setAppVerze(verze);
+      setAppDatum(datum);
+    } catch {}
+  };
+  const dragInfo = useRef(null);
+
+  useEffect(() => {
+    if (!isSuperAdmin || isDemo) return;
+    sb("nastaveni?klic=eq.col_widths").then(res => {
+      if (res && res[0]) {
+        try { setColWidths(JSON.parse(res[0].hodnota)); } catch {}
       }
-    })
-  }
+    }).catch(() => {});
+  }, [isSuperAdmin, isDemo]);
 
-  const setField = (k, v) => setS(prev => ({ ...prev, [k]: v }))
+  const saveColWidths = async (widths) => {
+    if (isDemo) return; // demo — neukládat šířky do DB
+    try {
+      await sb("nastaveni", { method: "POST", body: JSON.stringify({ klic: "col_widths", hodnota: JSON.stringify(widths) }), prefer: "resolution=merge-duplicates,return=minimal" });
+    } catch {}
+  };
 
-  const makeH = (secName) => ({
-    toggle:    (_, key) => setS(prev => ({ ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], open: !prev[secName][key].open } } })),
-    addRow:    (_, key) => setS(prev => ({ ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], rows: [...prev[secName][key].rows, { id: uid(), popis:'', castka:'' }] } } })),
-    changeRow: (_, key, idx, row) => setS(prev => { const rows = [...prev[secName][key].rows]; rows[idx] = row; return { ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], rows } } } }),
-    removeRow: (_, key, idx) => setS(prev => { const rows = prev[secName][key].rows.filter((_, i) => i !== idx); return { ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], rows } } } }),
-  })
+  const [editingColWidth, setEditingColWidth] = useState(null);
 
-  const handleLabelChange = (secName, key, val) =>
-    setS(prev => ({ ...prev, [secName]: { ...prev[secName], [key]: { ...prev[secName][key], customLabel: val } } }))
+  const startDrag = (e, colKey, currentWidth) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = currentWidth;
+    let lastWidth = startWidth;
+    const onMove = (ev) => {
+      ev.preventDefault();
+      const diff = ev.clientX - startX;
+      lastWidth = Math.max(40, startWidth + diff);
+      setColWidths(prev => ({ ...prev, [colKey]: lastWidth }));
+    };
+    const onUp = (ev) => {
+      ev.preventDefault();
+      saveColWidths({ ...colWidths, [colKey]: lastWidth });
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
-  if (!s) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', color:'#64748b' }}>Načítám…</div>
+  const getColWidth = (col) => colWidths[col.key] ?? col.width;
 
-  const c = compute(s)
-  const mzdyH = makeH('mzdy'), mechH = makeH('mech'), zemniH = makeH('zemni'), gnH = makeH('gn'), dofH = makeH('dof'), dofegdH = makeH('dofegd')
+  // Drag & drop handlery pro přehazování sloupců
+  const handleColDragStart = (e, colKey) => {
+    dragColKey.current = colKey;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", colKey);
+  };
+  const handleColDragOver = (e, colKey) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverKey.current !== colKey) {
+      dragOverKey.current = colKey;
+      setDragOverState(colKey);
+    }
+  };
+  const handleColDragLeave = () => {
+    dragOverKey.current = null;
+    setDragOverState(null);
+  };
+  const handleColDrop = (e, targetKey) => {
+    e.preventDefault();
+    const srcKey = dragColKey.current;
+    if (!srcKey || srcKey === targetKey) { setDragOverState(null); return; }
+    setColOrder(prev => {
+      const next = [...prev];
+      const fromIdx = next.indexOf(srcKey);
+      const toIdx = next.indexOf(targetKey);
+      if (fromIdx === -1 || toIdx === -1) return prev;
+      next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, srcKey);
+      saveColOrder(next);
+      return next;
+    });
+    dragColKey.current = null;
+    dragOverKey.current = null;
+    setDragOverState(null);
+  };
+  const handleColDragEnd = () => {
+    dragColKey.current = null;
+    dragOverKey.current = null;
+    setDragOverState(null);
+  };
 
-  // Protlaky hodnota pro rozbor (kladná)
-  const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
+  // ── Načtení dat z Supabase ─────────────────────────────────
+  const loadAll = useCallback(async (isDemo = false) => {
+    setLoading(true);
+    setDbError(null);
+    if (isDemo) {
+      const dnes = new Date();
+      const fmtDate = (d) => `${d.getDate().toString().padStart(2,"0")}.${(d.getMonth()+1).toString().padStart(2,"0")}.${d.getFullYear()}`;
+      const za5  = new Date(dnes); za5.setDate(za5.getDate() + 5);
+      const za10 = new Date(dnes); za10.setDate(za10.getDate() + 10);
+      const za25 = new Date(dnes); za25.setDate(za25.getDate() + 25);
+      const za45 = new Date(dnes); za45.setDate(za45.getDate() + 45);
+      const pred5  = new Date(dnes); pred5.setDate(pred5.getDate() - 5);
+      const pred10 = new Date(dnes); pred10.setDate(pred10.getDate() - 10);
+      const pred30 = new Date(dnes); pred30.setDate(pred30.getDate() - 30);
+      const pred60 = new Date(dnes); pred60.setDate(pred60.getDate() - 60);
+      const demoStavby = [
+        computeRow({ id:1, firma:"Elektro s.r.o.",  cislo_stavby:"ZN-I-2025-001",  nazev_stavby:"Rekonstrukce VO Pražská",          ps_i:850000,  snk_i:120000, bo_i:0,      ps_ii:0,      bo_ii:0,      poruch:45000,  vyfakturovano:720000,  ukonceni:fmtDate(za10),  zrealizovano:680000,  sod:"SOD-2025-014", ze_dne:"15.01.2025", objednatel:"Město Znojmo",       stavbyvedouci:"Jan Novák",       nabidkova_cena:1015000, cislo_faktury:"FAK-2025-031", castka_bez_dph:594000,  splatna:"28.02.2025", poznamka:"Práce probíhají dle harmonogramu, zbývá dokončit úsek u náměstí." }),
+        computeRow({ id:2, firma:"Stavmont a.s.",   cislo_stavby:"ZN-I-2025-002",  nazev_stavby:"Oprava kanalizace Dvořákova",      ps_i:0,       snk_i:0,      bo_i:320000, ps_ii:0,      bo_ii:180000, poruch:0,      vyfakturovano:0,       ukonceni:fmtDate(pred30), zrealizovano:0,      sod:"SOD-2025-022", ze_dne:"10.02.2025", objednatel:"Jihomoravský kraj",  stavbyvedouci:"Petr Svoboda",    nabidkova_cena:500000,  cislo_faktury:"",             castka_bez_dph:0,       splatna:"",           poznamka:"" }),
+        computeRow({ id:3, firma:"VHS Znojmo",      cislo_stavby:"ZN-II-2025-003", nazev_stavby:"Výměna vodovodního řadu Horní",    ps_i:0,       snk_i:0,      bo_i:0,      ps_ii:640000, bo_ii:0,      poruch:95000,  vyfakturovano:640000,  ukonceni:fmtDate(pred5),  zrealizovano:640000,  sod:"SOD-2025-031", ze_dne:"05.03.2025", objednatel:"Město Znojmo",       stavbyvedouci:"Marie Horáková",  nabidkova_cena:735000,  cislo_faktury:"FAK-2025-044", castka_bez_dph:528000,  splatna:"30.04.2025", poznamka:"" }),
+        computeRow({ id:4, firma:"Silnice JM",      cislo_stavby:"ZN-I-2025-004",  nazev_stavby:"Oprava komunikace Přímětická",    ps_i:1200000, snk_i:0,      bo_i:85000,  ps_ii:0,      bo_ii:0,      poruch:0,      vyfakturovano:950000,  ukonceni:fmtDate(za25),  zrealizovano:900000,  sod:"SOD-2025-041", ze_dne:"20.03.2025", objednatel:"Správa silnic",      stavbyvedouci:"Tomáš Blaha",     nabidkova_cena:1285000, cislo_faktury:"",             castka_bez_dph:0,       splatna:"",           poznamka:"Pozor — změna trasy v úseku km 1,2–1,8, nutné nové povolení." }),
+        computeRow({ id:5, firma:"Elektro s.r.o.",  cislo_stavby:"ZN-II-2025-005", nazev_stavby:"Rozšíření sítě NN Citonice",       ps_i:0,       snk_i:0,      bo_i:0,      ps_ii:380000, bo_ii:210000, poruch:30000,  vyfakturovano:380000,  ukonceni:fmtDate(pred60), zrealizovano:380000,  sod:"SOD-2025-052", ze_dne:"01.01.2025", objednatel:"MO ČR",              stavbyvedouci:"Jan Novák",       nabidkova_cena:620000,  cislo_faktury:"FAK-2025-018", castka_bez_dph:314000,  splatna:"15.02.2025", poznamka:"" }),
+        computeRow({ id:6, firma:"Stavmont a.s.",   cislo_stavby:"ZN-I-2025-006",  nazev_stavby:"Revitalizace parku Smetanovo nám.", ps_i:560000, snk_i:75000,  bo_i:0,      ps_ii:0,      bo_ii:0,      poruch:0,      vyfakturovano:0,       ukonceni:fmtDate(za45),  zrealizovano:0,      sod:"SOD-2025-061", ze_dne:"01.04.2025", objednatel:"Město Znojmo",       stavbyvedouci:"Petr Svoboda",    nabidkova_cena:635000,  cislo_faktury:"",             castka_bez_dph:0,       splatna:"",           poznamka:"" }),
+        computeRow({ id:7, firma:"VHS Znojmo",      cislo_stavby:"ZN-II-2025-007", nazev_stavby:"ČOV — rozšíření kapacity",         ps_i:0,       snk_i:0,      bo_i:0,      ps_ii:2100000,bo_ii:340000, poruch:180000, vyfakturovano:1800000, ukonceni:fmtDate(za5),   zrealizovano:1750000, sod:"SOD-2025-071", ze_dne:"15.02.2025", objednatel:"Jihomoravský kraj",  stavbyvedouci:"Marie Horáková",  nabidkova_cena:2620000, cislo_faktury:"FAK-2025-056", castka_bez_dph:1487000, splatna:"31.05.2025", poznamka:"Finální přejímka naplánována na konec května." }),
+        computeRow({ id:8, firma:"Silnice JM",      cislo_stavby:"ZN-I-2025-008",  nazev_stavby:"SNK Znojmo — sítě pro RD",         ps_i:0,       snk_i:430000, bo_i:0,      ps_ii:0,      bo_ii:0,      poruch:0,      vyfakturovano:430000,  ukonceni:fmtDate(pred10), zrealizovano:430000,  sod:"SOD-2025-082", ze_dne:"10.03.2025", objednatel:"Správa silnic",      stavbyvedouci:"Tomáš Blaha",     nabidkova_cena:430000,  cislo_faktury:"FAK-2025-062", castka_bez_dph:355000,  splatna:"30.04.2025", poznamka:"" }),
+      ];
+      setData(demoStavby);
+      setFirmy(DEMO_FIRMY);
+      setObjednatele(DEMO_CISELNIKY.objednatele);
+      setStavbyvedouci(DEMO_CISELNIKY.stavbyvedouci);
+      setUsers(DEMO_USERS);
+      setLoading(false);
+      return;
+    }
+    try {
+      const [stavbyRes, ciselnikyRes, uzivRes] = await Promise.all([
+        sb("stavby?order=id"),
+        sb("ciselniky?order=poradi"),
+        sb("uzivatele?order=id"),
+      ]);
+      setData(stavbyRes.map(computeRow));
+      setFirmy(ciselnikyRes.filter(r => r.typ === "firma").map(r => ({ hodnota: r.hodnota, barva: r.barva || "" })));
+      setObjednatele(ciselnikyRes.filter(r => r.typ === "objednatel").map(r => r.hodnota));
+      setStavbyvedouci(ciselnikyRes.filter(r => r.typ === "stavbyvedouci").map(r => r.hodnota));
+      setUsers(uzivRes.map(u => ({ id: u.id, email: u.email, password: u.heslo, role: u.role, name: u.jmeno })));
+    } catch (e) {
+      setDbError("Chyba připojení k databázi: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  // ── Import z Excelu ──────────────────────────────────────
-  const handleImportFile = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    e.target.value = ''
+  useEffect(() => { loadAll(user?.email === "demo"); }, [loadAll, user?.email]);
 
-    // Dynamicky načti SheetJS
-    if (!window.XLSX) {
-      await new Promise((res, rej) => {
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-        script.onload = res; script.onerror = rej
-        document.head.appendChild(script)
+  // ── Upozornění na blížící se termíny ──────────────────────
+  const [deadlineWarnings, setDeadlineWarnings] = useState([]);
+  const [showDeadlines, setShowDeadlines] = useState(false);
+  const { pos: deadlinesPos, onMouseDown: onDeadlinesDragStart } = useDraggable(820, 500);
+  const [showOrphanWarning, setShowOrphanWarning] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showFilterRow2, setShowFilterRow2] = useState(false);
+
+  const pracovniDny = (from, to) => {
+    const d0 = new Date(from); d0.setHours(0,0,0,0);
+    const d1 = new Date(to); d1.setHours(0,0,0,0);
+    if (d1 <= d0) return 0;
+    const totalDays = Math.round((d1 - d0) / 86400000);
+    const fullWeeks = Math.floor(totalDays / 7);
+    const extra = totalDays % 7;
+    const startDay = d0.getDay();
+    let extraWork = 0;
+    for (let i = 1; i <= extra; i++) {
+      const day = (startDay + i) % 7;
+      if (day !== 0 && day !== 6) extraWork++;
+    }
+    return fullWeeks * 5 + extraWork;
+  };
+
+  const parseDatum = (s) => {
+    if (!s) return null;
+    const parts = s.trim().split(".");
+    if (parts.length !== 3) return null;
+    const d = new Date(`${parts[2]}-${parts[1].padStart(2,"0")}-${parts[0].padStart(2,"0")}`);
+    return isNaN(d) ? null : d;
+  };
+
+  useEffect(() => {
+    if (!data.length) return;
+    const dnes = new Date();
+    dnes.setHours(0,0,0,0);
+    const warnings = data
+      .filter(r => r.ukonceni)
+      .map(r => {
+        const datum = parseDatum(r.ukonceni);
+        if (!datum || datum < dnes) return null;
+        const dni = pracovniDny(dnes, datum);
+        if (dni > 30) return null;
+        return { ...r, dniDo: dni, datumUkonceni: datum };
       })
+      .filter(Boolean)
+      .sort((a, b) => a.dniDo - b.dniDo);
+    setDeadlineWarnings(warnings);
+  }, [data]);
+
+  const shownDeadlineOnce = useRef(false);
+  // Reset při změně uživatele
+  useEffect(() => { shownDeadlineOnce.current = false; shownOrphanOnce.current = false; }, [user?.email]);
+  useEffect(() => {
+    if (user && user.email !== "demo" && !shownDeadlineOnce.current && deadlineWarnings.length > 0) {
+      shownDeadlineOnce.current = true;
+      setShowDeadlines(true);
     }
-    const XLSX = window.XLSX
-    const ab = await file.arrayBuffer()
-    const wb = XLSX.read(ab, { type: 'array', cellDates: true })
+  }, [deadlineWarnings, user]);
 
-    // ── Detekce formátu ──────────────────────────────────────
-    const isEBC = wb.SheetNames.includes('Globální náklady') && wb.SheetNames.includes('Práce, mechanizace a ost. nákl.')
-    const isTemplate = wb.SheetNames.includes('Vstupní hodnoty')
-
-    if (isEBC) {
-      // ── Import z EBC formátu ─────────────────────────────
-      const wsGN  = wb.Sheets['Globální náklady']
-      const wsPM  = wb.Sheets['Práce, mechanizace a ost. nákl.']
-      const wsMatV = wb.Sheets['Materiál vlastní']
-      const rowsGN  = XLSX.utils.sheet_to_json(wsGN,  { header: 1, defval: '' })
-      const rowsPM  = XLSX.utils.sheet_to_json(wsPM,  { header: 1, defval: '' })
-      const rowsMatV = wsMatV ? XLSX.utils.sheet_to_json(wsMatV, { header: 1, defval: '' }) : []
-
-      const num = (val) => parseFloat(String(val||'0').replace(/\s/g,'').replace(',','.')) || 0
-
-      // Struktura EBC listu (sloupce jsou posunuté o 2 doleva — první 2 jsou vždy None):
-      // Globální náklady: col[2]=Poř, col[3]=Kód, col[4]=Popis, col[5]=MJ, col[6]=Výměra/Cena, col[7]=Jedn.cena, col[8]=Celkem
-      // Práce/mech:       col[2]=Ident, col[3]=Kód, col[4]=Popis, col[5]=MJ, col[6]=Výměra, col[7]=Jedn.hod, col[8]=Celkem hod, col[18]=Jedn.Cena, col[19]=Cena celkem
-      // Název stavby:     R2 col[4]=název, col[7]=číslo stavby
-
-      // Název a číslo stavby z R2
-      const nazevStavby = String(rowsGN[1]?.[4] || rowsPM[1]?.[4] || '')
-      const cisloStavby = String(rowsGN[1]?.[7] || rowsPM[1]?.[7] || '')
-
-      // Kontrola duplicitní stavby podle čísla stavby
-      if (cisloStavby) {
-        const { data: existing } = await supabase.from('stavby').select('id, nazev, updated_at').eq('cislo', cisloStavby).neq('id', params.id)
-        if (existing && existing.length > 0) {
-          const existujici = existing[0]
-          const datum = new Date(existujici.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })
-          const pokracovat = window.confirm(
-            `⚠️ Stavba s číslem ${cisloStavby} již existuje v databázi:\n\n"${existujici.nazev}"\nZáloha: ${datum}\n\nChcete přesto importovat do aktuální stavby?`
-          )
-          if (!pokracovat) {
-            e.target.value = ''
-            return
-          }
-        }
+  const shownOrphanOnce = useRef(false);
+  useEffect(() => {
+    if (user && user.email !== "demo" && !shownOrphanOnce.current && data.length > 0 && firmy.length > 0) {
+      const firmyNames = firmy.map(f => f.hodnota);
+      const orphans = data.filter(s => s.firma && !firmyNames.includes(s.firma));
+      if (orphans.length > 0) {
+        shownOrphanOnce.current = true;
+        setShowOrphanWarning(true);
       }
-
-      // Pomocník: najdi řádek v GN listu podle obsahu sloupce col[4] (Popis) nebo col[3] (Kód)
-      // Filtruj GN pouze na sekci 'Soutěžené výkony' (level=1)
-      let inSoutezene = false
-      const rowsGNSoutez = rowsGN.filter(r => {
-        if (r[1] === 1 || r[1] === '1') {
-          inSoutezene = String(r[4]||'').includes('Soutěžen')
-        }
-        return inSoutezene && (r[1] == null || r[1] === '') && r[3] != null && r[3] !== ''
-      })
-
-      // GN hodnota v celém listu — hledej podle kódu bez ohledu na level
-      const gnRowAll = (kody) => {
-        const list = Array.isArray(kody) ? kody : [kody]
-        const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
-        return rowsGN
-          .filter(r => kodList.includes(String(r[3]||'').trim()))
-          .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
-      }
-
-      // GN hodnota: hledej primárně podle přesného kódu (col[3]), pak podle textu
-      const gnRow = (kody) => {
-        const list = Array.isArray(kody) ? kody : [kody]
-        // Odděl kódy (číselné/alfanumerické bez mezer) od textových klíčů
-        const kodList  = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
-        const textList = list.filter(k => !(/^[0-9A-Za-z]+$/.test(k) && k.length <= 10))
-        // Nejdřív zkus přesný kód
-        const byKod = rowsGNSoutez.filter(r => kodList.includes(String(r[3]||'').trim()))
-        if (byKod.length > 0) return byKod.reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
-        // Fallback: textové vyhledávání
-        return rowsGNSoutez
-          .filter(r => textList.some(k => String(r[4]||'').toLowerCase().includes(k.toLowerCase())))
-          .reduce((a, r) => a + (num(r[8]) || num(r[6])), 0)
-      }
-
-      // Detekce sloupce ceny (colCena) pro PM/PP/PPV/PZ řádky
-      // Hledá header řádek kde col[2]='Ident' a najde sloupec 'Cena' nebo 'Cena celkem'
-      // Stroje (S) mají kratší řádky a používají vlastní metodu (poslední nenulová hodnota)
-      let colCena = -1
-      for (const r of rowsPM) {
-        if (String(r[2]||'').trim() === 'Ident') {
-          for (let ci = 6; ci < 30; ci++) {
-            const h = String(r[ci]||'').toLowerCase().trim()
-            if (h === 'cena' || h === 'cena celkem') { colCena = ci; break }
-          }
-          break
-        }
-      }
-      // Fallback: zkus najít colCena z PP řádku — cena je poslední nenulová hodnota
-      // a zároveň víme že col[8] jsou hodiny (ne cena)
-      if (colCena === -1) {
-        for (const r of rowsPM) {
-          if (String(r[2]||'').trim() !== 'PP') continue
-          const kod = String(r[3]||'').trim()
-          if (!kod) continue
-          // Hledej odzadu ale přeskoč col[8] a dříve (to jsou hodiny/výměry)
-          for (let ci = r.length - 1; ci >= 9; ci--) {
-            const v = num(r[ci])
-            if (v !== 0) { colCena = ci; break }
-          }
-          if (colCena !== -1) break
-        }
-      }
-      // Absolutní fallback
-      if (colCena === -1) colCena = 19
-
-      // PM hodnota — hledej podle kódu v listu Práce, mechanizace
-      // Používá colCena (musí být definováno před voláním)
-      const pmRowAll = (kody) => {
-        const list = Array.isArray(kody) ? kody : [kody]
-        const kodList = list.filter(k => /^[0-9A-Za-z]+$/.test(k) && k.length <= 10)
-        return rowsPM
-          .filter(r => kodList.includes(String(r[3]||'').trim()))
-          .reduce((a, r) => a + (num(r[colCena]) || num(r[colCena-1]) || num(r[colCena+1])), 0)
-      }
-
-      // PM montážní a zemní hodiny — rozdělení podle kódu objektu
-      // Mapování kódů objektů na kategorii mzdy:
-      // CZD00040 = TS technologie → mont_vn
-      // CZD00004 = VN venkovní    → mont_vn
-      // CZD00005 = VN kabelové    → mont_vn
-      // CZD00007 = TS vnitřní     → mont_vn
-      // CZD00010 = NN kabelové    → mont_nn
-      // CZD00013 = Optotrubka     → mont_opto
-      const MONT_VN_KODY  = ['CZD00040','CZD00004','CZD00005','CZD00007']
-      const MONT_NN_KODY  = ['CZD00010']
-      const MONT_OPT_KODY = ['CZD00013']
-
-      let hVn = 0, hNn = 0, hOpto = 0, hZemVn = 0, hZemNn = 0
-      let aktObjKod = null  // aktuálně zpracovávaný objekt (level=2 řádek)
-      let inSekce51 = false, inSekce52 = false  // jsme uvnitř 51:/52: sekce
-
-      for (const r of rowsPM) {
-        const col1 = r[1]
-        const popis = String(r[4]||'')
-        const popisLow = popis.toLowerCase()
-        const typ = String(r[2]||'').trim()
-
-        // Level 2 = název objektu
-        if (col1 === 2 || col1 === '2') {
-          const m = popis.match(/^([A-Z0-9]+)_/)
-          aktObjKod = m ? m[1] : null
-          inSekce51 = false; inSekce52 = false
-        }
-
-        // Level 3 = součtový řádek sekce
-        if (col1 === 3 || col1 === '3') {
-          inSekce51 = popisLow.startsWith('51:') || popisLow.startsWith('pm:')
-          inSekce52 = popisLow.startsWith('52:') || popisLow.startsWith('pz:')
-          if (!inSekce51 && !inSekce52) { inSekce51 = false; inSekce52 = false }
-
-          if (inSekce51) {
-            const hod = num(r[8])
-            // hod může být 0 pokud je to vzorec — fallback na detailní řádky níže
-            if (hod > 0) {
-              if (MONT_VN_KODY.includes(aktObjKod))       hVn   += hod
-              else if (MONT_NN_KODY.includes(aktObjKod))  hNn   += hod
-              else if (MONT_OPT_KODY.includes(aktObjKod)) hOpto += hod
-              else                                         hVn   += hod
-              inSekce51 = false  // součet načten, přeskoč detaily
-            }
-          }
-          if (inSekce52) {
-            const hod = num(r[8])
-            if (hod > 0) {
-              if (MONT_NN_KODY.includes(aktObjKod))  hZemNn += hod
-              else                                    hZemVn += hod
-              inSekce52 = false
-            }
-          }
-        }
-
-        // Detailní řádky (level=null/undefined) — fallback když level=3 má vzorec (=0)
-        if ((col1 == null || col1 === '') && typ === 'PM' && inSekce51) {
-          const hod = num(r[8])
-          if (MONT_VN_KODY.includes(aktObjKod))       hVn   += hod
-          else if (MONT_NN_KODY.includes(aktObjKod))  hNn   += hod
-          else if (MONT_OPT_KODY.includes(aktObjKod)) hOpto += hod
-          else                                         hVn   += hod
-        }
-        if ((col1 == null || col1 === '') && typ === 'PZ' && inSekce52) {
-          const hod = num(r[8])
-          if (MONT_NN_KODY.includes(aktObjKod))  hZemNn += hod
-          else                                    hZemVn += hod
-        }
-      }
-      const hMont = hVn + hNn + hOpto
-      const hZem  = hZemVn + hZemNn
-
-      // Stroje z listu Práce, mechanizace — řádky kde col[2]='S'
-      // Cena = poslední nenulová hodnota v řádku (nezávisle na colCena, funguje pro všechny formáty EBC)
-      const stroje = {}
-      for (const r of rowsPM) {
-        if (String(r[2]||'').trim() !== 'S') continue
-        const kod = String(r[3]||'').trim()
-        if (!kod) continue
-        // Najdi poslední nenulovou číselnou hodnotu v řádku — to je vždy Cena celkem
-        let cena = 0
-        for (let ci = r.length - 1; ci >= 4; ci--) {
-          const v = num(r[ci])
-          if (v !== 0) { cena = v; break }
-        }
-        stroje[kod] = (stroje[kod] || 0) + cena
-      }
-
-      // Přirážky PP — GZS, Stimulační, Doprava zaměstnanců
-      // Používá colCena — PP/PPV řádky mají stejnou strukturu jako ostatní řádky PM listu
-      let gzsKc = 0, stimulacniKc = 0, dopravaZamKc = 0
-      for (const r of rowsPM) {
-        const typPP = String(r[2]||'').trim()
-        if (typPP !== 'PP' && typPP !== 'PPV') continue
-        const kod = String(r[3]||'').trim()
-        const cena = num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
-        // GZS
-        if (['9343','9223','9346','9347','9348'].includes(kod)) gzsKc += cena
-        // Stimulační přirážka — PPV vše, PP pouze vybrané kódy (ne obojí najednou = fix dvojitého počítání)
-        if (typPP === 'PPV') stimulacniKc += cena
-        else if (['9349','9221','9321','9224','9344','9225','9345','9249'].includes(kod)) stimulacniKc += cena
-        // Doprava zaměstnanců
-        if (['9222','9322'].includes(kod)) dopravaZamKc += cena
-      }
-
-      // Subdodávky — kompletní mapování
-      const wsSub = wb.Sheets['Subdodávky']
-      const subRows = {}  // kod → součet Kč
-      if (wsSub) {
-        const rowsSub = XLSX.utils.sheet_to_json(wsSub, { header: 1, defval: '' })
-        for (const r of rowsSub) {
-          const kod = String(r[3]||'').trim()
-          if (!kod) continue
-          subRows[kod] = (subRows[kod] || 0) + num(r[8])
-        }
-      }
-      const subSum = (...kody) => kody.reduce((a, k) => a + (subRows[k] || 0), 0)
-
-      // Zádlažby — každý kód zvlášť (pro víceřádkovou strukturu)
-      const ZADL_KODY = ['53002','53003','530031','53004','53005','53007','530071','53008','53009',
-                         '53012','53013','53014','53015','53017','530171','530172','530173',
-                         '53018','53019','53022','53023','53024','53025','53026','53027','53030','53031']
-      // Asfalt — každý kód zvlášť
-      const ASFALT_KODY = ['53001','53011','530031','53020','53021','53032','53035','53036']
-      // Ostatní
-      const nalosute_kc   = subSum('53041')
-      const defFasady_kc  = subSum('54003','54005','54006','54007','54008','54010','54011','54012','54013','54014','54015','54016','54019','54051')
-      const defStr_kc     = subSum('54001')
-      const stavPrace_kc  = subSum('DT56')
-      const optotrubka_kc = subSum('PA90','PA91','QB05','QC01','QC02','QC05','QC09','QC10','QC11','QC12')
-      const zaorkab_kc    = subSum('4601','4611')
-      const vezTs_kc      = subSum('4110V','4111','4112','4901')
-
-      // PZ zemní práce v Kč — součtový řádek level=3 sekce 52:/PZ:
-      // Používá colCena — na level=3 řádku col[8]=celkem hodin, cena je v colCena
-      let zemniPraceKc = 0
-      for (const r of rowsPM) {
-        const col1 = r[1]
-        const popis = String(r[4]||'').toLowerCase()
-        if ((col1 === 3 || col1 === '3') && (popis.startsWith('52:') || popis.startsWith('pz:'))) {
-          zemniPraceKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
-        }
-      }
-
-      // Protlak neřízený — PZ položky EK21-EK26 + stroj 250 (stroj je v parsedEBC.zemni.protlak[0])
-      const PROTLAK_KODY = ['EK21','EK22','EK23','EK24','EK25','EK26']
-      let protlakPzKc = 0
-      for (const r of rowsPM) {
-        if (String(r[2]||'').trim() !== 'PZ') continue
-        const kod = String(r[3]||'').trim()
-        if (PROTLAK_KODY.includes(kod)) {
-          protlakPzKc += num(r[colCena]) || num(r[colCena - 1]) || num(r[colCena + 1])
-        }
-      }
-
-      // Protlak řízený — subdodávky kódy 4760V, 47622-47629 (každý kód = samostatný řádek)
-      const PROTLAK_RIZ_KODY = ['4760V','47622','47623','47624','47625','47626','47627','47628','47629']
-
-      // Materiál vlastní — sečti podle kódu přes všechny výskyty
-      const matSum = {}
-      let matVlastniCelkem = 0
-      for (const r of rowsMatV) {
-        const popis = String(r[4]||'').toLowerCase()
-        const kod = String(r[3]||'').trim()
-        if (popis.includes('celkem') && num(r[8]) > 0) {
-          matVlastniCelkem = num(r[8])
-        }
-        if (kod && num(r[8]) > 0) {
-          matSum[kod] = (matSum[kod] || 0) + num(r[8])
-        }
-      }
-      if (!matVlastniCelkem) {
-        for (const r of rowsMatV) {
-          const mnozV = num(r[6]), cenaV = num(r[7])
-          if (mnozV > 0 && cenaV > 0) matVlastniCelkem += mnozV * cenaV
-        }
-      }
-      const pisekD02   = matSum['800000000301'] || 0
-      const pisekB04   = matSum['800000000303'] || 0
-      const betonC810  = matSum['800000000321'] || 0
-      const betonC1215 = matSum['800000000323'] || 0
-      const betonZhlavi= matSum['800000000325'] || 0
-      const sterk032   = matSum['800000000305'] || 0
-      const kamen48    = matSum['800000000306'] || 0
-      const sterk3264  = matSum['800000000307'] || 0
-      const kamen816   = matSum['800000000308'] || 0
-      const rouraPE110 = matSum['900000000085'] || 0
-      const rouraPE160 = matSum['900000000086'] || 0
-      const rouraPE200 = matSum['900000000087'] || 0
-      const rouraPE225 = matSum['900000000088'] || 0
-      const protlakM06 = matSum['M06'] || 0
-
-      // Příspěvek na sklad — z listu Rekapitulace pro EBC col[7]=Příspěvek za sklad, řádky úrovně 1
-      const wsRekap = wb.Sheets['Rekapitulace pro EBC']
-      let prispevekSklad = 0
-      if (wsRekap) {
-        const rowsRekap = XLSX.utils.sheet_to_json(wsRekap, { header: 1, defval: '' })
-        for (const r of rowsRekap) {
-          if ((r[1] === 1 || r[1] === '1') && num(r[7]) > 0) {
-            prispevekSklad += num(r[7])
-          }
-        }
-      }
-
-      // Helper pro zádlažby/asfalt — vytvoř řádky pouze pro kódy s nenulovou hodnotou
-      const subRiadky = (kody, labely) => kody
-        .map((k, i) => ({ id: uid(), popis: labely[i] || k, castka: String(Math.round(subRows[k]||0)) }))
-        .filter(r => num(r.castka) > 0)
-        .concat([{ id: uid(), popis: 'Ostatní', castka: '0' }])
-
-      // Sestavení parsed EBC
-      const parsedEBC = {
-        nazev: nazevStavby,
-        cislo: cisloStavby,
-        mzdy_ebc_hmont: hMont,
-        mzdy_ebc_hzem:  hZem,
-        mzdy_ebc_hvn:   hVn,
-        mzdy_ebc_hnn:   hNn,
-        mzdy_ebc_hopto: hOpto,
-        // Mechanizace — každý kód = samostatný řádek
-        mech: {
-          jerab:    [{ id:uid(), popis:'Autojeřáb do 8t (120)',     castka:String(Math.round(stroje['120']||0)) },
-                     { id:uid(), popis:'Autojeřáb 16t (160)',       castka:String(Math.round(stroje['160']||0)) },
-                     { id:uid(), popis:'Doprava autojeřábu (170)',  castka:String(Math.round(stroje['170']||0)) }],
-          nakladni: [{ id:uid(), popis:'Nákl. auto 3,5t SH (200)',  castka:String(Math.round(stroje['200']||0)) },
-                     { id:uid(), popis:'Nákl. auto 3,5t KM (420)',  castka:String(Math.round(stroje['420']||0)) },
-                     { id:uid(), popis:'Nákl. auto 6t SH (205)',    castka:String(Math.round(stroje['205']||0)) },
-                     { id:uid(), popis:'Nákl. auto 6t KM (440)',    castka:String(Math.round(stroje['440']||0)) },
-                     { id:uid(), popis:'Nákl. auto 8t SH (207)',    castka:String(Math.round(stroje['207']||0)) },
-                     { id:uid(), popis:'Nákl. auto 8t KM (460)',    castka:String(Math.round(stroje['460']||0)) },
-                     { id:uid(), popis:'Nákl. auto 10t KM (480)',   castka:String(Math.round(stroje['480']||0)) },
-                     { id:uid(), popis:'Hydr. ruka (210)',          castka:String(Math.round(stroje['210']||0)) },
-                     { id:uid(), popis:'Nákl.+návěs SH (310)',      castka:String(Math.round(stroje['310']||0)) },
-                     { id:uid(), popis:'Tahač návěsu (810)',         castka:String(Math.round(stroje['810']||0)) },
-                     { id:uid(), popis:'Návěs (820)',                castka:String(Math.round(stroje['820']||0)) },
-                     { id:uid(), popis:'Brzdná souprava (990)',      castka:String(Math.round(stroje['990']||0)) }],
-          traktor:  [{ id:uid(), popis:'Traktor kol. s mech. (620)', castka:String(Math.round(stroje['620']||0)) },
-                     { id:uid(), popis:'Traktor kol. bez mech. (640)',castka:String(Math.round(stroje['640']||0)) },
-                     { id:uid(), popis:'Doprava traktoru (645)',     castka:String(Math.round(stroje['645']||0)) },
-                     { id:uid(), popis:'Traktor pásový (970)',       castka:String(Math.round(stroje['970']||0)) }],
-          plosina:  [{ id:uid(), popis:'Plošina MP 13m (340)',       castka:String(Math.round(stroje['340']||0)) },
-                     { id:uid(), popis:'Plošina MP 20m (345)',       castka:String(Math.round(stroje['345']||0)) },
-                     { id:uid(), popis:'Přeprava plošiny 20m (350)', castka:String(Math.round(stroje['350']||0)) },
-                     { id:uid(), popis:'Plošina MP 27m (360)',       castka:String(Math.round(stroje['360']||0)) },
-                     { id:uid(), popis:'Přeprava plošiny 27m (365)', castka:String(Math.round(stroje['365']||0)) }],
-          pila:     [{ id:uid(), popis:'Motorová pila (230)',        castka:String(Math.round(stroje['230']||0)) }],
-          kango:    [{ id:uid(), popis:'Bourací kladivo Kango (270)',castka:String(Math.round(stroje['270']||0)) }],
-          dodavka:  [{ id:uid(), popis:'Dodávkové auto (410)',       castka:String(Math.round(stroje['410']||0)) }],
-          mech_sdok:[{ id:uid(), popis:'Navíjecí zařízení (995)',    castka:String(Math.round(stroje['995']||0)) },
-                     { id:uid(), popis:'Odvíjecí zařízení (996)',    castka:String(Math.round(stroje['996']||0)) }],
-        },
-        // Zemní práce (Kč)
-        zemni: {
-          bagr:         [{ id:uid(), popis:'Ryp. kol. do 0,2m³',    castka:String(Math.round((stroje['520']||0)+(stroje['220']||0))) },
-                         { id:uid(), popis:'Ryp. kol. do 0,5m³',    castka:String(Math.round(stroje['540']||0)) },
-                         { id:uid(), popis:'Minirýpadlo do 3,5t',   castka:String(Math.round((stroje['720']||0)+(stroje['730']||0)+(stroje['735']||0))) }],
-          kompresor:    [{ id:uid(), popis:'Kompresor do 5,4m³',    castka:String(Math.round(stroje['740']||0)) },
-                         { id:uid(), popis:'Ponorný vibrátor D50',  castka:String(Math.round(stroje['750']||0)) }],
-          rezac:        [{ id:uid(), popis:'Řezač asfaltu',         castka:String(Math.round(stroje['260']||0)) }],
-          mot_pech:     [{ id:uid(), popis:'Motorový pěch',         castka:String(Math.round(stroje['240']||0)) }],
-          uhlova_bruska:[{ id:uid(), popis:'Úhlová bruska',         castka:String(Math.round(stroje['255']||0)) }],
-          nalosute:     [{ id:uid(), popis:'Naložení sutě (53041)', castka:String(Math.round(nalosute_kc)) }],
-          def_fasady:   [{ id:uid(), popis:'Def. úprava fasád',     castka:String(Math.round(defFasady_kc)) }],
-          def_str:      [{ id:uid(), popis:'Def. úprava střechy',   castka:String(Math.round(defStr_kc)) }],
-          stav_prace:   [{ id:uid(), popis:'Stav. práce m. rozsahu',castka:String(Math.round(stavPrace_kc)) }],
-          optotrubka:   [{ id:uid(), popis:'Optotrubka / SDOK',     castka:String(Math.round(optotrubka_kc)) }],
-          zaorkab:      [{ id:uid(), popis:'Zaorání kabelů VN (4601)',  castka:String(Math.round(subRows['4601']||0)) },
-                         { id:uid(), popis:'Zaorání kabelů NN (4611)',  castka:String(Math.round(subRows['4611']||0)) }],
-          vez_ts:       [{ id:uid(), popis:'Věž. transf. stavební (4111)',  castka:String(Math.round(subRows['4111']||0)) },
-                         { id:uid(), popis:'Věž. transf. technol. (4112)',  castka:String(Math.round(subRows['4112']||0)) },
-                         { id:uid(), popis:'Úprava stáv. konstrukce (4110V)',castka:String(Math.round(subRows['4110V']||0)) },
-                         { id:uid(), popis:'Demontáž tech. části TS (4901)',castka:String(Math.round(subRows['4901']||0)) }],
-          zadlazby:     [{ id:uid(), popis:'Def. zádl. komunikace betonová (53002)',     castka:String(Math.round(subRows['53002']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace štěrková (53003)',     castka:String(Math.round(subRows['53003']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace malé kostky (53004)',  castka:String(Math.round(subRows['53004']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace velké kostky (53005)', castka:String(Math.round(subRows['53005']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace panelová (53007)',     castka:String(Math.round(subRows['53007']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace panelová dem. (530071)',castka:String(Math.round(subRows['530071']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace zámková st. (53008)',  castka:String(Math.round(subRows['53008']||0)) },
-                         { id:uid(), popis:'Def. zádl. komunikace zámková nová (53009)', castka:String(Math.round(subRows['53009']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník betonový (53012)',        castka:String(Math.round(subRows['53012']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník mozaika st. (53013)',     castka:String(Math.round(subRows['53013']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník malé kostky (53014)',     castka:String(Math.round(subRows['53014']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník mozaika nová (53015)',    castka:String(Math.round(subRows['53015']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník bet.desky 300 st. (53017)',castka:String(Math.round(subRows['53017']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník bet.desky 300 nová (530171)',castka:String(Math.round(subRows['530171']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník bet.desky 500 st. (530172)',castka:String(Math.round(subRows['530172']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník bet.desky 500 nová (530173)',castka:String(Math.round(subRows['530173']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník zámková st. (53018)',     castka:String(Math.round(subRows['53018']||0)) },
-                         { id:uid(), popis:'Def. zádl. chodník zámková nová (53019)',    castka:String(Math.round(subRows['53019']||0)) },
-                         { id:uid(), popis:'Obrubník ke komunikaci st. (53022)',         castka:String(Math.round(subRows['53022']||0)) },
-                         { id:uid(), popis:'Obrubník ke komunikaci nový (53023)',        castka:String(Math.round(subRows['53023']||0)) },
-                         { id:uid(), popis:'Obrubník k trávníku st. (53024)',            castka:String(Math.round(subRows['53024']||0)) },
-                         { id:uid(), popis:'Obrubník k trávníku nový (53025)',           castka:String(Math.round(subRows['53025']||0)) },
-                         { id:uid(), popis:'Odvodňovací žlab nový (53026)',              castka:String(Math.round(subRows['53026']||0)) },
-                         { id:uid(), popis:'Odvodňovací žlab oprava (53027)',            castka:String(Math.round(subRows['53027']||0)) },
-                         { id:uid(), popis:'Speciální zádlažby (53030)',                 castka:String(Math.round(subRows['53030']||0)) },
-                         { id:uid(), popis:'Oprava zádlažba zámková (53031)',            castka:String(Math.round(subRows['53031']||0)) }],
-          asfalt:       [{ id:uid(), popis:'Def. zádl. asfalt komunikace (53001)',       castka:String(Math.round(subRows['53001']||0)) },
-                         { id:uid(), popis:'Def. zádl. asfalt chodník (53011)',          castka:String(Math.round(subRows['53011']||0)) },
-                         { id:uid(), popis:'Def. zádl. lesní cesta recyklát (530031)',   castka:String(Math.round(subRows['530031']||0)) },
-                         { id:uid(), popis:'Zálivka asfaltová (53020)',                  castka:String(Math.round(subRows['53020']||0)) },
-                         { id:uid(), popis:'Příplatek asfaltový beton (53021)',          castka:String(Math.round(subRows['53021']||0)) },
-                         { id:uid(), popis:'Frézování chodník (53032)',                  castka:String(Math.round(subRows['53032']||0)) },
-                         { id:uid(), popis:'Frézování komunikace (53035)',               castka:String(Math.round(subRows['53035']||0)) },
-                         { id:uid(), popis:'Lesní cesta recyklát oprava (53036)',        castka:String(Math.round(subRows['53036']||0)) }],
-          protlak:      [{ id:uid(), popis:'Podtunelovač (stroj 250)',  castka:String(Math.round(stroje['250']||0)) },
-                         { id:uid(), popis:'Protlak PZ (EK152+EK25+EK41)', castka:String(Math.round(protlakPzKc)) }],
-          protlak_rizeny:[{ id:uid(), popis:'Protlak řízený HDD (4760V)',  castka:String(Math.round(subRows['4760V']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47622)',       castka:String(Math.round(subRows['47622']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47623)',       castka:String(Math.round(subRows['47623']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47624)',       castka:String(Math.round(subRows['47624']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47625)',       castka:String(Math.round(subRows['47625']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47626)',       castka:String(Math.round(subRows['47626']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47627)',       castka:String(Math.round(subRows['47627']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47628)',       castka:String(Math.round(subRows['47628']||0)) },
-                         { id:uid(), popis:'Protlak řízený (47629)',       castka:String(Math.round(subRows['47629']||0)) }],
-          pisek:        [{ id:uid(), popis:'Písek D0-2 (800000000301)', castka:String(Math.round(pisekD02)) },
-                         { id:uid(), popis:'Písek B0-4 (800000000303)', castka:String(Math.round(pisekB04)) }],
-          beton:        [{ id:uid(), popis:'Beton C8/10 (800000000321)',     castka:String(Math.round(betonC810)) },
-                         { id:uid(), popis:'Beton C12/15 (800000000323)',    castka:String(Math.round(betonC1215)) },
-                         { id:uid(), popis:'Beton C12/15 zhlaví (800000000325)',castka:String(Math.round(betonZhlavi)) }],
-          sterk:        [{ id:uid(), popis:'Štěrkodrť 0-32 (800000000305)',  castka:String(Math.round(sterk032)) },
-                         { id:uid(), popis:'Kamenivo 4/8 (800000000306)',    castka:String(Math.round(kamen48)) },
-                         { id:uid(), popis:'Štěrkokamen 32-64 (800000000307)',castka:String(Math.round(sterk3264)) },
-                         { id:uid(), popis:'Kamenivo 8/16 (800000000308)',   castka:String(Math.round(kamen816)) }],
-          roura_pe:     [{ id:uid(), popis:'Roura PE 110 (900000000085)',    castka:String(Math.round(rouraPE110)) },
-                         { id:uid(), popis:'Roura PE 160 (900000000086)',    castka:String(Math.round(rouraPE160)) },
-                         { id:uid(), popis:'Roura PE 200 (900000000087)',    castka:String(Math.round(rouraPE200)) },
-                         { id:uid(), popis:'Roura PE 225 (900000000088)',    castka:String(Math.round(rouraPE225)) }],
-          mat_vlastni:  [{ id:uid(), popis:'Materiál vlastní', castka:String(Math.round(matVlastniCelkem * 100) / 100) }],
-          rezerv_zemni: [{ id:uid(), popis:'Rezerva zemní', castka:'0' }],
-        },
-        // GN — všechny kódy přes gnRowAll
-        gn: {
-          inzenyrska:       { rows:[{ id:uid(), popis:'Inženýring zhotovitele CAPEX', castka:String(gnRowAll(['1101999'])) }], open:false },
-          geodetika:        { rows:[{ id:uid(), popis:'Geodetické práce',             castka:String(gnRowAll(['1102000'])) }], open:false },
-          te_evidence:      { rows:[{ id:uid(), popis:'Dokumentace pro TE',           castka:String(gnRowAll(['1102010'])) }], open:false },
-          vychozi_revize:   { rows:[{ id:uid(), popis:'Výchozí revize',               castka:String(gnRowAll(['1101594'])) }], open:false },
-          pripl_ppn:        { rows:[{ id:uid(), popis:'Příplatek PPN',                castka:String(gnRowAll(['1100167'])) }], open:false },
-          ekolog_likv:      { rows:[{ id:uid(), popis:'Ekologická likvidace odpadů',  castka:String(gnRowAll(['1101638'])) }], open:false },
-          doprava_mat:      { rows:[{ id:uid(), popis:'Doprava materiálu na stavbu',  castka:String(gnRowAll(['1102005','1102006','1102007','1102008'])) }], open:false },
-          material_vyn:     { rows:[{ id:uid(), popis:'Materiál výnosový',            castka:String(gnRowAll(['1102001'])) }], open:false },
-          pripl_capex:      { rows:[{ id:uid(), popis:'Příplatek CAPEX',              castka:String(gnRowAll(['1102116'])) }], open:false },
-          kolaudace:        { rows:[{ id:uid(), popis:'Kolaudace',                    castka:String(gnRowAll(['1102004'])) }], open:false },
-          pausal_bo_do150:  { rows:[{ id:uid(), popis:'Paušál BO OPEX do 150 tis.',  castka:String(gnRowAll(['9404'])) }], open:false },
-          pausal_bo_nad150: { rows:[{ id:uid(), popis:'Paušál BO OPEX nad 150 tis.', castka:String(gnRowAll(['9405'])) }], open:false },
-        },
-        // DOF
-        dof: {
-          dio:                   { rows:[{ id:uid(), popis:'DIO – Dopravní značení',            castka:String(gnRowAll(['1101929'])) }], open:false },
-          vytyc_siti:            { rows:[{ id:uid(), popis:'Vytýčení sítí',                     castka:String(gnRowAll(['1101922'])) }], open:false },
-          neplanvykon:           { rows:[{ id:uid(), popis:'Neplánovaný výkon',                  castka:String(gnRowAll(['1102213'])) }], open:false },
-          spravni_popl:          { rows:[{ id:uid(), popis:'Správní poplatky',                   castka:String(gnRowAll(['1101926'])) }], open:false },
-          omezeni_dopr:          { rows:[{ id:uid(), popis:'Omezení silniční dopravy',           castka:String(gnRowAll(['1101927'])) }], open:false },
-          popl_omez_zeleznice:   { rows:[{ id:uid(), popis:'Omezení železniční dopravy',         castka:String(gnRowAll(['1101928'])) }], open:false },
-          archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(Math.round(gnRowAll(['1101925']) || rowsGN.filter(r=>String(r[4]||'').toLowerCase().includes('archeolog')).reduce((a,r)=>a+(num(r[8])||num(r[6])),0))) }], open:false },
-          uhrady_zem_kultury:    { rows:[{ id:uid(), popis:'Úhrady za zemědělské kultury',       castka:String(gnRowAll(['1101923'])) }], open:false },
-          nahrady_maj_ujmy:      { rows:[{ id:uid(), popis:'Náhrady majetkové újmy',             castka:String(gnRowAll(['1101924'])) }], open:false },
-          popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003_'])) }], open:false },
-          koordinator_bozp:      { rows:[{ id:uid(), popis:'Koordinátor BOZP',                   castka:String(gnRowAll(['1102560'])) }], open:false },
-          zadl_mesto:            { rows:[{ id:uid(), popis:'Zádlažby subdodavatelsky městem',    castka:String(gnRowAll(['9491'])) }], open:false },
-          proj_geod:             { rows:[{ id:uid(), popis:'Projektové a geodetické práce',      castka:String(gnRowAll(['9100'])) }], open:false },
-          inz_cinnost:           { rows:[{ id:uid(), popis:'Inženýrská činnost EG.D',            castka:String(gnRowAll(['9150'])) }], open:false },
-          zajisteni_pracoviste:  { rows:[{ id:uid(), popis:'Zajištění pracoviště BO OPEX',       castka:String(gnRowAll(['9416'])) }], open:false },
-          manipulace_vedeni:     { rows:[{ id:uid(), popis:'Manipulace vedení',                  castka:String(gnRowAll(['9417'])) }], open:false },
-          zkousky_vn:            { rows:[{ id:uid(), popis:'Zkoušky VN kabelu',                  castka:String(gnRowAll(['9418'])) }], open:false },
-          odvody_zem_puda:       { rows:[{ id:uid(), popis:'Odvody za odnětí zemědělské půdy',   castka:String(gnRowAll(['9425'])) }], open:false },
-          mobilni_ts:            { rows:[{ id:uid(), popis:'Mobilní TS – zapůjčení',             castka:String(gnRowAll(['9465'])) }], open:false },
-          doprava_zam:           { rows:[{ id:uid(), popis:'Doprava zaměstnanců',                castka:String(Math.round(dopravaZamKc)) }], open:false },
-          spec_zadlazby:         { rows:[{ id:uid(), popis:'Speciální zádlažby',                 castka:'0' }], open:false },
-          rezerva:               { rows:[{ id:uid(), popis:'Rezerva',                            castka:'0' }], open:false },
-          gzs:                   { rows:[{ id:uid(), popis:'GZS (SO)',                           castka:String(Math.round(gzsKc)) }], open:false },
-          stimul_prirazka:       { rows:[{ id:uid(), popis:'Stimulační přirážka',                castka:String(Math.round(stimulacniKc)) }], open:false },
-        },
-      }
-
-      // Mzdy — rozdělení podle kódů objektů z EBC
-      const noveMzdy = mkSec(MZDY)
-      noveMzdy['mont_vn']   = { rows: [{ id: uid(), popis: 'Montáž VN + TS (EBC import)', castka: String(Math.round(hVn    * 10) / 10) }], open: false }
-      noveMzdy['mont_nn']   = { rows: [{ id: uid(), popis: 'Montáž NN (EBC import)',       castka: String(Math.round(hNn    * 10) / 10) }], open: false }
-      noveMzdy['mont_opto'] = { rows: [{ id: uid(), popis: 'Montáž Opto (EBC import)',     castka: String(Math.round(hOpto  * 10) / 10) }], open: false }
-
-
-      // Zemní práce — čistý objekt
-      const noveZemni = mkSec(ZEMNI)
-      for (const [k, rows] of Object.entries(parsedEBC.zemni)) noveZemni[k] = { rows, open: false }
-      noveZemni['zemni_prace'] = { rows: [{ id: uid(), popis: 'Zemní práce (EBC import)', castka: String(Math.round(zemniPraceKc)) }], open: false }
-
-      // Mech — čistý objekt
-      const noveMech = mkSec(MECH)
-      for (const [k, rows] of Object.entries(parsedEBC.mech)) noveMech[k] = { rows, open: false }
-
-      // GN a DOF — čisté objekty
-      const noveGn = mkSec(GN)
-      for (const [k, v] of Object.entries(parsedEBC.gn)) noveGn[k] = v
-      const noveDof = mkSec(DOF)
-      const noveDofegd = mkSec(DOFEGD)
-      for (const [k, v] of Object.entries(parsedEBC.dof)) {
-        if (DOF.find(it => it.key === k)) noveDof[k] = v
-        else if (DOFEGD.find(it => it.key === k)) noveDofegd[k] = v
-        else noveDof[k] = v  // gzs, stimul_prirazka, doprava_zam → vždy do dof
-      }
-
-      // Načti výchozí sazby z profiles
-      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', (await supabase.auth.getUser()).data.user?.id).single()
-      const defaultSazby = profData?.default_sazby || {}
-      setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc, defaultSazby })
-      setImportDialog(null)
-      return
     }
+  }, [data, firmy, user]);
 
-    if (!isTemplate) {
-      setAlertDialog({ title: 'Chyba importu', text: 'Nerozpoznaný formát souboru. Očekáván list "Vstupní hodnoty" nebo EBC formát (listy "Globální náklady", "Práce, mechanizace a ost. nákl.").', color: '#ef4444' })
-      return
-    }
+  useEffect(() => {
+    const dark = isDarkComputed(theme);
+    document.body.style.background = dark ? "#0f172a" : "#f1f5f9";
+    document.body.style.color = dark ? "#e2e8f0" : "#1e293b";
+  }, [theme]);
 
-    const ws = wb.Sheets['Vstupní hodnoty']
-    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' })
+  // ── Auto-logout: 15 min nečinnost ────────────────────────
+  useEffect(() => {
+    if (!user || isDemo) return;
+    const resetTimer = () => {
+      if (autoLogoutWarning) return; // neresetuj když countdown běží
+      clearTimeout(autoLogoutTimer.current);
+      autoLogoutTimer.current = setTimeout(() => {
+        setAutoLogoutWarning(true);
+        setAutoLogoutCountdown(60);
+      }, AUTO_LOGOUT_MINUTES * 60 * 1000);
+    };
+    const events = ["mousemove","keydown","click","scroll","touchstart"];
+    events.forEach(e => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetTimer));
+      clearTimeout(autoLogoutTimer.current);
+    };
+  }, [user, isDemo, autoLogoutWarning]);
 
-    // Pomocná funkce: najdi řádek podle názvu v sloupci A
-    const findRow = (name) => rows.find(r => String(r[0]||'').toLowerCase().includes(name.toLowerCase()))
-    const v = (row, col) => parseFloat(String(row?.[col]||'0').replace(/\s/g,'').replace(',','.')) || 0
+  useEffect(() => {
+    if (!autoLogoutWarning) { clearInterval(autoLogoutCountdownTimer.current); return; }
+    autoLogoutCountdownTimer.current = setInterval(() => {
+      setAutoLogoutCountdown(c => {
+        if (c <= 1) {
+          clearInterval(autoLogoutCountdownTimer.current);
+          setAutoLogoutWarning(false);
+          setUser(null);
+          return 60;
+        }
+        return c - 1;
+      });
+    }, 1000);
+    return () => clearInterval(autoLogoutCountdownTimer.current);
+  }, [autoLogoutWarning]);
 
-    // Mapování: { klíč: hodnota }
-    // R1 hlavičky sloupců: col6=Jeřáb, col8=Nák.auto, col10=Traktor, col12=Plošina
-    //                      col14=Zem.práce, col16=Zádlažby, col18=Bagr, col20=Kopresor
-    //                      col22=Řez.asfaltu, col24=Protlak, col26=Mot.pěch, col28=Úhl.bruska
-    // R20 hlavičky: col6=GZS, col8=Stimul, col12=Mat.vlastní, col14=Asfalt
-    //               col16=Písek, col18=Štěrk, col20=Beton, col22=Mat.zhot, col24=Optotrubka
-    //               col26=Nalož.suť, col28=Stav.pr., col30=Rezerv.zemní
-    // Součtový řádek R18 (Vytýčení sítí) obsahuje součty všech sloupců
-    const sumRow = rows[17] // R18 = index 17
+  // ── Browser notifikace ───────────────────────────────────
+  const sendDeadlineNotifications = useCallback((warnings) => {
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    const urgent = warnings.filter(r => r.dniDo <= 7);
+    urgent.forEach(r => {
+      new Notification("⚠️ Blížící se termín stavby", {
+        body: `${r.cislo_stavby} – ${r.nazev_stavby}\nTermín: ${r.ukonceni} (${r.dniDo} pracovních dní)`,
+        icon: "/favicon.ico",
+        tag: `stavba-${r.id}`,
+      });
+    });
+  }, []);
 
-    // GN — sloupec B (index 1)
-    const gnMap = {
-      inzenyrska:     findRow('Inženýrsk'),
-      geodetika:      findRow('Geodetick'),
-      te_evidence:    findRow('technická evidence'),
-      vychozi_revize: findRow('Výchozí revize'),
-      pripl_ppn:      findRow('PPN'),
-      ekolog_likv:    findRow('Eko'),
-      material_vyn:   findRow('Materiál výnosový'),
-      doprava_mat:    findRow('Doprava mat'),
-      popl_ver:       findRow('veř.prostranství'),
-      pripl_capex:    findRow('Capex'),
-      kolaudace:      findRow('Kolaudace'),
-    }
-
-    // DOF — sloupec B (index 1)
-    const dofMap = {
-      dio:          findRow('DIO'),
-      vytyc_siti:   findRow('Vytýčení sítí'),
-      neplanvykon:  findRow('Neplánovaný'),
-      spravni_popl: findRow('Správní poplatky'),
-      demontaz:     findRow('Demontáž'),
-      spec_zadlazby:findRow('Speciální zádlažby'),
-      omezeni_dopr: findRow('Omezení sil'),
-      rezerva:      findRow('Rezerva'),
-    }
-
-    // Sestavení parsed dat
-    const parsed = {
-      prirazka:       String(v(findRow('Vysoutěžená přírážka'), 1)),
-      hzs_mont:       String(v(findRow('HZS montážní'), 1)),
-      hzs_zem:        String(v(findRow('HZS zemní'), 1)),
-      zmes_mont:      String(v(findRow('Montážní práce ZMES'), 1)),
-      zmes_zem:       String(v(findRow('Zemní práce ZMES'), 1)),
-      prispevek_sklad:String(v(findRow('Příspěvek na sklad'), 1)),
-      // Mechanizace ze součtového řádku R18
-      mech: {
-        jerab:    [{ id: uid(), popis: 'Autojeřáb', castka: String(v(sumRow, 6)) }],
-        nakladni: [{ id: uid(), popis: 'Nákladní auto', castka: String(v(sumRow, 8)) }],
-        traktor:  [{ id: uid(), popis: 'Traktor', castka: String(v(sumRow, 10)) }],
-        plosina:  [{ id: uid(), popis: 'Plošina', castka: String(v(sumRow, 12)) }],
-      },
-      // Zemní práce ze součtového řádku R18
-      zemni: {
-        zemni_prace:  [{ id: uid(), popis: 'Zemní práce', castka: String(v(sumRow, 14)) }],
-        zadlazby:     [{ id: uid(), popis: 'Zádlažby', castka: String(v(sumRow, 16)) }],
-        bagr:         [{ id: uid(), popis: 'Rypadlo do 0,5m³', castka: String(v(sumRow, 18)) }, { id: uid(), popis: 'Minirýpadlo pás. do 3,5t', castka: '0' }],
-        kompresor:    [{ id: uid(), popis: 'Kompresor', castka: String(v(sumRow, 20)) }],
-        rezac:        [{ id: uid(), popis: 'Řezač asfaltu', castka: String(v(sumRow, 22)) }],
-        mot_pech:     [{ id: uid(), popis: 'Motorový pěch', castka: String(v(sumRow, 26)) }],
-        uhlova_bruska:[{ id: uid(), popis: 'Úhlová bruska', castka: String(v(sumRow, 28)) }],
-        // R20 sloupce pro materiál
-        mat_vlastni:  [{ id: uid(), popis: 'Materiál vlastní', castka: String(v(rows[20], 12)) }],
-        asfalt:       [{ id: uid(), popis: 'Asfalt', castka: String(v(rows[20], 14)) }],
-        pisek_d02:    [{ id: uid(), popis: 'Písek D0-2', castka: String(v(rows[20], 16)) }],
-        sterk_3264:   [{ id: uid(), popis: 'Štěrkokamen 32-64', castka: String(v(rows[20], 18)) }],
-        beton:        [{ id: uid(), popis: 'Beton', castka: String(v(rows[20], 20)) }],
-        optotrubka:   [{ id: uid(), popis: 'Optotrubka', castka: String(v(rows[20], 24)) }],
-        nalosute:     [{ id: uid(), popis: 'Naložení a doprava sutě', castka: String(v(rows[20], 26)) }],
-        stav_prace:   [{ id: uid(), popis: 'Stav. práce m. rozsahu', castka: String(v(rows[20], 28)) }],
-        rezerv_zemni: [{ id: uid(), popis: 'Rezerva zemní', castka: String(v(rows[20], 30)) }],
-      },
-      // GN
-      gn: Object.fromEntries(
-        Object.entries(gnMap).map(([k, row]) => [k, { rows: [{ id: uid(), popis: k, castka: String(v(row, 1)) }], open: false }])
-      ),
-      // DOF
-      dof: Object.fromEntries(
-        Object.entries(dofMap).map(([k, row]) => [k, { rows: [{ id: uid(), popis: k, castka: String(v(row, 1)) }], open: false }])
-      ),
-    }
-
-    // Zjisti chybějící položky (hodnota 0)
-    const missing = []
-    const checkZero = (label, val) => { if (!parseFloat(val)) missing.push(label) }
-    checkZero('Jeřáb', parsed.mech.jerab[0].castka)
-    checkZero('Nákladní auto', parsed.mech.nakladni[0].castka)
-    checkZero('Traktor', parsed.mech.traktor[0].castka)
-    checkZero('Plošina', parsed.mech.plosina[0].castka)
-    checkZero('Zemní práce', parsed.zemni.zemni_prace[0].castka)
-    checkZero('Zádlažby', parsed.zemni.zadlazby[0].castka)
-    checkZero('Bagr', parsed.zemni.bagr[0].castka)
-    checkZero('Inženýrská činnost', parsed.gn.inzenyrska?.rows[0]?.castka)
-    checkZero('Geodetické práce', parsed.gn.geodetika?.rows[0]?.castka)
-
-    if (missing.length > 0) {
-      setImportDialog({ missing, parsed })
+  useEffect(() => {
+    if (!user || isDemo || !("Notification" in window)) return;
+    if (Notification.permission === "default") {
+      Notification.requestPermission().then(p => { notifPermission.current = p; });
     } else {
-      applyImport(parsed)
+      notifPermission.current = Notification.permission;
     }
-  }
+  }, [user, isDemo]);
 
-  const applyImport = (parsed) => {
-    setS(prev => {
-      const next = { ...prev, ...parsed }
-      const mzdy = prev.mzdy || {}
-      for (const it of MZDY) if (!mzdy[it.key]) mzdy[it.key] = { rows: mkRows(), open: false }
-      const zemni = { ...prev.zemni }
-      for (const it of ZEMNI) if (!zemni[it.key]) zemni[it.key] = { rows: mkRows(), open: false }
-      for (const [k, rows] of Object.entries(parsed.zemni)) zemni[k] = { rows, open: false }
-      const mech = { ...prev.mech }
-      for (const [k, rows] of Object.entries(parsed.mech)) mech[k] = { rows, open: false }
-      const gn = mkSec(GN)
-      for (const [k, v] of Object.entries(parsed.gn)) gn[k] = v
-      const dof = mkSec(DOF)
-      for (const [k, v] of Object.entries(parsed.dof || {})) dof[k] = v
-      const dofegd = mkSec(DOFEGD)
-      for (const [k, v] of Object.entries(parsed.dofegd || {})) dofegd[k] = v
-      return { ...next, mzdy, mech, zemni, gn, dof, dofegd }
-    })
-    setImportDialog(null)
-    setAlertDialog({ title: '✅ Import dokončen', text: 'Všechny hodnoty byly načteny. Zkontroluj a ulož.', color: '#10b981' })
-  }
-
-  const applySazby = async (sazby) => {
-    const { parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad } = sazbyDialog
-    const now = new Date()
-    const importDatum = `- (${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')})`
-    const updated = {
-      ...s,
-      nazev: (parsedEBC.nazev || s.nazev) + ' ' + importDatum,
-      cislo: parsedEBC.cislo || s.cislo,
-      prirazka: String(num(sazby.prirazka) / 100),
-      hzs_mont: sazby.hzs_mont,
-      hzs_zem:  sazby.hzs_zem,
-      zmes_mont: sazby.zmes_mont,
-      zmes_zem:  sazby.zmes_zem,
-      mzdy:  noveMzdy,
-      mech:  noveMech,
-      zemni: noveZemni,
-      gn:    noveGn,
-      dof:    noveDof,
-      dofegd: noveDofegd,
-      prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_12 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+  useEffect(() => {
+    if (!user || isDemo || deadlineWarnings.length === 0) return;
+    if (!notifSentRef.current) {
+      notifSentRef.current = true;
+      sendDeadlineNotifications(deadlineWarnings);
     }
-    setS(updated)
-    sRef.current = updated
-    console.log('applySazby saving:', { id: params.id, nazev: updated.nazev, mechKeys: Object.keys(updated.mech||{}) })
-    await save(updated)
-    setSazbyDialog(null)
-    const { hMont: hm, zemniPraceKc: zp, parsedEBC: p } = sazbyDialog
-    setAlertDialog({ title: '✅ Import EBC dokončen', text: `VN+TS: ${Math.round((p.mzdy_ebc_hvn||0)*10)/10} hod, NN: ${Math.round((p.mzdy_ebc_hnn||0)*10)/10} hod, Opto: ${Math.round((p.mzdy_ebc_hopto||0)*10)/10} hod, Zemní: ${Math.round(zp).toLocaleString('cs')} Kč.`, color: '#10b981' })
-  }
+    // Opakovat každých 60 minut pouze pokud tab není aktivní
+    clearInterval(notifIntervalRef.current);
+    notifIntervalRef.current = setInterval(() => {
+      if (document.hidden) sendDeadlineNotifications(deadlineWarnings);
+    }, 60 * 60 * 1000);
+    return () => clearInterval(notifIntervalRef.current);
+  }, [deadlineWarnings, user, isDemo, sendDeadlineNotifications]);
+
+  // ── CRUD stavby ────────────────────────────────────────────
+  const handleSave = async (updated) => {
+    const { id, nabidka, rozdil, ...fields } = updated;
+    NUM_FIELDS.forEach(k => { if (fields[k] === "" || fields[k] == null) fields[k] = 0; else fields[k] = Number(fields[k]) || 0; });
+    // Okamžitě rozsvítit tečku pro tuto stavbu
+    setHistorieNovinky(prev => ({ ...prev, [String(id)]: true }));
+    if (isDemo) {
+      setData(prev => prev.map(r => r.id === id ? computeRow({ ...r, ...fields }) : r));
+      setEditRow(null);
+      return;
+    }
+    try {
+      const staryRow = data.find(r => r.id === id) || {};
+      const zmeny = Object.keys(fields)
+        .filter(k => k !== "id" && String(staryRow[k] ?? "") !== String(fields[k] ?? ""))
+        .map(k => ({ pole: k, stare: staryRow[k] ?? "", nove: fields[k] ?? "" }));
+      const detailJson = JSON.stringify({ nazev: fields.nazev_stavby, zmeny });
+      await sb(`stavby?id=eq.${id}`, { method: "PATCH", body: JSON.stringify(fields) });
+      await logAkce(user?.email, "Editace stavby", `ID: ${id}, ${fields.nazev_stavby} ${detailJson}`);
+      await loadAll();
+    } catch (e) { showToast("Chyba uložení: " + e.message, "error"); }
+    setEditRow(null);
+  };
+
+  const handleAdd = async (newRow) => {
+    const { id, nabidka, rozdil, ...fields } = newRow;
+    NUM_FIELDS.forEach(k => { if (fields[k] === "" || fields[k] == null) fields[k] = 0; else fields[k] = Number(fields[k]) || 0; });
+    if (isDemo) {
+      if (data.length >= DEMO_MAX_STAVBY) {
+        showToast(`Demo verze: maximum ${DEMO_MAX_STAVBY} staveb.`, "error");
+        return;
+      }
+      const demoId = data.length > 0 ? data.reduce((m, r) => Math.max(m, r.id), 0) + 1 : 1;
+      setData(prev => [...prev, computeRow({ ...fields, id: demoId })]);
+      setAdding(false);
+      return;
+    }
+    try {
+      await sb("stavby", { method: "POST", body: JSON.stringify(fields) });
+      await logAkce(user?.email, "Přidání stavby", fields.nazev_stavby);
+      await loadAll();
+    } catch (e) { showToast("Chyba přidání: " + e.message, "error"); }
+    setAdding(false);
+  };
+
+  const handleCopy = (row) => {
+    const { id, nabidka, rozdil, cislo_stavby, ...rest } = row;
+    setCopyRow({ ...rest, cislo_stavby: (cislo_stavby ? cislo_stavby + " (kopie)" : "(kopie)") });
+  };
+
+  const handleCopySave = async (newRow) => {
+    const { id, nabidka, rozdil, ...fields } = newRow;
+    NUM_FIELDS.forEach(k => { if (fields[k] === "" || fields[k] == null) fields[k] = 0; else fields[k] = Number(fields[k]) || 0; });
+    if (isDemo) {
+      if (data.length >= DEMO_MAX_STAVBY) {
+        showToast(`Demo verze: maximum ${DEMO_MAX_STAVBY} staveb.`, "error");
+        return;
+      }
+      const demoId = data.length > 0 ? data.reduce((m, r) => Math.max(m, r.id), 0) + 1 : 1;
+      setData(prev => [...prev, computeRow({ ...fields, id: demoId })]);
+      setCopyRow(null);
+      showToast("Kopie stavby uložena (demo).", "ok");
+      return;
+    }
+    try {
+      await sb("stavby", { method: "POST", body: JSON.stringify(fields) });
+      await logAkce(user?.email, "Kopírování stavby", fields.nazev_stavby + (fields.cislo_stavby ? ` (${fields.cislo_stavby})` : ""));
+      await loadAll();
+      showToast("Kopie stavby byla úspěšně uložena.", "ok");
+    } catch (e) { showToast("Chyba kopírování: " + e.message, "error"); }
+    setCopyRow(null);
+  };
+
+  const handleDelete = async (id) => {
+    if (isDemo) {
+      setData(prev => prev.filter(r => r.id !== id));
+      setDeleteConfirm(null);
+      return;
+    }
+    const row = data.find(r => r.id === id);
+    try {
+      await sb(`stavby?id=eq.${id}`, { method: "DELETE", prefer: "return=minimal" });
+      await logAkce(user?.email, "Smazání stavby", `ID: ${id}, ${row?.nazev_stavby || ""}`);
+      await loadAll();
+    } catch (e) { showToast("Chyba mazání: " + e.message, "error"); }
+    setDeleteConfirm(null);
+  };
+
+  // ── CRUD číselníky ─────────────────────────────────────────
+  const saveSettings = async (nFirmy, nObjed, nSv) => {
+    if (isDemo) {
+      // V demo jen aktualizuj lokální state, nepsat do DB
+      setFirmy(nFirmy);
+      setObjednatele(nObjed);
+      setStavbyvedouci(nSv);
+      showToast("Demo: změny uloženy jen lokálně", "ok");
+      return;
+    }
+    try {
+      await sb("ciselniky?id=gt.0", { method: "DELETE", prefer: "return=minimal" });
+      const items = [
+        ...nFirmy.map((f, i) => ({ typ: "firma", hodnota: f.hodnota, barva: f.barva || "", poradi: i })),
+        ...nObjed.map((h, i) => ({ typ: "objednatel", hodnota: h, barva: "", poradi: i })),
+        ...nSv.map((h, i) => ({ typ: "stavbyvedouci", hodnota: h, barva: "", poradi: i })),
+      ];
+      await sb("ciselniky", { method: "POST", body: JSON.stringify(items) });
+      await loadAll();
+    } catch (e) { showToast("Chyba uložení číselníků: " + e.message, "error"); }
+  };
+
+  // ── CRUD uživatelé ─────────────────────────────────────────
+  const saveUsers = async (uList) => {
+    if (isDemo) {
+      // V demo jen aktualizuj lokální state, nepsat do DB
+      setUsers(uList);
+      showToast("Demo: změny uloženy jen lokálně", "ok");
+      return;
+    }
+    try {
+      await sb("uzivatele?id=gt.0", { method: "DELETE", prefer: "return=minimal" });
+      const items = uList.map(u => ({ jmeno: u.name, email: u.email, heslo: u.password, role: u.role }));
+      await sb("uzivatele", { method: "POST", body: JSON.stringify(items) });
+      await loadAll();
+    } catch (e) { showToast("Chyba uložení uživatelů: " + e.message, "error"); }
+  };
+
+  const filtered = useMemo(() => data.filter(r => {
+    if (filterFirma !== "Všechny firmy" && r.firma !== filterFirma) return false;
+    if (filterText && !r.nazev_stavby?.toLowerCase().includes(filterText.toLowerCase()) && !r.cislo_stavby?.toLowerCase().includes(filterText.toLowerCase())) return false;
+    if (filterObjed !== "Všichni objednatelé" && filterObjed && r.objednatel !== filterObjed) return false;
+    if (filterSV !== "Všichni stavbyvedoucí" && filterSV && r.stavbyvedouci !== filterSV) return false;
+    if (filterRok) { if (!((r.ukonceni && r.ukonceni.includes(filterRok)) || (r.ze_dne && r.ze_dne.includes(filterRok)))) return false; }
+    if (filterCastkaOd !== "" && Number(r.nabidkova_cena) < Number(filterCastkaOd)) return false;
+    if (filterCastkaDo !== "" && Number(r.nabidkova_cena) > Number(filterCastkaDo)) return false;
+    if (filterProslé) { const dnes = new Date(); dnes.setHours(0,0,0,0); const isFak = r.cislo_faktury && r.cislo_faktury.trim() !== "" && r.castka_bez_dph && Number(r.castka_bez_dph) !== 0 && r.splatna && r.splatna.trim() !== ""; if (isFak || !r.ukonceni) return false; const [d,m,y] = r.ukonceni.split(".").map(Number); if (new Date(y,m-1,d) >= dnes) return false; }
+    if (filterFakturace) { const isFak = r.cislo_faktury && r.cislo_faktury.trim() !== "" && r.castka_bez_dph && Number(r.castka_bez_dph) !== 0 && r.splatna && r.splatna.trim() !== ""; if (filterFakturace === "ano" && !isFak) return false; if (filterFakturace === "ne" && isFak) return false; }
+    if (filterKat === "I" && !((Number(r.ps_i)||0)+(Number(r.snk_i)||0)+(Number(r.bo_i)||0) > 0)) return false;
+    if (filterKat === "II" && !((Number(r.ps_ii)||0)+(Number(r.bo_ii)||0)+(Number(r.poruch)||0) > 0)) return false;
+    return true;
+  }), [data, filterFirma, filterText, filterObjed, filterSV, filterRok, filterCastkaOd, filterCastkaDo, filterProslé, filterFakturace, filterKat]);
+
+  const [tableHeight, setTableHeight] = useState(500);
+
+  const headerRef = useRef(null);
+  const cardsRef = useRef(null);
+  const filtersRef = useRef(null);
+  const tableWrapRef = useRef(null);
+  const paginationRef = useRef(null);
+  const footerRef = useRef(null);
+
+  // PAGE_SIZE: fixní hodnota, uživatel může měnit tlačítky v paginaci
+  const [PAGE_SIZE, setPageSize] = useState(7);
+  const [viewMode, setViewMode] = useState("page"); // "page" | "scroll"
+  const [page, setPage] = useState(0);
+  useEffect(() => { setPage(0); }, [filterFirma, filterText, filterObjed, filterSV, filterRok, filterCastkaOd, filterCastkaDo, filterProslé, filterFakturace, filterKat]);
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paginated = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const displayRows = viewMode === "scroll" ? filtered : paginated;
+
+
+
+  const exportCSV = () => { setConfirmExport({ type: "csv", label: "CSV (.csv)" }); setShowExport(false); };
+  const exportXLS = () => { setConfirmExport({ type: "xls", label: "Excel (.xlsx)" }); setShowExport(false); };
+  const exportPDF = () => { setConfirmExport({ type: "pdf", label: "PDF tisk" }); setShowExport(false); };
+  const exportXLSColor = () => { setConfirmExport({ type: "xls-color", label: "Barevný Excel (.xls)" }); setShowExport(false); };
+
+  const exportLog = async () => {
+    setShowExport(false);
+    // Načti celý log z databáze
+    try {
+      const res = await sb("log_aktivit?order=cas.desc&limit=10000");
+      const rows = res || [];
+      const actionColors = { "Přihlášení": "#dbeafe", "Přidání stavby": "#dcfce7", "Editace stavby": "#fef9c3", "Smazání stavby": "#fee2e2", "Nastavení": "#f3e8ff", "Záloha": "#ffedd5" };
+      const headers = `<tr><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB">Datum a čas</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB">Uživatel</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB">Akce</th><th style="background:#1E3A8A;color:#fff;padding:7px 10px;border:1px solid #2563EB">Detail</th></tr>`;
+      const dataRows = rows.map((r, i) => {
+        const bg = actionColors[r.akce] || (i % 2 === 0 ? "#f8fafc" : "#fff");
+        const cas = r.cas ? new Date(r.cas).toLocaleString("cs-CZ") : "";
+        return `<tr><td style="padding:5px 10px;border:1px solid #E2E8F0;background:${bg};font-size:10px">${cas}</td><td style="padding:5px 10px;border:1px solid #E2E8F0;background:${bg};font-size:10px">${r.uzivatel||""}</td><td style="padding:5px 10px;border:1px solid #E2E8F0;background:${bg};font-size:10px;font-weight:600">${r.akce||""}</td><td style="padding:5px 10px;border:1px solid #E2E8F0;background:${bg};font-size:10px">${r.detail||""}</td></tr>`;
+      }).join("");
+      const ts = new Date().toISOString().slice(0,16).replace("T","_").replace(":","-");
+      const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"></head><body><table>${headers}${dataRows}</table></body></html>`;
+      const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `log_aktivit_${ts}.xls`; a.click();
+    } catch(e) { showToast("Chyba exportu logu: " + e.message, "error"); }
+  };
+
+  const zalohaJSON = async () => {
+    const datum = new Date().toISOString().slice(0,16).replace("T","_").replace(":","-");
+    try {
+      const [stavbyRes, cisRes, uzRes] = await Promise.all([
+        sb("stavby?order=id"),
+        sb("ciselniky?order=typ,poradi"),
+        sb("uzivatele?order=id"),
+      ]);
+      const payload = {
+        version: 1,
+        created: new Date().toISOString(),
+        stavby: stavbyRes || [],
+        ciselniky: cisRes || [],
+        uzivatele: (uzRes || []).map(u => ({ id: u.id, jmeno: u.jmeno, email: u.email, role: u.role })), // bez hesel
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `zaloha_DB_${datum}.json`;
+      a.click();
+      logAkce(user?.email, "Záloha", `${payload.stavby.length} staveb + ciselniky + uzivatele (JSON)`);
+    } catch(e) { showToast("Chyba zálohy: " + e.message, "error"); }
+  };
+
+  // ── Import původní tabulky (superadmin) ──────────────────────
+  const importRef = useRef(null);
+  const [importLog, setImportLog] = useState(null); // { ok, chyby, zprava }
+
+  const fmtDateFromXls = (v) => {
+    if (!v) return "";
+    let d;
+    if (v instanceof Date) {
+      d = v;
+    } else if (typeof v === "number") {
+      // Excel serial date → JS Date
+      d = new Date(Math.round((v - 25569) * 86400 * 1000));
+    } else if (typeof v === "string" && v.includes("-")) {
+      d = new Date(v);
+    } else {
+      return String(v);
+    }
+    if (isNaN(d.getTime())) return String(v);
+    const dd = d.getDate().toString().padStart(2,"0");
+    const mm = (d.getMonth()+1).toString().padStart(2,"0");
+    return `${dd}.${mm}.${d.getFullYear()}`;
+  };
+
+  const importRef2 = useRef(null); // JSON import
+  const handleImportJSON = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = "";
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const payload = JSON.parse(ev.target.result);
+        if (!payload.stavby || !Array.isArray(payload.stavby)) {
+          setImportLog({ ok: 0, chyby: ["Neplatný formát JSON zálohy — chybí pole 'stavby'."] });
+          return;
+        }
+        let ok = 0, chyby = [];
+        const NUM_FIELDS_IMPORT = ["ps_i","snk_i","bo_i","ps_ii","bo_ii","poruch","nabidkova_cena","vyfakturovano","zrealizovano","castka_bez_dph","castka_bez_dph_2"];
+        // Smaž stávající stavby
+        await sb("stavby?id=gt.0", { method: "DELETE", prefer: "return=minimal" });
+        const cleaned = payload.stavby.map(r => {
+          const c = { ...r };
+          delete c.id; // nechat DB generovat nové ID
+          delete c.created_at;
+          NUM_FIELDS_IMPORT.forEach(k => { c[k] = Number(c[k]) || 0; });
+          Object.keys(c).forEach(k => {
+            if (!NUM_FIELDS_IMPORT.includes(k) && (c[k] === null || c[k] === undefined)) c[k] = "";
+          });
+          return c;
+        });
+        // Vkládej po 50 kusech
+        for (let i = 0; i < cleaned.length; i += 50) {
+          const chunk = cleaned.slice(i, i+50);
+          try {
+            await sb("stavby", { method: "POST", body: JSON.stringify(chunk), prefer: "return=minimal" });
+            ok += chunk.length;
+          } catch(e) { chyby.push(`Řádky ${i+1}-${i+chunk.length}: ${e.message}`); }
+        }
+        await loadAll();
+        logAkce(user?.email, "Import JSON", `${ok} staveb importováno z ${file.name}`);
+        setImportLog({ ok, chyby, zprava: `Importováno ${ok} staveb z "${file.name}"` });
+      } catch(e) {
+        setImportLog({ ok: 0, chyby: ["Chyba čtení JSON: " + e.message] });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = ""; // reset aby šel znovu vybrat stejný soubor
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const wb = XLSX.read(ev.target.result, { type: "array", cellDates: true });
+
+        // ── Detekce listu: buď "Stavby" (záloha DB) nebo první list (původní tabulka) ──
+        const isZaloha = wb.SheetNames.includes("Stavby");
+        const ws = isZaloha ? wb.Sheets["Stavby"] : wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true, cellDates: true });
+
+        let stavbyRows = [];
+        let ok = 0, chyby = [];
+
+        if (isZaloha) {
+          // Záložní formát — první řádek jsou záhlaví z aplikace
+          const headers = raw[0];
+          const colIdx = (label) => headers.findIndex(h => h === label);
+          const FIELD_MAP = [
+            ["Firma", "firma"], ["Č. stavby", "cislo_stavby"], ["Název stavby", "nazev_stavby"],
+            ["Plán. stavby I", "ps_i"], ["SNK I", "snk_i"], ["Běžné opravy I", "bo_i"],
+            ["Plán. stavby II", "ps_ii"], ["Běžné opravy II", "bo_ii"], ["Poruchy", "poruch"],
+            ["Nab. cena", "nabidkova_cena"], ["Vyfakturováno", "vyfakturovano"],
+            ["Zrealizováno", "zrealizovano"], ["SOD", "sod"], ["Ze dne", "ze_dne"],
+            ["Objednatel", "objednatel"], ["Stavbyvedoucí", "stavbyvedouci"],
+            ["Ukončení", "ukonceni"], ["Č. faktury", "cislo_faktury"],
+            ["Č. bez DPH", "castka_bez_dph"], ["Splatná", "splatna"],
+            ["Č. faktury 2", "cislo_faktury_2"], ["Č. bez DPH 2", "castka_bez_dph_2"], ["Splatná 2", "splatna_2"],
+            ["Poznámka", "poznamka"],
+          ];
+          for (const row of raw.slice(1)) {
+            if (!row[colIdx("Název stavby")]) continue;
+            const fields = {};
+            FIELD_MAP.forEach(([label, key]) => { fields[key] = row[colIdx(label)] ?? ""; });
+            stavbyRows.push(fields);
+          }
+        } else {
+          // Původní tabulka — pevné pozice sloupců (řádek 4 = hlavička, data od řádku 5)
+          // Col: 0=region,1=firma,2=porč,3=ps_i,4=snk_i,5=bo_i,6=ps_ii,7=bo_ii,8=poruch,
+          //      9=č.stavby,10=název,14=ukončení,15=zreal.,16=sod,17=ze_dne,
+          //      18=objednatel,19=stavbyved.,20=nab.cena,21=č.fakt.,22=č.bez_dph,23=splatná
+          const dataRows = raw.slice(4); // přeskočit řádky 1-4 (hlavička)
+          for (const row of dataRows) {
+            const nazev = row[10];
+            if (!nazev) continue; // přeskočit prázdné řádky
+            const numVal = (v) => {
+              if (v === null || v === undefined || v === "") return 0;
+              if (typeof v === "number") return v;
+              const n = parseFloat(String(v).replace(/\s/g,"").replace(",","."));
+              return isNaN(n) ? 0 : n;
+            };
+            stavbyRows.push({
+              firma:          String(row[1] || ""),
+              cislo_stavby:   String(row[9] || row[2] || ""),
+              nazev_stavby:   String(nazev),
+              ps_i:           numVal(row[3]),
+              snk_i:          numVal(row[4]),
+              bo_i:           numVal(row[5]),
+              ps_ii:          numVal(row[6]),
+              bo_ii:          numVal(row[7]),
+              poruch:         numVal(row[8]),
+              nabidkova_cena: numVal(row[20]),
+              vyfakturovano:  numVal(row[13]),
+              zrealizovano:   numVal(row[15]),
+              sod:            String(row[16] || ""),
+              ze_dne:         fmtDateFromXls(row[17]),
+              objednatel:     String(row[18] || ""),
+              stavbyvedouci:  String(row[19] || ""),
+              ukonceni:       fmtDateFromXls(row[14]),
+              cislo_faktury:  String(row[21] || ""),
+              castka_bez_dph: numVal(row[22]),
+              splatna:        fmtDateFromXls(row[23]),
+              poznamka:       "",
+            });
+          }
+        }
+
+        if (stavbyRows.length === 0) {
+          setImportLog({ ok: 0, chyby: ["Nenalezena žádná data ke importu."] });
+          return;
+        }
+
+        // ── Uložit do DB — DELETE vše + POST nové ──
+        await sb("stavby?id=gt.0", { method: "DELETE", prefer: "return=minimal" });
+        const NUM = ["ps_i","snk_i","bo_i","ps_ii","bo_ii","poruch","nabidkova_cena","vyfakturovano","zrealizovano","castka_bez_dph","castka_bez_dph_2"];
+        const cleaned = stavbyRows.map(r => {
+          const c = { ...r };
+          NUM.forEach(k => { c[k] = Number(c[k]) || 0; });
+          Object.keys(c).forEach(k => {
+            if (!NUM.includes(k) && (c[k] === null || c[k] === undefined)) c[k] = "";
+            if (typeof c[k] === "number" && isNaN(c[k])) c[k] = 0;
+          });
+          return c;
+        });
+        // Vkládej po 50 kusech (Supabase limit)
+        for (let i = 0; i < cleaned.length; i += 50) {
+          const chunk = cleaned.slice(i, i+50);
+          try {
+            await sb("stavby", { method: "POST", body: JSON.stringify(chunk), prefer: "return=minimal" });
+            ok += chunk.length;
+          } catch(e) { chyby.push(`Řádky ${i+1}-${i+chunk.length}: ${e.message}`); }
+        }
+
+        await loadAll();
+        logAkce(user?.email, "Import", `${ok} staveb importováno z ${file.name}`);
+        setImportLog({ ok, chyby, zprava: `Importováno ${ok} staveb z "${file.name}"` });
+      } catch(e) {
+        setImportLog({ ok: 0, chyby: ["Chyba čtení souboru: " + e.message] });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+  const isDark = isDarkComputed(theme);
+
+  // ── Cache barev firem – useMemo, přepočítá se jen při změně firem/tématu ──
+  const firmaColorCache = useMemo(() => {
+    const cache = {};
+    firmy.forEach((firmaObj, idx) => {
+      const name = firmaObj.hodnota;
+      const hex = (firmaObj.barva && firmaObj.barva !== "")
+        ? firmaObj.barva
+        : FIRMA_COLOR_FALLBACK[idx % FIRMA_COLOR_FALLBACK.length] || "#3b82f6";
+      const parts = hexToRgb(hex).split(",").map(Number);
+      const [r, g, b] = parts;
+      const br = isDark ? 15 : 241, bg2 = isDark ? 23 : 245, bb = isDark ? 42 : 249;
+      const mix = isDark ? 0.18 : 0.15;
+      cache[name] = {
+        bg: `rgb(${Math.round(r*mix+br*(1-mix))},${Math.round(g*mix+bg2*(1-mix))},${Math.round(b*mix+bb*(1-mix))})`,
+        badge: hexToRgbaGlobal(hex, 0.25),
+        badgeBorder: hexToRgbaGlobal(hex, 0.6),
+        text: hex,
+        hex,
+      };
+    });
+    return cache;
+  }, [firmy, isDark]);
+
+  // ── firmaColorMap pro exporty ──────────────────────────────
+  const firmaColorMapCache = useMemo(() => Object.fromEntries(firmy.map(f => [f.hodnota, f.barva || "#3b82f6"])), [firmy]);
+
+    if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ textAlign: "center" }}>
+        <div style={{ width: 48, height: 48, border: "3px solid rgba(37,99,235,0.3)", borderTop: "3px solid #2563eb", borderRadius: "50%", animation: "spin 0.8s linear infinite", margin: "0 auto 16px" }} />
+        <div style={{ color: "rgba(255,255,255,0.5)", fontSize: 14 }}>Načítám data...</div>
+      </div>
+    </div>
+  );
+
+  if (dbError) return (
+    <div style={{ minHeight: "100vh", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+      <div style={{ background: "#1e293b", borderRadius: 16, padding: 32, maxWidth: 480, textAlign: "center", border: "1px solid rgba(239,68,68,0.3)" }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>⚠️</div>
+        <h3 style={{ color: "#f87171", margin: "0 0 8px" }}>Chyba připojení</h3>
+        <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, margin: "0 0 20px" }}>{dbError}</p>
+        <button onClick={loadAll} style={{ padding: "10px 24px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Zkusit znovu</button>
+      </div>
+    </div>
+  );
+
+  if (!user) return <Login onLogin={setUser} users={users} onLogAction={logAkce} />;
+
+  const changeTheme = (t) => {
+    setTheme(t);
+    try { localStorage.setItem("theme", t); } catch {}
+    // Pokud je Liquid Glass zapnutý — vždy vypnout (čteme ref, ne closure)
+    if (liquidGlassRef.current) {
+      setLiquidGlass(false);
+      liquidGlassRef.current = false;
+      try { localStorage.setItem("liquidGlass", "0"); } catch {}
+    }
+    sliderShow("theme");
+  };
+  const toggleLiquidGlass = () => {
+    setLiquidGlass(v => {
+      try { localStorage.setItem("liquidGlass", v ? "0" : "1"); } catch {}
+      if (!v) {
+        sliderShow("lg");
+      } else {
+        // vypínáme LG — schuj slider pokud zobrazoval lg
+        setActiveSlider(a => { if (a === "lg") { if (sliderTimer.current) clearTimeout(sliderTimer.current); return null; } return a; });
+      }
+      return !v;
+    });
+  };
+
+  const lgS = liquidGlass ? lgStrength / 100 : 0;
+  const themeS = themeStrength / 100; // 0 = nejsvětlejší/nejtmavší, 1 = střední
+
+  // Interpolace barvy pozadí dle themeStrength
+  // Tmavý: 0%=#060818 (skoro černá) ↔ 100%=#1e293b (výchozí slate)
+  const darkAppBg = lgS > 0 ? "#060d1a" : (() => {
+    const r = Math.round(6 + themeS * (30 - 6));
+    const g = Math.round(8 + themeS * (41 - 8));
+    const b = Math.round(24 + themeS * (59 - 24));
+    return `rgb(${r},${g},${b})`;
+  })();
+  // Světlý: 0%=#ffffff (čistě bílá) ↔ 100%=#d0d8e8 (výchozí slate-200)
+  const lightAppBg = lgS > 0 ? "#e8edf5" : (() => {
+    const r = Math.round(255 - themeS * (255 - 208));
+    const g = Math.round(255 - themeS * (255 - 216));
+    const b = Math.round(255 - themeS * (255 - 232));
+    return `rgb(${r},${g},${b})`;
+  })();
+
+  const T = isDark ? {
+    appBg: darkAppBg,
+    headerBg: lgS > 0 ? `rgba(255,255,255,${(0.03 + lgS * 0.07).toFixed(3)})` : "rgba(255,255,255,0.03)",
+    headerBorder: lgS > 0 ? `rgba(255,255,255,${(0.08 + lgS * 0.18).toFixed(3)})` : "rgba(255,255,255,0.08)",
+    cardBg: lgS > 0 ? `rgba(255,255,255,${(0.04 + lgS * 0.06).toFixed(3)})` : "rgba(255,255,255,0.04)",
+    cardBorder: lgS > 0 ? `rgba(255,255,255,${(0.08 + lgS * 0.14).toFixed(3)})` : "rgba(255,255,255,0.08)",
+    theadBg: lgS > 0 ? `rgba(255,255,255,${(lgS * 0.07).toFixed(3)})` : "#1a2744",
+    cellBorder: lgS > 0 ? `rgba(255,255,255,${(0.07 + lgS * 0.04).toFixed(3)})` : "rgba(255,255,255,0.07)",
+    filterBg: lgS > 0 ? `rgba(255,255,255,${(lgS * 0.05).toFixed(3)})` : "rgba(255,255,255,0.02)",
+    text: "#e2e8f0", textMuted: "rgba(255,255,255,0.45)", textFaint: "rgba(255,255,255,0.25)",
+    inputBg: lgS > 0 ? `rgba(255,255,255,${(lgS * 0.08).toFixed(3)})` : "#0f172a",
+    inputBorder: lgS > 0 ? `rgba(255,255,255,${(0.15 + lgS * 0.07).toFixed(3)})` : "rgba(255,255,255,0.15)",
+    modalBg: lgS > 0 ? `rgba(8,16,36,${(0.5 + lgS * 0.25).toFixed(3)})` : "#1e293b",
+    dropdownBg: lgS > 0 ? `rgba(8,16,36,${(0.7 + lgS * 0.2).toFixed(3)})` : "#1e293b",
+    hoverBg: lgS > 0 ? `rgba(255,255,255,${(0.07 + lgS * 0.06).toFixed(3)})` : "rgba(255,255,255,0.07)",
+    numColor: "#93c5fd",
+    backdropFilter: lgS > 0 ? `blur(${(8 + lgS * 24).toFixed(1)}px) saturate(${(130 + lgS * 80).toFixed(0)}%) brightness(${(1 + lgS * 0.1).toFixed(3)})` : "none",
+    boxShadow: lgS > 0 ? `0 2px 0 rgba(255,255,255,${(lgS * 0.14).toFixed(3)}) inset, 0 -1px 0 rgba(0,0,0,0.3) inset, 0 8px 32px rgba(0,0,0,${(0.2 + lgS * 0.3).toFixed(3)})` : "none",
+    orbOpacity: lgS,
+  } : {
+    appBg: lightAppBg,
+    headerBg: lgS > 0 ? `rgba(255,255,255,${(0.4 + lgS * 0.22).toFixed(3)})` : "#ffffff",
+    headerBorder: lgS > 0 ? `rgba(255,255,255,${(0.5 + lgS * 0.45).toFixed(3)})` : "rgba(0,0,0,0.08)",
+    cardBg: lgS > 0 ? `rgba(255,255,255,${(0.35 + lgS * 0.22).toFixed(3)})` : "#ffffff",
+    cardBorder: lgS > 0 ? `rgba(255,255,255,${(0.5 + lgS * 0.4).toFixed(3)})` : "rgba(0,0,0,0.08)",
+    theadBg: lgS > 0 ? `rgba(255,255,255,${(0.3 + lgS * 0.2).toFixed(3)})` : "#dde3ed",
+    cellBorder: lgS > 0 ? `rgba(0,0,0,${Math.max(0.02,(0.06 - lgS * 0.02)).toFixed(3)})` : "rgba(0,0,0,0.07)",
+    filterBg: lgS > 0 ? `rgba(255,255,255,${(0.3 + lgS * 0.22).toFixed(3)})` : "#f8fafc",
+    text: "#1e293b", textMuted: "rgba(0,0,0,0.5)", textFaint: "rgba(0,0,0,0.3)",
+    inputBg: lgS > 0 ? `rgba(255,255,255,${(0.5 + lgS * 0.28).toFixed(3)})` : "#ffffff",
+    inputBorder: lgS > 0 ? `rgba(0,0,0,${Math.max(0.06,(0.12 - lgS * 0.04)).toFixed(3)})` : "rgba(0,0,0,0.2)",
+    modalBg: lgS > 0 ? `rgba(255,255,255,${(0.55 + lgS * 0.28).toFixed(3)})` : "#ffffff",
+    dropdownBg: lgS > 0 ? `rgba(255,255,255,${(0.7 + lgS * 0.25).toFixed(3)})` : "#ffffff",
+    hoverBg: lgS > 0 ? `rgba(255,255,255,${(0.4 + lgS * 0.35).toFixed(3)})` : "rgba(0,0,0,0.04)",
+    numColor: "#2563eb",
+    backdropFilter: lgS > 0 ? `blur(${(8 + lgS * 22).toFixed(1)}px) saturate(${(130 + lgS * 60).toFixed(0)}%) brightness(${(1 + lgS * 0.05).toFixed(3)})` : "none",
+    boxShadow: lgS > 0 ? `0 2px 0 rgba(255,255,255,${(0.6 + lgS * 0.38).toFixed(3)}) inset, 0 -1px 0 rgba(0,0,0,0.06) inset, 0 4px 24px rgba(0,0,0,${(0.04 + lgS * 0.1).toFixed(3)})` : "none",
+    orbOpacity: lgS,
+  };
+
+  const nextId = data.length > 0 ? data.reduce((max, r) => Math.max(max, r.id), 0) + 1 : 1;
+  const emptyRow = { id: nextId, firma: firmy[0]?.hodnota||"", ps_i: 0, snk_i: 0, bo_i: 0, ps_ii: 0, bo_ii: 0, poruch: 0, cislo_stavby: "", nazev_stavby: "", vyfakturovano: 0, ukonceni: "", zrealizovano: "", sod: "", ze_dne: "", objednatel: "", stavbyvedouci: "", nabidkova_cena: 0, cislo_faktury: "", castka_bez_dph: 0, splatna: "", cislo_faktury_2: "", castka_bez_dph_2: 0, splatna_2: "", poznamka: "" };
+
+  const getFirmaColor = (firmaName) => firmaColorCache[firmaName] || { bg: isDark ? "#1a2744" : "#e2e8f0", badge: "rgba(59,130,246,0.25)", badgeBorder: "rgba(59,130,246,0.6)", text: "#3b82f6", hex: "#3b82f6" };
+
+  const firmaBadge = (firma) => {
+    const c = getFirmaColor(firma);
+    return { display: "inline-block", padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: c.badge, color: c.text, border: `1px solid ${c.badgeBorder}` };
+  };
+
+  const rowBg = (firma) => getFirmaColor(firma).bg;
 
   return (
-    <div style={{ minHeight:'100vh', background:T.bg }}>
-      {/* PRINT STYLY */}
+    <div style={{ height: "100dvh", maxHeight: "100dvh", background: T.appBg, fontFamily: "'Segoe UI',Tahoma,sans-serif", color: T.text, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }}>
       <style>{`
-        @media print {
-          @page { size: A4 landscape; margin: 4mm; }
-          .no-print { display: none !important; }
-          .rozbor-print { padding: 0 !important; width: 100% !important; }
-          * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        }
-        /* Světlý motiv pro tisk — přepíše tmavý motiv */
-        html.printing, html.printing body { background: white !important; color: black !important; }
-        html.printing .no-print { display: none !important; }
-        html.printing * {
-          background-color: transparent !important;
-          color: black !important;
-          border-color: #cccccc !important;
-        }
-        html.printing [style*="color:#3b82f6"], html.printing [style*="color: #3b82f6"] { color: #1d4ed8 !important; }
-        html.printing [style*="color:#f59e0b"], html.printing [style*="color: #f59e0b"] { color: #b45309 !important; }
-        html.printing [style*="color:#ef4444"], html.printing [style*="color: #ef4444"] { color: #b91c1c !important; }
-        html.printing [style*="color:#10b981"], html.printing [style*="color: #10b981"] { color: #047857 !important; }
-        html.printing [style*="color:#8b5cf6"], html.printing [style*="color: #8b5cf6"] { color: #6d28d9 !important; }
-        html.printing [style*="color:#60a5fa"], html.printing [style*="color: #60a5fa"] { color: #1d4ed8 !important; }
-        html.printing [style*="background:rgba(59,130,246"] { background-color: #dbeafe !important; }
-        html.printing [style*="background:rgba(245,158,11"] { background-color: #fef3c7 !important; }
-        html.printing [style*="background:rgba(239,68,68"]  { background-color: #fee2e2 !important; }
-        html.printing [style*="background:rgba(16,185,129"] { background-color: #d1fae5 !important; }
-        html.printing [style*="background:rgba(139,92,246"] { background-color: #ede9fe !important; }
-        html.printing [style*="background:rgba(37,99,235"]  { background-color: #dbeafe !important; }
+        html,body{overflow:hidden;height:100%;margin:0;padding:0}
+        .table-wrapper{-webkit-overflow-scrolling:touch;}
+        * { -webkit-tap-highlight-color: transparent; }
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes stagingBlink{0%,100%{opacity:1;box-shadow:0 0 8px rgba(249,115,22,0.8)}50%{opacity:0.4;box-shadow:0 0 2px rgba(249,115,22,0.2)}}
+        @keyframes stagingPulse{0%,100%{background:rgba(249,115,22,0.95)}50%{background:rgba(234,88,12,0.7)}}
+        @keyframes lgOrb1{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(60px,-40px) scale(1.15)}66%{transform:translate(-30px,50px) scale(0.9)}}
+        @keyframes lgOrb2{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(-80px,30px) scale(0.85)}66%{transform:translate(40px,-60px) scale(1.2)}}
+        @keyframes lgOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,40px) scale(1.1)}}
+        @keyframes lgShimmer{0%{opacity:0.4;transform:translateX(-100%) skewX(-15deg)}100%{opacity:0;transform:translateX(300%) skewX(-15deg)}}
+        .lg-panel{position:relative;overflow:hidden}
+        .lg-panel::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(255,255,255,0.18) 0%,rgba(255,255,255,0.04) 50%,rgba(255,255,255,0.08) 100%);pointer-events:none;z-index:0}
+        .lg-panel::after{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.6),transparent);pointer-events:none;z-index:0}
+        .lg-shimmer-bar{content:'';position:absolute;top:0;left:0;width:40%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.07),transparent);animation:lgShimmer 4s ease-in-out infinite;pointer-events:none;z-index:0}
+        ${!isDark ? "table td:not(.colored-cell) { color: #1e293b; } table td:not(.colored-cell) input { color: #1e293b; } table td:not(.colored-cell) select { color: #1e293b; }" : ""}
       `}</style>
+
+      {/* Liquid Glass — animované orby na pozadí */}
+      {liquidGlass && (
+        <div style={{ position: "fixed", inset: 0, pointerEvents: "none", zIndex: 0, overflow: "hidden", opacity: lgS, transition: "opacity 0.3s" }}>
+          {/* SVG displacement filter pro refrakci */}
+          <svg width="0" height="0" style={{ position: "absolute" }}>
+            <defs>
+              <filter id="lg-refract">
+                <feTurbulence type="fractalNoise" baseFrequency="0.012 0.008" numOctaves="3" seed="5" result="noise"/>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale={isDark ? "8" : "5"} xChannelSelector="R" yChannelSelector="G"/>
+              </filter>
+              <filter id="lg-glow">
+                <feGaussianBlur stdDeviation="40" result="blur"/>
+                <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+              </filter>
+            </defs>
+          </svg>
+          {/* Orby */}
+          {isDark ? (<>
+            <div style={{ position: "absolute", width: 600, height: 600, borderRadius: "50%", background: "radial-gradient(circle,rgba(59,130,246,0.35) 0%,rgba(99,102,241,0.2) 40%,transparent 70%)", top: "-100px", left: "-100px", filter: "blur(60px)", animation: "lgOrb1 18s ease-in-out infinite" }}/>
+            <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(139,92,246,0.3) 0%,rgba(168,85,247,0.15) 40%,transparent 70%)", bottom: "-80px", right: "-80px", filter: "blur(50px)", animation: "lgOrb2 22s ease-in-out infinite" }}/>
+            <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(14,165,233,0.25) 0%,rgba(6,182,212,0.12) 40%,transparent 70%)", top: "40%", left: "45%", filter: "blur(55px)", animation: "lgOrb3 26s ease-in-out infinite" }}/>
+            <div style={{ position: "absolute", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(236,72,153,0.2) 0%,transparent 70%)", top: "20%", right: "20%", filter: "blur(45px)", animation: "lgOrb1 30s ease-in-out infinite reverse" }}/>
+          </>) : (<>
+            <div style={{ position: "absolute", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle,rgba(59,130,246,0.25) 0%,rgba(147,197,253,0.15) 40%,transparent 70%)", top: "-150px", left: "-150px", filter: "blur(80px)", animation: "lgOrb1 20s ease-in-out infinite" }}/>
+            <div style={{ position: "absolute", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle,rgba(167,139,250,0.2) 0%,rgba(196,181,253,0.1) 40%,transparent 70%)", bottom: "-100px", right: "-100px", filter: "blur(70px)", animation: "lgOrb2 24s ease-in-out infinite" }}/>
+            <div style={{ position: "absolute", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(52,211,153,0.2) 0%,transparent 70%)", top: "35%", left: "50%", filter: "blur(65px)", animation: "lgOrb3 28s ease-in-out infinite" }}/>
+          </>)}
+        </div>
+      )}
+      {toast && (
+        <div style={{ position: "fixed", bottom: 24, right: 24, zIndex: 9999, padding: "12px 20px", borderRadius: 10, background: toast.type === "error" ? "#dc2626" : "#16a34a", color: "#fff", fontSize: 13, fontWeight: 600, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", maxWidth: 360 }}>
+          {toast.type === "error" ? "⚠️ " : "✅ "}{toast.msg}
+        </div>
+      )}
+      {isDemo && (
+        <div style={{ background: "linear-gradient(90deg,#b45309,#d97706)", color: "#fff", textAlign: "center", padding: "6px 16px", fontSize: 12, fontWeight: 700, letterSpacing: 0.5, flexShrink: 0 }}>
+          🎮 DEMO VERZE — plný přístup admin, data se neukládají, maximum {DEMO_MAX_STAVBY} staveb ({data.length}/{DEMO_MAX_STAVBY})
+        </div>
+      )}
+      {isStaging && !isDemo && (
+        <div style={{ animation: "stagingPulse 1.5s ease-in-out infinite", color: "#fff", textAlign: "center", padding: "5px 16px", fontSize: 12, fontWeight: 800, letterSpacing: 1, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>
+          <span style={{ animation: "stagingBlink 1.5s ease-in-out infinite", display: "inline-block" }}>⚠️</span>
+          TESTOVACÍ PROSTŘEDÍ — změny se ukládají do testovací databáze, nikoliv do ostré produkce
+          <span style={{ animation: "stagingBlink 1.5s ease-in-out infinite", display: "inline-block" }}>⚠️</span>
+        </div>
+      )}
+
       {/* HEADER */}
-      <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
-        <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '0 120px' : '0' }}>
-          {/* Název + import info — jen jedna řádka */}
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
-              <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-                {profile?.role === 'admin' && (
-                  <div style={{ fontSize:10, color:'#94a3b8', fontFamily:'monospace' }}>
-                    📦 {s.import_build || '—'}
-                  </div>
-                )}
-                {lastSaved && (
-                  <div style={{ fontSize:10, color:'#10b981' }}>
-                    🕐 {lastSaved.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit', second:'2-digit' })}
-                  </div>
-                )}
-              </div>
+      <div ref={headerRef} className={liquidGlass ? "lg-panel" : ""} style={{ background: T.headerBg, borderBottom: `1px solid ${T.headerBorder}`, padding: isMobile ? "8px 12px" : "11px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0, backdropFilter: T.backdropFilter, WebkitBackdropFilter: T.backdropFilter, boxShadow: T.boxShadow, position: "relative", zIndex: 10 }}>
+        {liquidGlass && <div className="lg-shimmer-bar" style={{ position: "absolute", top: 0, left: 0, width: "40%", height: "100%", pointerEvents: "none" }} />}
+        {/* Levá část: logo */}
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 14 }}>
+          <svg width={isMobile ? 32 : 46} height={isMobile ? 32 : 46} viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="38" fill="#1e3a8a" />
+            <polygon points="47,10 30,42 40,42 33,68 52,36 42,36" fill="#facc15" />
+          </svg>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: isMobile ? 15 : 22 }}>Stavby Znojmo</div>
+              {!isMobile && <div style={{ color: T.textMuted, fontSize: 16, textAlign: "center", letterSpacing: 1 }}>kategorie 1 & 2</div>}
             </div>
+            {isStaging && !isDemo && (
+              <div style={{ animation: "stagingBlink 1.5s ease-in-out infinite", background: "rgba(249,115,22,0.9)", color: "#fff", fontWeight: 800, fontSize: 11, padding: "3px 8px", borderRadius: 6, letterSpacing: 1, border: "1px solid rgba(249,115,22,0.6)", flexShrink: 0 }}>
+                ⚠️ TEST
+              </div>
+            )}
           </div>
-          <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:6, marginBottom:4 }}>
-            {/* Vlevo: ← zpět */}
-            <button onClick={async () => {
-              if (sazbyDialog) {
-                if (!window.confirm('Import nebyl dokončen — sazby nebyly potvrzeny. Opravdu odejít?')) return
-                setSazbyDialog(null)
-              }
-              const dataToSave = sRef.current || s
-              setSaving(true)
-              await supabase.from('stavby').update({ ...dataToSave, updated_at: new Date().toISOString() }).eq('id', params.id)
-              setSaving(false)
-              router.push('/dashboard')
-            }} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'5px 12px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>← zpět</button>
+        </div>
 
-            {/* Střed: záložky */}
-            <div style={{ display:'flex', flex:1, justifyContent:'center' }}>
-              {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
-                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ const d=sRef.current||s; await supabase.from('stavby').update({...d,updated_at:new Date().toISOString()}).eq('id',params.id); setTab(t.k) } }}
-                  style={{ padding:'6px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
+        {/* Pravá část: desktop = vše, mobil = Termíny + ☰ */}
+        <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 6 : 10 }}>
+          {!isDemo && deadlineWarnings.length > 0 && (
+            <button onClick={() => setShowDeadlines(true)} style={{ padding: isMobile ? "4px 8px" : "5px 12px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: isMobile ? 11 : 12, fontWeight: 600 }}>⚠️ Termíny ({deadlineWarnings.length})</button>
+          )}
+          {!isMobile && !isDemo && (() => { const firmyNames = firmy.map(f => f.hodnota); const count = data.filter(s => s.firma && !firmyNames.includes(s.firma)).length; return count > 0 ? <button onClick={() => setShowOrphanWarning(true)} style={{ padding: "5px 12px", background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 7, color: "#fbbf24", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🏚️ Bez firmy ({count})</button> : null; })()}
+          {!isMobile && <>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80" }} />
+            <span style={{ color: T.text, fontSize: 13 }}>{user.name}</span>
+            <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: isSuperAdmin ? "rgba(168,85,247,0.2)" : isAdmin ? "rgba(245,158,11,0.2)" : isEditor ? "rgba(34,197,94,0.2)" : "rgba(100,116,139,0.2)", color: isSuperAdmin ? "#c084fc" : isAdmin ? "#fbbf24" : isEditor ? "#4ade80" : "#94a3b8" }}>{isSuperAdmin ? "SUPERADMIN" : isAdmin ? "ADMIN" : isEditor ? "USER EDITOR" : "USER"}</span>
+            <button onClick={() => setShowHelp(true)} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 12 }}>❓ Nápověda</button>
+            {isAdmin && <button onClick={() => { setShowSettings(true); if (!isDemo) loadLog(); }} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 12 }}>⚙️ Nastavení</button>}
+            {isAdmin && <button onClick={() => setShowLog(true)} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 12 }}>📜 Log</button>}
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {[["🌞","light","Světlý"],["🌙","dark","Tmavý"]].map(([icon, val, label]) => (
+                <button key={val} onClick={() => changeTheme(val)} onMouseEnter={e => showTooltip(e, label + " režim")} onMouseLeave={hideTooltip} style={{ padding: "5px 9px", background: theme === val ? (isDark ? "rgba(37,99,235,0.3)" : "rgba(37,99,235,0.15)") : "transparent", border: `1px solid ${theme === val ? "rgba(37,99,235,0.5)" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, color: theme === val ? "#60a5fa" : T.textMuted, cursor: "pointer", fontSize: 13 }}>{icon}</button>
               ))}
             </div>
-
-            {/* Vpravo: tlačítka podle záložky */}
-            <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
-              {tab === 'rozbor' ? (<>
-                <button onClick={() => setSazbyInfoOpen(true)}
-                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  📋 Sazby
-                </button>
-                {profile?.role === 'admin' && (
-                  <button onClick={() => setRozpisDialog(true)}
-                    style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                    🔍 Rozpis
-                  </button>
-                )}
-                <button onClick={() => {
-                  document.documentElement.classList.add('printing')
-                  window.print()
-                  setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-                }} style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  🖨️ Tisk
-                </button>
-                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-                </div>
-              </>) : (<>
-                {profile?.role === 'admin' && (
-                  <button onClick={() => setRozpisDialog(true)}
-                    style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                    🔍 Rozpis
-                  </button>
-                )}
-                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-                </div>
-                {profile?.role === 'admin' && (
-                  <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                    🗑️ Smazat
-                  </button>
-                )}
-                <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
-                </button>
-                <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
-                <button onClick={() => importFileRef.current?.click()}
-                  style={{ padding:'6px 14px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:6, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📂 Importovat z Excelu
-                </button>
-              </>)}
-            </div>
-          </div>
+            <button onClick={toggleLiquidGlass} onMouseEnter={e => showTooltip(e, liquidGlass ? "Vypnout Liquid Glass" : "Zapnout Liquid Glass")} onMouseLeave={hideTooltip} style={{ padding: "5px 9px", background: liquidGlass ? "rgba(139,92,246,0.25)" : "rgba(255,255,255,0.05)", border: `1px solid ${liquidGlass ? "rgba(139,92,246,0.6)" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, color: liquidGlass ? "#a78bfa" : T.textMuted, cursor: "pointer", fontSize: 14, fontWeight: liquidGlass ? 700 : 400, boxShadow: liquidGlass ? "0 0 12px rgba(139,92,246,0.4)" : "none" }}>💎</button>
+            {/* Univerzální slider — zobrazí se mezi 💎 a Odhlásit */}
+            {activeSlider === "theme" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: isDark ? "rgba(129,140,248,0.12)" : "rgba(251,191,36,0.12)", border: `1px solid ${isDark ? "rgba(129,140,248,0.3)" : "rgba(251,191,36,0.3)"}`, borderRadius: 8, padding: "3px 8px" }}
+                onMouseEnter={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onMouseLeave={sliderStartTimer}
+                title={`Intenzita pozadí: ${themeStrength}%`}
+              >
+                <span style={{ fontSize: 10, color: isDark ? "#818cf8" : "#f59e0b", fontWeight: 700, minWidth: 26, textAlign: "right" }}>{themeStrength}%</span>
+                <input type="range" min="0" max="100" step="5" value={themeStrength} onChange={e => changeThemeStrength(Number(e.target.value))} style={{ width: 70, accentColor: isDark ? "#818cf8" : "#f59e0b", cursor: "pointer" }} />
+              </div>
+            )}
+            {activeSlider === "lg" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 5, background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 8, padding: "3px 8px" }}
+                onMouseEnter={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onMouseLeave={sliderStartTimer}
+                title={`Síla Liquid Glass: ${lgStrength}%`}
+              >
+                <span style={{ fontSize: 10, color: "#a78bfa", fontWeight: 700, minWidth: 26, textAlign: "right" }}>{lgStrength}%</span>
+                <input type="range" min="10" max="100" step="5" value={lgStrength} onChange={e => changeLgStrength(Number(e.target.value))} style={{ width: 70, accentColor: "#a78bfa", cursor: "pointer" }} />
+              </div>
+            )}
+            <button onClick={() => setShowLogoutConfirm(true)} style={{ padding: "5px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 12 }}>Odhlásit</button>
+          </>}
+          {/* Mobil: hamburger ☰ */}
+          {isMobile && (
+            <button onClick={() => setShowMobileMenu(v => !v)} style={{ padding: "6px 10px", background: showMobileMenu ? "rgba(37,99,235,0.25)" : "rgba(255,255,255,0.06)", border: `1px solid ${showMobileMenu ? "rgba(37,99,235,0.5)" : "rgba(255,255,255,0.12)"}`, borderRadius: 8, color: showMobileMenu ? "#60a5fa" : T.textMuted, cursor: "pointer", fontSize: 18, lineHeight: 1 }}>☰</button>
+          )}
         </div>
       </div>
 
-      <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '20px 0 60px' : '20px 20px 60px' }}>
-        {tab==='vstup' && (
-          <div>
-            {/* Parametry */}
-            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'16px 18px', marginBottom:20 }}>
-              <div style={{ color:'#f59e0b', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:14 }}>⚙️ Parametry stavby</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12 }}>
-                {[
-                  { l:'Název stavby', k:'nazev', span:true },
-                  { l:'Číslo stavby', k:'cislo' },
-                  { l:'Datum',        k:'datum' },
-                  { l:'Oblast',       k:'oblast', isSelect:true },
-                  { l:'Přirážka %',   k:'prirazka', isPct:true },
-                  { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
-                  { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
-                  { l:'empty1', k:null },
-                  { l:'empty2', k:null },
-                  { l:'empty3', k:null },
-                  { l:'empty4', k:null },
-                  { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
-                  { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
+      {/* MOBILE MENU — dropdown pod headerem */}
+      {isMobile && showMobileMenu && (
+        <div style={{ background: isDark ? "#1e293b" : "#fff", border: `1px solid ${T.headerBorder}`, borderTop: "none", padding: "10px 14px", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0, zIndex: 100 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 8, borderBottom: `1px solid ${T.cellBorder}` }}>
+            <div style={{ width: 7, height: 7, borderRadius: "50%", background: "#4ade80" }} />
+            <span style={{ color: T.text, fontSize: 13, fontWeight: 600 }}>{user.name}</span>
+            <span style={{ padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 700, background: isSuperAdmin ? "rgba(168,85,247,0.2)" : isAdmin ? "rgba(245,158,11,0.2)" : isEditor ? "rgba(34,197,94,0.2)" : "rgba(100,116,139,0.2)", color: isSuperAdmin ? "#c084fc" : isAdmin ? "#fbbf24" : isEditor ? "#4ade80" : "#94a3b8" }}>{isSuperAdmin ? "SUPERADMIN" : isAdmin ? "ADMIN" : isEditor ? "USER EDITOR" : "USER"}</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {[["🌞","light"],["🌙","dark"]].map(([icon, val]) => (
+                <button key={val} onClick={() => changeTheme(val)} style={{ padding: "6px 12px", background: theme === val ? "rgba(37,99,235,0.3)" : "transparent", border: `1px solid ${theme === val ? "rgba(37,99,235,0.5)" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, color: theme === val ? "#60a5fa" : T.textMuted, cursor: "pointer", fontSize: 14 }}>{icon}</button>
+              ))}
+            </div>
+            <button onClick={toggleLiquidGlass} style={{ padding: "6px 12px", background: liquidGlass ? "rgba(139,92,246,0.25)" : "rgba(255,255,255,0.05)", border: `1px solid ${liquidGlass ? "rgba(139,92,246,0.6)" : "rgba(255,255,255,0.1)"}`, borderRadius: 8, color: liquidGlass ? "#a78bfa" : T.textMuted, cursor: "pointer", fontSize: 14, fontWeight: liquidGlass ? 700 : 400 }}>💎</button>
+            {/* Univerzální slider v mobilním menu */}
+            {activeSlider === "theme" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: isDark ? "rgba(129,140,248,0.12)" : "rgba(251,191,36,0.12)", border: `1px solid ${isDark ? "rgba(129,140,248,0.3)" : "rgba(251,191,36,0.3)"}`, borderRadius: 8, padding: "6px 10px" }}
+                onMouseEnter={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onMouseLeave={sliderStartTimer}
+                onTouchStart={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onTouchEnd={sliderStartTimer}
+              >
+                <span style={{ fontSize: 11, color: isDark ? "#818cf8" : "#f59e0b", fontWeight: 700, minWidth: 30 }}>{themeStrength}%</span>
+                <input type="range" min="0" max="100" step="5" value={themeStrength} onChange={e => changeThemeStrength(Number(e.target.value))} style={{ flex: 1, accentColor: isDark ? "#818cf8" : "#f59e0b", cursor: "pointer" }} />
+              </div>
+            )}
+            {activeSlider === "lg" && (
+              <div style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(139,92,246,0.12)", border: "1px solid rgba(139,92,246,0.3)", borderRadius: 8, padding: "6px 10px" }}
+                onMouseEnter={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onMouseLeave={sliderStartTimer}
+                onTouchStart={() => { if (sliderTimer.current) clearTimeout(sliderTimer.current); }}
+                onTouchEnd={sliderStartTimer}
+              >
+                <span style={{ fontSize: 11, color: "#a78bfa", fontWeight: 700, minWidth: 30 }}>{lgStrength}%</span>
+                <input type="range" min="10" max="100" step="5" value={lgStrength} onChange={e => changeLgStrength(Number(e.target.value))} style={{ flex: 1, accentColor: "#a78bfa", cursor: "pointer" }} />
+              </div>
+            )}
+            <button onClick={() => { setShowHelp(true); setShowMobileMenu(false); }} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 13 }}>❓ Nápověda</button>
+            {isAdmin && <button onClick={() => { setShowSettings(true); setShowMobileMenu(false); if (!isDemo) loadLog(); }} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 13 }}>⚙️ Nastavení</button>}
+            {isAdmin && <button onClick={() => { setShowLog(true); setShowMobileMenu(false); }} style={{ padding: "6px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 7, color: T.textMuted, cursor: "pointer", fontSize: 13 }}>📜 Log</button>}
+            {!isDemo && (() => { const firmyNames = firmy.map(f => f.hodnota); const count = data.filter(s => s.firma && !firmyNames.includes(s.firma)).length; return count > 0 ? <button onClick={() => { setShowOrphanWarning(true); setShowMobileMenu(false); }} style={{ padding: "6px 12px", background: "rgba(251,191,36,0.15)", border: "1px solid rgba(251,191,36,0.3)", borderRadius: 7, color: "#fbbf24", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🏚️ Bez firmy ({count})</button> : null; })()}
+            <button onClick={() => { setShowLogoutConfirm(true); setShowMobileMenu(false); }} style={{ padding: "6px 12px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Odhlásit</button>
+          </div>
+        </div>
+      )}
 
-                ].map(({l,k,span,isPct,isSelect})=>(
-                  <div key={k||l} style={span?{gridColumn:'1/-1'}:{}}>
-                    {!k ? null : <>
-                    <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
-                    {isSelect ? (
-                      <select value={s[k]||''} onChange={e=>setField(k,e.target.value)}
-                        style={{ width:'100%', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box' }}>
-                        {['Jihlava','Třebíč','Znojmo'].map(o=><option key={o}>{o}</option>)}
-                      </select>
-                    ) : (
-                      <input type="text"
-                        value={isPct ? pct(s[k]) : (s[k]??'')}
-                        onChange={e=>setField(k, isPct ? e.target.value : e.target.value)}
-                        onBlur={e=>{ if(isPct) setField(k, String(num(e.target.value)/100)) }}
-                        onKeyDown={onEnterNext}
-                        style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+      {/* SUMMARY */}
+      <div ref={cardsRef}><SummaryCards data={data} firmy={firmy.map(f => f.hodnota)} isDark={isDark} firmaColors={Object.fromEntries(firmy.map(f => [f.hodnota, f.barva || "#2563eb"]))} isMobile={isMobile} /></div>
+
+      {/* FILTERS */}
+      <div ref={filtersRef} className={liquidGlass ? "lg-panel" : ""} style={{ padding: "4px 6px", display: "flex", flexDirection: "column", gap: 3, background: T.filterBg, borderBottom: `1px solid ${T.cellBorder}`, minHeight: 38, backdropFilter: T.backdropFilter, WebkitBackdropFilter: T.backdropFilter, position: "relative", zIndex: 9 }}>
+        {/* Řádek 1: hledání + firma + filtr + ▦ */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", overflowX: isMobile ? "visible" : "auto" }}>
+          <input placeholder="🔍 Hledat..." onMouseEnter={e => showTooltip(e, "Hledat podle názvu nebo čísla stavby")} onMouseLeave={hideTooltip} value={filterText} onChange={e => setFilterText(e.target.value)} style={{ ...inputSx, width: isMobile ? 110 : 150, minWidth: 80, background: T.inputBg, border: `1px solid ${T.inputBorder}`, color: T.text, padding: "4px 8px", fontSize: 11 }} />
+          <NativeSelect value={filterFirma} onChange={setFilterFirma} options={["Všechny firmy", ...firmy.map(f => f.hodnota)]} isDark={isDark} style={{ width: isMobile ? 110 : 130, flexShrink: 0 }} />
+          {!isMobile && <NativeSelect value={filterObjed} onChange={setFilterObjed} options={["Všichni objednatelé", ...objednatele]} isDark={isDark} style={{ width: 145, flexShrink: 0 }} />}
+          {!isMobile && <NativeSelect value={filterSV} onChange={setFilterSV} options={["Všichni stavbyvedoucí", ...stavbyvedouci]} isDark={isDark} style={{ width: 155, flexShrink: 0 }} />}
+          <button onClick={() => setShowAdvFilter(v => !v)} onMouseEnter={e => showTooltip(e, "Rozšířený filtr: rok, částka, prošlé termíny")} onMouseLeave={hideTooltip} style={{ padding: "0 8px", height: 28, background: showAdvFilter ? (filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? "rgba(239,68,68,0.25)" : "rgba(37,99,235,0.25)" : (filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? "rgba(239,68,68,0.18)" : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)"), border: `1px solid ${(filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? "rgba(239,68,68,0.7)" : showAdvFilter ? "rgba(37,99,235,0.5)" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)")}`, borderRadius: 7, color: (filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? "#f87171" : showAdvFilter ? "#60a5fa" : T.text, cursor: "pointer", fontSize: 12, fontWeight: (showAdvFilter || filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? 700 : 400, whiteSpace: "nowrap", flexShrink: 0, boxShadow: (filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) ? "0 0 8px rgba(239,68,68,0.4)" : "none" }}>Filtr {showAdvFilter ? "▲" : "▼"}</button>
+          {isMobile && (
+            <button onClick={() => setCardView(v => !v)} onMouseEnter={e => showTooltip(e, cardView ? "Přepnout na tabulku" : "Přepnout na kartičky")} onMouseLeave={hideTooltip} style={{ padding: "0 8px", height: 28, background: cardView ? "rgba(37,99,235,0.25)" : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)"), border: `1px solid ${cardView ? "rgba(37,99,235,0.5)" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)")}`, borderRadius: 7, color: cardView ? "#60a5fa" : T.text, cursor: "pointer", fontSize: 13, fontWeight: cardView ? 700 : 400, flexShrink: 0 }} title={cardView ? "Tabulka" : "Kartičky"}>{cardView ? "☰" : "▦"}</button>
+          )}
+          {isMobile && (
+            <button onClick={() => setShowFilterRow2(v => !v)} style={{ padding: "0 8px", height: 28, background: showFilterRow2 ? "rgba(37,99,235,0.25)" : (isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)"), border: `1px solid ${showFilterRow2 ? "rgba(37,99,235,0.5)" : (isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)")}`, borderRadius: 7, color: showFilterRow2 ? "#60a5fa" : T.text, cursor: "pointer", fontSize: 14, fontWeight: 600, flexShrink: 0 }} title="Více možností">⋯</button>
+          )}
+          {!isMobile && (
+            <>
+              <div style={{ display: "flex", gap: 2, flexShrink: 0, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)", borderRadius: 7, padding: 2, border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}` }}>
+                {[["page","📋 Stránky"],["scroll","📜 Vše"]].map(([vm, lbl]) => (
+                  <button key={vm} onClick={() => setViewMode(vm)} style={{ padding: "0 7px", height: 28, background: viewMode === vm ? (isDark ? "rgba(37,99,235,0.4)" : "#2563eb") : "transparent", border: "none", borderRadius: 5, color: viewMode === vm ? "#fff" : T.textMuted, cursor: "pointer", fontSize: 11, fontWeight: viewMode === vm ? 700 : 400, whiteSpace: "nowrap" }}>{lbl}</button>
+                ))}
+              </div>
+              <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+                <span style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, padding: "0 8px", height: 28, display: "inline-flex", alignItems: "center", color: T.text, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>{filtered.length} záz.</span>
+                <button onClick={() => setShowGraf(true)} onMouseEnter={e => showTooltip(e, "Sloupcový graf nákladů")} onMouseLeave={hideTooltip} style={{ padding: "0 10px", height: 28, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, color: T.text, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>📊 Graf</button>
+                <NativeSelect value="⬇ Export" onChange={v => { if (v === "📄 CSV (.csv)") exportCSV(); else if (v === "📊 Excel (.xlsx)") exportXLS(); else if (v === "🎨 Barevný Excel") exportXLSColor(); else if (v === "📜 Export logu") exportLog(); else if (v === "🖨️ PDF tisk") exportPDF(); }} options={["⬇ Export", "📄 CSV (.csv)", "📊 Excel (.xlsx)", "🎨 Barevný Excel", ...(isAdmin ? ["📜 Export logu"] : []), "🖨️ PDF tisk"]} isDark={isDark} style={{ flexShrink: 0 }} />
+                {isSuperAdmin && <button onClick={zalohaJSON} onMouseEnter={e => showTooltip(e, "Záloha celé DB jako JSON: stavby + číselníky + uživatelé")} onMouseLeave={hideTooltip} style={{ padding: "0 10px", height: 28, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, color: T.text, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap" }}>💾 Záloha</button>}
+                {isSuperAdmin && <>
+                <input ref={importRef} type="file" accept=".xlsx,.xls" onChange={handleImport} style={{ display: "none" }} />
+                <input ref={importRef2} type="file" accept=".json" onChange={handleImportJSON} style={{ display: "none" }} />
+                <button onClick={() => importRef.current?.click()} onMouseEnter={e => showTooltip(e, "Import staveb z původní tabulky nebo zálohy DB (Excel)")} onMouseLeave={hideTooltip} style={{ padding: "0 10px", height: 28, background: isDark ? "rgba(251,191,36,0.1)" : "rgba(251,191,36,0.15)", border: `1px solid ${isDark ? "rgba(251,191,36,0.3)" : "rgba(251,191,36,0.5)"}`, borderRadius: 7, color: "#f59e0b", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>📥 Import XLS</button>
+                <button onClick={() => importRef2.current?.click()} onMouseEnter={e => showTooltip(e, "Import staveb ze zálohy JSON")} onMouseLeave={hideTooltip} style={{ padding: "0 10px", height: 28, background: isDark ? "rgba(16,185,129,0.1)" : "rgba(16,185,129,0.15)", border: `1px solid ${isDark ? "rgba(16,185,129,0.3)" : "rgba(16,185,129,0.5)"}`, borderRadius: 7, color: "#10b981", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap" }}>📥 Import JSON</button>
+              </>}
+                {isEditor && <button onMouseEnter={e => showTooltip(e, "Přidat novou stavbu")} onMouseLeave={hideTooltip} onClick={() => { if (isDemo && data.length >= DEMO_MAX_STAVBY) { showToast(`Demo verze: maximum ${DEMO_MAX_STAVBY} staveb.`, "error"); return; } setAdding(true); }} style={{ padding: "0 14px", height: 28, background: isDemo && data.length >= DEMO_MAX_STAVBY ? "rgba(100,116,139,0.4)" : "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 7, color: "#fff", cursor: isDemo && data.length >= DEMO_MAX_STAVBY ? "not-allowed" : "pointer", fontSize: 12, fontWeight: 600 }}>{isDemo ? `+ Přidat stavbu (${data.length}/${DEMO_MAX_STAVBY})` : "+ Přidat stavbu"}</button>}
+              </div>
+            </>
+          )}
+        </div>
+        {/* Řádek 2 (pouze mobil): objednatel + SV + view + počet + graf + export + přidat */}
+        {isMobile && showFilterRow2 && (
+          <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "nowrap", overflowX: "auto" }}>
+            <NativeSelect value={filterObjed} onChange={setFilterObjed} options={["Všichni objednatelé", ...objednatele]} isDark={isDark} style={{ width: 130, flexShrink: 0 }} />
+            <NativeSelect value={filterSV} onChange={setFilterSV} options={["Všichni SV", ...stavbyvedouci]} isDark={isDark} style={{ width: 110, flexShrink: 0 }} />
+            <div style={{ display: "flex", gap: 2, flexShrink: 0, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)", borderRadius: 7, padding: 2, border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}` }}>
+              {[["page","Str."],["scroll","Vše"]].map(([vm, lbl]) => (
+                <button key={vm} onClick={() => setViewMode(vm)} style={{ padding: "0 6px", height: 26, background: viewMode === vm ? (isDark ? "rgba(37,99,235,0.4)" : "#2563eb") : "transparent", border: "none", borderRadius: 5, color: viewMode === vm ? "#fff" : T.textMuted, cursor: "pointer", fontSize: 11, fontWeight: viewMode === vm ? 700 : 400, whiteSpace: "nowrap" }}>{lbl}</button>
+              ))}
+            </div>
+            <span style={{ background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, padding: "0 7px", height: 28, display: "inline-flex", alignItems: "center", color: T.text, fontSize: 11, fontWeight: 600, whiteSpace: "nowrap" }}>{filtered.length} záz.</span>
+            <button onClick={() => setShowGraf(true)} style={{ padding: "0 8px", height: 28, background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.15)"}`, borderRadius: 7, color: T.text, cursor: "pointer", fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }}>📊</button>
+            <NativeSelect value="⬇" onChange={v => { if (v === "📄 CSV (.csv)") exportCSV(); else if (v === "📊 Excel (.xlsx)") exportXLS(); else if (v === "🎨 Barevný Excel") exportXLSColor(); else if (v === "📜 Export logu") exportLog(); else if (v === "🖨️ PDF tisk") exportPDF(); }} options={["⬇", "📄 CSV (.csv)", "📊 Excel (.xlsx)", "🎨 Barevný Excel", ...(isAdmin ? ["📜 Export logu"] : []), "🖨️ PDF tisk"]} isDark={isDark} style={{ flexShrink: 0, width: 55 }} />
+            {isEditor && (
+              <button onClick={() => { if (isDemo && data.length >= DEMO_MAX_STAVBY) { showToast(`Demo: max ${DEMO_MAX_STAVBY} staveb.`, "error"); return; } setAdding(true); }} style={{ marginLeft: "auto", padding: "0 12px", height: 28, background: isDemo && data.length >= DEMO_MAX_STAVBY ? "rgba(100,116,139,0.4)" : "linear-gradient(135deg,#16a34a,#15803d)", border: "none", borderRadius: 7, color: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>+ Přidat</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* CARD VIEW (mobil) */}
+      {cardView && (
+        <div style={{ overflowY: "auto", flex: 1, minHeight: 0, padding: "10px 10px", display: "flex", flexDirection: "column", gap: 10, background: isDark ? "#0f172a" : "#f1f5f9" }}>
+          {displayRows.length === 0 && (
+            <div style={{ textAlign: "center", padding: 48, color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)", fontSize: 14 }}>Žádné záznamy</div>
+          )}
+          {displayRows.map(row => (
+            <StavbaCard
+              key={row.id}
+              row={row}
+              isEditor={isEditor}
+              isAdmin={isAdmin}
+              isDark={isDark}
+              firmy={firmy}
+              onEdit={setEditRow}
+              onCopy={handleCopy}
+              onDelete={(id) => setDeleteConfirm({ id, step: 1 })}
+              onHistorie={setHistorieRow}
+              showTooltip={showTooltip}
+              hideTooltip={hideTooltip}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* TABLE */}
+      <div ref={tableWrapRef} className="table-wrapper" style={{ display: cardView ? "none" : undefined, overflowX: "auto", overflowY: "auto", flex: 1, minHeight: 0, ...(viewMode === "scroll" ? { overflowY: "auto" } : {}) }}>
+        <table style={{ borderCollapse: "collapse", fontSize: 12.5, tableLayout: "fixed", width: "max-content" }}>
+          <colgroup>
+            <col style={{ width: 40 }} />
+            {(isAdmin || isEditor) && <col style={{ width: 90 }} />}
+            {orderedCols.map(col => (
+              <col key={col.key} style={{ width: getColWidth(col) }} />
+            ))}
+            {(isAdmin || isEditor) && <col style={{ width: 120 }} />}
+          </colgroup>
+          <thead>
+            <tr style={{ background: T.theadBg }}>
+              <th style={{ padding: "9px 11px", textAlign: "center", color: T.textMuted, fontWeight: 700, fontSize: 10.5, letterSpacing: 0.4, whiteSpace: "nowrap", minWidth: 40, position: "sticky", top: 0, background: T.theadBg, zIndex: 10, border: `1px solid ${T.cellBorder}` }}>#</th>
+              {(isAdmin || isEditor) && <th style={{ padding: "9px 11px", color: T.textMuted, fontWeight: 700, fontSize: 10.5, position: "sticky", top: 0, background: T.theadBg, zIndex: 10, border: `1px solid ${T.cellBorder}`, textAlign: "center" }}>AKCE</th>}
+              {orderedCols.map(col => (
+                <th key={col.key}
+                  draggable={isSuperAdmin}
+                  onDragStart={isSuperAdmin ? e => handleColDragStart(e, col.key) : undefined}
+                  onDragOver={isSuperAdmin ? e => handleColDragOver(e, col.key) : undefined}
+                  onDragLeave={isSuperAdmin ? handleColDragLeave : undefined}
+                  onDrop={isSuperAdmin ? e => handleColDrop(e, col.key) : undefined}
+                  onDragEnd={isSuperAdmin ? handleColDragEnd : undefined}
+                  style={{ padding: "6px 4px 6px 8px", textAlign: "center", color: T.textMuted, fontWeight: 700, fontSize: 10.5, letterSpacing: 0.4, width: getColWidth(col), minWidth: 0, position: "sticky", top: 0, background: dragOverState === col.key ? (isDark ? "rgba(37,99,235,0.25)" : "rgba(37,99,235,0.12)") : T.theadBg, zIndex: 10, border: `1px solid ${T.cellBorder}`, borderLeft: dragOverState === col.key ? "2px solid #3b82f6" : `1px solid ${T.cellBorder}`, userSelect: "none", cursor: isSuperAdmin ? "grab" : "default", transition: "background 0.1s, border-left 0.1s" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, width: "100%", minWidth: 0 }}>
+                    {isSuperAdmin && (
+                      <span style={{ color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)", fontSize: 11, flexShrink: 0, cursor: "grab", lineHeight: 1 }} title="Táhni pro přesun sloupce">⠿</span>
                     )}
-                    </>}
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, textAlign: "center", minWidth: 0 }}>{col.label.toUpperCase()}</span>
+                    {isSuperAdmin && (
+                      editingColWidth === col.key
+                        ? <input
+                            autoFocus
+                            type="number"
+                            defaultValue={Math.round(getColWidth(col))}
+                            onBlur={e => { const w = Math.max(40, Math.min(2000, parseInt(e.target.value)||40)); setColWidths(prev => { const n = {...prev, [col.key]: w}; saveColWidths(n); return n; }); setEditingColWidth(null); }}
+                            onKeyDown={e => { if (e.key === "Enter") e.target.blur(); if (e.key === "Escape") setEditingColWidth(null); }}
+                            style={{ width: 50, fontSize: 10, padding: "1px 3px", background: "#1e3a8a", color: "#fff", border: "1px solid #60a5fa", borderRadius: 3, flexShrink: 0 }}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        : <span
+                            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); startDrag(e, col.key, getColWidth(col)); }}
+                            onClick={e => { e.preventDefault(); e.stopPropagation(); setEditingColWidth(col.key); }}
+                            style={{ cursor: "col-resize", color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.5)", fontSize: 12, padding: "1px 3px", userSelect: "none", flexShrink: 0, display: "inline-flex", alignItems: "center", borderRadius: 3, background: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.07)", lineHeight: 1 }}
+                            title={`Táhni = resize | Klik = zadat šířku (nyní: ${Math.round(getColWidth(col))}px)`}
+                          >⟺</span>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <Sekce secKey="gn"    items={GN}    data={s.gn}    T={T} color={SEC.gn.color}    icon={SEC.gn.icon}    label={SEC.gn.label}    sumS={c.gnSumS}    sumBez={c.gnSumBez}    zisk={c.gnZisk}    handlers={gnH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="dof"    items={DOF}    data={s.dof}    T={T} color={SEC.dof.color}    icon={SEC.dof.icon}    label={SEC.dof.label}    sumS={c.dofSumS}   sumBez={c.dofBez}    handlers={dofH}    onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="dofegd" items={DOFEGD} data={s.dofegd} T={T} color={SEC.dofegd.color} icon={SEC.dofegd.icon} label={SEC.dofegd.label} sumS={c.dofegdBez} sumBez={c.dofegdBez} handlers={dofegdH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="mzdy"  items={MZDY}  data={s.mzdy}  T={T} color={SEC.mzdy.color}  icon={SEC.mzdy.icon}  label={SEC.mzdy.label}  sumS={c.mzdySumHzs}  sumBez={c.mzdySumHzs}  zisk={c.mzdyZisk}  handlers={mzdyH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} hodMont={c.hodMont} hodZem={c.hodZem} />
-            <Sekce secKey="mech"  items={MECH}  data={s.mech}  T={T} color={SEC.mech.color}  icon={SEC.mech.icon}  label={SEC.mech.label}  sumS={c.mechSumS}  sumBez={c.mechSumBez}  zisk={c.mechZisk}  handlers={mechH}  onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-            <Sekce secKey="zemni" items={ZEMNI} data={s.zemni} T={T} color={SEC.zemni.color} icon={SEC.zemni.icon} label={SEC.zemni.label} sumS={c.zemniSumS} sumBez={c.zemniSumBez} zisk={c.zemniZisk} handlers={zemniH} onLabelChange={handleLabelChange} katalog={katalog} onNewPopis={handleNewPopis} />
-
-            {/* Ostatní */}
-            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'14px 16px', marginBottom:12 }}>
-              <div style={{ color:'#14b8a6', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:12 }}>🔧 Ostatní</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))', gap:14 }}>
-                {[
-                  { l:'Materiál zhotovitele', val: fmt(c.matZhot) },
-                  { l:'Materiál vlastní',     val: fmt(c.matVlastni) },
-                  { l:'Příspěvek na sklad',   val: fmt(num(s.prispevek_sklad)) },
-                  { l:'GZS',                  val: fmt((s.dof?.gzs?.rows||[]).reduce((a,r)=>a+(parseFloat(r.castka)||0),0)) },
-                  { l:'Stimulační přirážka',  val: fmt(num(s.dof?.stimul_prirazka?.rows?.[0]?.castka)) },
-                ].map(({l,val})=>(
-                  <div key={l}>
-                    <div style={{ color:T.muted, fontSize:10, fontWeight:700, marginBottom:2 }}>{l}</div>
-                    <div style={{ width:'100%', background:'rgba(20,184,166,0.08)', border:`1px solid rgba(20,184,166,0.3)`, borderRadius:6, color:'#14b8a6', fontSize:13, padding:'7px 10px', boxSizing:'border-box', fontFamily:'monospace', fontWeight:700 }}>{val} Kč</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-
-        {tab==='rozbor' && (
-          <div className="rozbor-print" style={{ padding:'0 120px' }}>
-            {/* HLAVIČKA */}
-            <div style={{ background:'linear-gradient(135deg,rgba(37,99,235,0.12),rgba(74,158,255,0.05))', border:'1px solid rgba(74,158,255,0.25)', borderRadius:14, padding:'16px 20px', marginBottom:16 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
-                <div>
-                  <div style={{ color:T.muted, fontSize:10, letterSpacing:1, textTransform:'uppercase' }}>Číslo a název stavby</div>
-                  <div style={{ color:T.text, fontWeight:800, fontSize:15 }}>{s.nazev}</div>
-                  <div style={{ color:T.muted, fontSize:12 }}>č. {s.cislo} · {s.oblast} · {s.datum}</div>
-                </div>
-                <div style={{ display:'flex', gap:24 }}>
-                  {[
-                    { l:'Bázová cena',      v:c.bazova,                        col:'#3b82f6', p:null },
-                    { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)),    col:'#60a5fa', p:null },
-                  ].map(({l,v,col,p})=>(
-                    <div key={l} style={{ textAlign:'right' }}>
-                      <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
-                      <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}</div>
-                    </div>
-                  ))}
-                  {(() => {
-                    const rb = s.rozbor || {}
-                    const pri2 = num(s.prirazka)
-                    const dIdx = num(s.default_index_rozbor ?? -15)
-                    const hv = (k) => rb[k]?.vypl !== undefined && rb[k]?.vypl !== ''
-                    const zR = (k, sP) => hv(k) ? sP - num(rb[k].vypl) : null
-                    const zM = (k, sP) => hv(k) ? sP - num(rb[k].vypl)*1.34 : null
-                    const mzdyRowsSP = [
-                      { k:'mzdy_mont', sP:(itemSum(s.mzdy['mont_vn']?.rows||[])+itemSum(s.mzdy['mont_nn']?.rows||[]))*num(s.hzs_mont)*(1+pri2), f:zM },
-                      { k:'mzdy_zemni', sP:num(rb['mzdy_zemni']?.bez||0)*(1+pri2), f:zM },
-                      { k:'mzdy_ppn', sP:itemSum(s.gn['pripl_ppn']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_stimul', sP:itemSum(s.dof['stimul_prirazka']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_fasady', sP:itemSum(s.zemni['def_fasady']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_strechy', sP:itemSum(s.zemni['def_str']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_bruska', sP:itemSum(s.zemni['uhlova_bruska']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_inz', sP:itemSum(s.gn['inzenyrska']?.rows||[])*(1+pri2), f:zM },
-                      { k:'mzdy_rezerv', sP:num(rb['mzdy_rezerv']?.bez||0)*(1+pri2), f:zM },
-                      { k:'mech_jerab', sP:itemSum(s.mech['jerab']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_nakladni', sP:itemSum(s.mech['nakladni']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_traktor', sP:itemSum(s.mech['traktor']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_plosina', sP:itemSum(s.mech['plosina']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_dodavka', sP:itemSum(s.mech['dodavka']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_kango', sP:itemSum(s.mech['kango']?.rows||[])*(1+pri2), f:zR },
-                      { k:'mech_pila', sP:itemSum(s.mech['pila']?.rows||[])*(1+pri2), f:zR },
-                      { k:'ost_rb_mat_zhot', sP:(c.matZhot||0), f:zR },
-                      { k:'ost_rb_prisp', sP:num(s.prispevek_sklad)*(1+pri2), f:zR },
-                      { k:'ost_rb_gzs', sP:itemSum(s.dof['gzs']?.rows||[])*(1+pri2), f:zR },
-                    ]
-                    const VYPL_KEYS = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv','mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila','zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac','zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak','zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton','gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn','gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace','ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
-                    const kompletni = VYPL_KEYS.every(k => hv(k))
-                    const hasAny = VYPL_KEYS.some(k => hv(k))
-                    const ziskCelkem = mzdyRowsSP.reduce((a,r) => { const z=r.f(r.k,r.sP); return z!==null?a+z:a }, 0)
-                    const ziskSP = c.bazova*(1+pri2)
-                    const ziskPct = hasAny && ziskSP>0 ? (ziskCelkem/ziskSP*100).toFixed(1) : null
-                    const col = kompletni ? '#10b981' : '#059669'
-                    return (
-                      <div style={{ textAlign:'right' }}>
-                        <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
-                        {hasAny ? (<>
-                          <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(ziskCelkem)}</div>
-                          {ziskPct && <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>}
-                          <div style={{ color:col, fontSize:9 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná data'}</div>
-                        </>) : (
-                          <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-              {c.bazova > 0 && (() => {
-                const bars = [
-                  {l:'Mzdy',v:c.mzdySumHzs,col:'#3b82f6'},{l:'Mech.',v:c.mechSumBez,col:'#f59e0b'},
-                  {l:'Zemní',v:c.zemniSumBez,col:'#ef4444'},{l:'GN',v:c.gnSumBez,col:'#10b981'},
-                  {l:'Ostatní',v:c.dofBez+c.gzsKc+c.stimulKc+c.matZhot+c.prispSklad,col:'#8b5cf6'},
-                ].filter(x=>x.v>0)
-                return (<>
-                  <div style={{ display:'flex', height:8, borderRadius:4, overflow:'hidden', gap:2, margin:'12px 0 6px' }}>
-                    {bars.map(b=><div key={b.l} style={{ flex:b.v, background:b.col, opacity:0.85 }}/>)}
-                  </div>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
-                    {bars.map(({l,v,col})=>(
-                      <div key={l} style={{ display:'flex', alignItems:'center', gap:4 }}>
-                        <div style={{ width:8, height:8, borderRadius:2, background:col }}/>
-                        <span style={{ color:T.muted, fontSize:10 }}>{l}: </span>
-                        <span style={{ color:T.text, fontFamily:'monospace', fontSize:10, fontWeight:700 }}>{fmt(v)}</span>
-                        <span style={{ color:T.muted, fontSize:10 }}>({(v/c.bazova*100).toFixed(1)}%)</span>
-                      </div>
-                    ))}
-                    <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:6 }}>
-                      <span style={{ color:T.muted, fontSize:10, textTransform:'uppercase', letterSpacing:0.5 }}>Bázová cena:</span>
-                      <span style={{ color:'#3b82f6', fontFamily:'monospace', fontSize:11, fontWeight:800 }}>{fmt(c.bazova)} Kč</span>
-                    </div>
-                  </div>
-                </>)
-              })()}
-            </div>
-
-            {/* TABULKA ROZBORU — Mzdy montáže */}
-            <RozborMzdy s={s} T={T} c={c} sRef={sRef} setS={setS} />
-            {/* TABULKA ROZBORU — Mechanizace */}
-            <RozborMech s={s} T={T} c={c} sRef={sRef} setS={setS} />
-            {/* TABULKA ROZBORU — Zemní práce */}
-            <RozborZemni s={s} T={T} c={c} sRef={sRef} setS={setS} />
-            {/* TABULKA ROZBORU — Globální náklady */}
-            <RozborGN s={s} T={T} c={c} sRef={sRef} setS={setS} />
-            {/* TABULKA ROZBORU — Ostatní položky */}
-            <RozborOstatni s={s} T={T} c={c} sRef={sRef} setS={setS} />
-            {/* CELKEM ZA STAVBU */}
-            <RozborCelkem s={s} T={T} c={c} sRef={sRef} rozbor={s.rozbor} />
-            {false && (() => {
-              const pri = num(s.prirazka)
-              const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
-              const hzsM = num(s.hzs_mont), hzsZ = num(s.hzs_zem)
-              const cols = '2fr 1fr 1fr 1fr 1fr 1fr 1fr'
-
-              const TH = ({children}) => (
-                <div style={{ color:T.muted, fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'right', padding:'4px 6px' }}>{children}</div>
-              )
-              const SekceHeader = ({label, color, icon}) => (
-                <div style={{ display:'grid', gridTemplateColumns:cols, background:`${color}18`, borderRadius:'6px 6px 0 0', borderBottom:`2px solid ${color}`, marginTop:14 }}>
-                  <div style={{ padding:'7px 8px', color, fontWeight:800, fontSize:12 }}>{icon} {label}</div>
-                  <TH>Bez přirážky</TH><TH>Přirážka</TH><TH>S přirážkou</TH><TH>Index</TH><TH>K vyplacení</TH><TH>Vyplaceno</TH>
-                </div>
-              )
-              const Row = ({label, bez, priR, sP, idx, kVypl, vypl, color, isTotal, highlight}) => (
-                <div style={{ display:'grid', gridTemplateColumns:cols, background: isTotal?`${color}10`:highlight?'rgba(249,115,22,0.06)':'transparent', borderBottom:`1px solid ${T.border}40`, borderRadius:isTotal?'0 0 6px 6px':0 }}>
-                  <div style={{ padding:'5px 8px', color:isTotal?color:highlight?'#f97316':T.text, fontSize:isTotal?12:11, fontWeight:isTotal?700:400 }}>{label}</div>
-                  {[
-                    bez !== 0 ? fmt(Math.abs(bez)) : '—',
-                    `${((priR??pri)*100).toFixed(1)} %`,
-                    sP !== 0 ? fmt(Math.abs(sP)) : '—',
-                    idx !== undefined ? `${(idx*100).toFixed(0)} %` : '—',
-                    kVypl > 0 ? fmt(kVypl) : '—',
-                    vypl > 0 ? fmt(vypl) : '—',
-                  ].map((v,i) => (
-                    <div key={i} style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color: isTotal&&i===4?color : i===5&&vypl>0?'#f59e0b' : T.muted, fontWeight:isTotal?700:400 }}>{v}</div>
-                  ))}
-                </div>
-              )
-
-              // MZDY
-              const mzdyRows = MZDY.map(it => {
-                const hod = itemSum(s.mzdy[it.key]?.rows||[])
-                const saz = it.isZem ? hzsZ : hzsM
-                const bez = hod * saz
-                return { label: s.mzdy[it.key]?.customLabel || it.label, bez, sP: bez*(1+pri), kVypl: bez*0.66, idx:0 }
-              })
-              const mzdyBez = mzdyRows.reduce((a,r)=>a+r.bez,0)
-              const mzdySP = mzdyBez*(1+pri)
-
-              // MECH
-              const mechRows = MECH.map(it => {
-                const bez = itemSum(s.mech[it.key]?.rows||[])
-                return { label: it.label, bez, sP: bez*(1+pri), kVypl: bez*0.8, idx:0 }
-              })
-              const mechBez = mechRows.reduce((a,r)=>a+r.bez,0)
-              const mechSP = mechBez*(1+pri)
-
-              // ZEMNÍ – protlak je zvláštní řádek (kladná hodnota)
-              const zemniRows = ZEMNI.map(it => {
-                const bez = itemSum(s.zemni[it.key]?.rows||[])
-                const idx = it.noIdx ? 0 : it.isProtlak ? 0 : -0.15
-                const sP = it.isProtlak ? Math.abs(bez)*(1+pri) : bez*(1+pri)*(1+idx)
-                return { label: s.zemni[it.key]?.customLabel || it.label, bez: it.isProtlak ? Math.abs(bez) : bez, sP, idx, kVypl: sP*0.8, isProtlak: it.isProtlak }
-              })
-              const zemniSP = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.sP,0)
-
-              // GN
-              const gnRows = GN.map(it => {
-                const bez = itemSum(s.gn[it.key]?.rows||[])
-                return { label: it.label, bez, sP: bez*(1+pri), kVypl: bez*0.8, idx:0 }
-              })
-              const gnBez = gnRows.reduce((a,r)=>a+r.bez,0)
-              const gnSP = gnBez*(1+pri)
-
-              const dofBez    = DOF.reduce((a,it)=>a+itemSum(s.dof[it.key]?.rows||[]),0)
-              const dofegdBez = DOFEGD.reduce((a,it)=>a+itemSum(s.dofegd[it.key]?.rows||[]),0)
-              const dofAllBez = dofBez + dofegdBez
-              const dofSP = dofAllBez*(1+pri)
-              const matZhot = c.matZhot, prispSklad = num(s.prispevek_sklad)
-              const zemniRowsBez = zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)
-              const matVlastniR = itemSum(s.zemni['mat_vlastni']?.rows||[])
-              const bazova = mzdyBez+mechBez+zemniRowsBez+gnBez+dofBez+matVlastniR+prispSklad
-
+                </th>
+              ))}
+              {(isAdmin || isEditor) && <th style={{ padding: "9px 11px", color: T.textMuted, fontWeight: 700, fontSize: 10.5, position: "sticky", top: 0, background: T.theadBg, zIndex: 10, border: `1px solid ${T.cellBorder}`, textAlign: "center" }}>AKCE</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {displayRows.map((row, i) => {
+              const globalIndex = page * PAGE_SIZE + i;
+              const isFaktura = row.cislo_faktury && row.cislo_faktury.trim() !== "" && row.castka_bez_dph && Number(row.castka_bez_dph) !== 0 && row.splatna && row.splatna.trim() !== "";
+              const isFaktura2 = !!(row.cislo_faktury_2 || row.castka_bez_dph_2 || row.splatna_2);
+              const baseBg = isFaktura ? "rgba(22,163,74,0.45)" : rowBg(row.firma);
               return (
-                <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', fontSize:11, overflowX:'auto' }}>
-                  <SekceHeader label="Mzdy montáže" color="#3b82f6" icon="👷" />
-                  {/* Součet hodin */}
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.06)', borderBottom:`1px solid ${T.border}40` }}>
-                    <div style={{ padding:'5px 8px', color:'#3b82f6', fontSize:11, fontWeight:700 }}>⏱ Hodiny celkem</div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:800, color:'#3b82f6', gridColumn:'2/4' }}>
-                      mont. {c.hodMont.toFixed(3)} hod
-                    </div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:800, color:'#60a5fa', gridColumn:'4/6' }}>
-                      zem. {c.hodZem.toFixed(3)} hod
-                    </div>
-                    <div style={{ padding:'5px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted, gridColumn:'6/8' }}>
-                      Σ {(c.hodMont + c.hodZem).toFixed(3)} hod
-                    </div>
-                  </div>
-                  {mzdyRows.map((r,i) => <Row key={i} {...r} color="#3b82f6" />)}
-                  <Row label="CELKEM MZDY" bez={mzdyBez} sP={mzdySP} idx={0} kVypl={mzdyBez*0.66} vypl={num(s.vypl_mzdy)} color="#3b82f6" isTotal />
+              <tr key={row.id}
+                style={{ background: baseBg, transition: "background 0.1s", color: T.text, minHeight: 34 }}
+                onMouseEnter={e => e.currentTarget.style.background = isFaktura ? "rgba(22,163,74,0.60)" : T.hoverBg}
+                onMouseLeave={e => e.currentTarget.style.background = baseBg}
+              >
+                {/* # číslo řádku */}
+                <td style={{ padding: "7px 11px", textAlign: "center", border: `1px solid ${T.cellBorder}` }}>
+                  <span style={{ color: T.textMuted, fontSize: 12 }}>{globalIndex + 1}</span>
+                </td>
+                {/* AKCE vlevo */}
+                {(isAdmin || isEditor) && (
+                  <td style={{ padding: "7px 11px", whiteSpace: "nowrap", border: `1px solid ${T.cellBorder}`, textAlign: "center" }}>
+                    {isAdmin && <button onClick={() => setDeleteConfirm({ id: row.id, step: 1 })} onMouseEnter={e => showTooltip(e, "Smazat stavbu")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, color: "#f87171", cursor: "pointer", fontSize: 11, marginRight: 5 }}>🗑️</button>}
+                    <button onClick={() => setEditRow(row)} onMouseEnter={e => showTooltip(e, "Editovat stavbu")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(37,99,235,0.2)", border: "1px solid rgba(37,99,235,0.3)", borderRadius: 5, color: "#60a5fa", cursor: "pointer", fontSize: 11 }}>✏️</button>
+                    {!isDemo && <button onClick={() => setHistorieRow(row)} onMouseEnter={e => showTooltip(e, historieNovinky[String(row.id)] ? "Historie změn — obsahuje záznamy" : "Historie změn stavby")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", borderRadius: 5, color: "#c084fc", cursor: "pointer", fontSize: 11, marginLeft: 5, position: "relative" }}>
+                      🕐{historieNovinky[String(row.id)] && <span style={{ position: "absolute", top: -3, right: -3, width: 8, height: 8, borderRadius: "50%", background: "#ef4444", boxShadow: "0 0 6px #ef4444, 0 0 12px rgba(239,68,68,0.7)", display: "block" }}/>}
+                    </button>}
+                  </td>
+                )}
+                {orderedCols.map(col => {
+                  const centerCols = ["cislo_stavby","ukonceni","sod","ze_dne","cislo_faktury","splatna"];
+                  const align = col.type === "number" ? "right" : centerCols.includes(col.key) ? "center" : "left";
 
-                  <SekceHeader label="Mechanizace" color="#f59e0b" icon="🚜" />
-                  {mechRows.map((r,i) => <Row key={i} {...r} color="#f59e0b" />)}
-                  <Row label="CELKEM MECHANIZACE" bez={mechBez} sP={mechSP} idx={0} kVypl={mechBez*0.8} vypl={num(s.vypl_mech)} color="#f59e0b" isTotal />
+                  // Dvojité hodnoty pro faktury
+                  const isOverdue = !isFaktura && col.key === "ukonceni" && row.ukonceni && (() => {
+                    const s = row.ukonceni.trim();
+                    let d;
+                    if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                      d = new Date(s); // ISO: YYYY-MM-DD
+                    } else {
+                      const p = s.split(".");
+                      if (p.length !== 3) return false;
+                      d = new Date(`${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`);
+                    }
+                    const dnes = new Date(); dnes.setHours(0,0,0,0);
+                    return !isNaN(d) && d < dnes;
+                  })();
 
-                  <SekceHeader label="Zemní práce" color="#ef4444" icon="⛏️" />
-                  {zemniRows.map((r,i) => <Row key={i} {...r} color={r.isProtlak?'#f97316':'#ef4444'} highlight={r.isProtlak} />)}
-                  <Row label="CELKEM ZEMNÍ PRÁCE (bez protlaků)" bez={zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)} sP={zemniSP} idx={-0.15} kVypl={zemniSP*0.8} vypl={num(s.vypl_zemni)} color="#ef4444" isTotal />
+                  return (
+                    <td key={col.key}
+                      className={col.key === "rozdil" || col.type === "number" ? "colored-cell" : ""}
+                      style={{ padding: "5px 11px", whiteSpace: "nowrap", textAlign: align, border: `1px solid ${T.cellBorder}`, color: isOverdue ? "#f87171" : col.key === "rozdil" ? (Number(row[col.key]) >= 0 ? "#4ade80" : "#f87171") : col.type === "number" ? T.numColor : T.text, fontWeight: isOverdue ? 700 : "inherit", background: isOverdue ? "rgba(239,68,68,0.18)" : undefined, overflow: col.truncate ? "hidden" : undefined, maxWidth: col.truncate ? getColWidth(col) : undefined }}
+                    >
+                      <div>
+                        <div>
+                          {col.key === "firma" ? <span className="firma-badge" style={firmaBadge(row[col.key])}>{row[col.key]}</span>
+                          : col.key === "nazev_stavby" ? <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                              <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{row[col.key] ?? ""}</span>
+                              {row.poznamka && row.poznamka.trim() !== "" && <span onMouseEnter={e => showTooltip(e, row.poznamka)} onMouseLeave={hideTooltip} style={{ cursor: "help", fontSize: 13, flexShrink: 0 }}>💬</span>}
+                            </span>
+                          : col.type === "number" ? fmtN(row[col.key])
+                          : col.truncate ? <span title={row[col.key] ?? ""} style={{ display: "inline-block", maxWidth: getColWidth(col) - 22, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", verticalAlign: "middle" }}>{row[col.key] ?? ""}</span>
+                          : isOverdue ? <span>⚠️ {row[col.key]}</span>
+                          : col.key === "cislo_faktury" && row[col.key] ? <span style={{ display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontWeight: 700, fontSize: 13, color: "#ef4444", lineHeight: 1, flexShrink: 0, textShadow: "0 0 6px #ef4444, 0 0 12px rgba(239,68,68,0.7)" }}>e</span>{row[col.key]}</span>
+                          : row[col.key] ?? ""}
+                        </div>
+                        {/* Druhý řádek pro fakturační sloupce */}
+                        {col.key === "cislo_faktury" && row.cislo_faktury_2 && (
+                          <div style={{ borderTop: `1px dashed ${T.cellBorder}`, marginTop: 2, paddingTop: 2, display: "flex", alignItems: "center", gap: 4 }}><span style={{ fontWeight: 700, fontSize: 13, color: "#facc15", lineHeight: 1, flexShrink: 0, textShadow: "0 0 6px #facc15, 0 0 12px rgba(250,204,21,0.7)" }}>S</span>{row.cislo_faktury_2}</div>
+                        )}
+                        {col.key === "castka_bez_dph" && row.castka_bez_dph_2 > 0 && (
+                          <div style={{ borderTop: `1px dashed ${T.cellBorder}`, marginTop: 2, paddingTop: 2 }}>{fmtN(row.castka_bez_dph_2)}</div>
+                        )}
+                        {col.key === "splatna" && row.splatna_2 && (
+                          <div style={{ borderTop: `1px dashed ${T.cellBorder}`, marginTop: 2, paddingTop: 2 }}>{row.splatna_2}</div>
+                        )}
 
-                  <SekceHeader label="Globální náklady" color="#10b981" icon="📋" />
-                  {gnRows.map((r,i) => <Row key={i} {...r} color="#10b981" />)}
-                  <Row label="CELKEM GLOBÁLNÍ NÁKLADY" bez={gnBez} sP={gnSP} idx={0} kVypl={gnBez*0.8} vypl={num(s.vypl_gn)} color="#10b981" isTotal />
+                      </div>
+                    </td>
+                  );
+                })}
+                {/* AKCE vpravo */}
+                {(isAdmin || isEditor) && (
+                  <td style={{ padding: "7px 11px", whiteSpace: "nowrap", border: `1px solid ${T.cellBorder}`, textAlign: "center" }}>
+                    <button onClick={() => setEditRow(row)} onMouseEnter={e => showTooltip(e, "Editovat stavbu")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(37,99,235,0.2)", border: "1px solid rgba(37,99,235,0.3)", borderRadius: 5, color: "#60a5fa", cursor: "pointer", fontSize: 11, marginRight: 5 }}>✏️ Editovat</button>
+                    <button onClick={() => handleCopy(row)} onMouseEnter={e => showTooltip(e, "Kopírovat stavbu")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.3)", borderRadius: 5, color: "#34d399", cursor: "pointer", fontSize: 11, marginRight: isAdmin ? 5 : 0 }}>📋</button>
+                    {isAdmin && <button onClick={() => setDeleteConfirm({ id: row.id, step: 1 })} onMouseEnter={e => showTooltip(e, "Smazat stavbu")} onMouseLeave={hideTooltip} style={{ padding: "3px 9px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 5, color: "#f87171", cursor: "pointer", fontSize: 11 }}>🗑️</button>}
+                  </td>
+                )}
+              </tr>
+              );
+            })}
 
-                  <SekceHeader label="Ostatní položky" color="#8b5cf6" icon="🔧" />
-                  <Row label="Mat. zhotovitele" bez={matZhot} priR={0} sP={matZhot} idx={0} kVypl={matZhot*0.8} color="#8b5cf6" />
-                  <Row label="Příspěvek na sklad" bez={prispSklad} sP={prispSklad*(1+pri)} idx={0} kVypl={prispSklad*0.8} color="#8b5cf6" />
-                  <Row label="Doloženo fakturou" bez={dofBez} sP={dofSP} idx={0} kVypl={dofSP} color="#8b5cf6" />
-
-                  {/* CELKEM */}
-                  <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.15)', borderRadius:8, marginTop:10, border:'2px solid rgba(37,99,235,0.4)' }}>
-                    <div style={{ padding:'9px 8px', color:'#60a5fa', fontWeight:900, fontSize:13 }}>CELKEM ZA STAVBU</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(mzdyBez+mechBez+zemniRows.filter(r=>!r.isProtlak).reduce((a,r)=>a+r.bez,0)+gnBez+dofBez+matZhot+prispSklad)}</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{(pri*100).toFixed(1)} %</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#60a5fa' }}>{fmt(bazova)}</div>
-                    <div/>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:11, color:T.muted }}>{fmt(mzdyBez*0.66+mechBez*0.8+zemniSP*0.8+gnBez*0.8)}</div>
-                    <div style={{ padding:'9px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, fontWeight:700, color:'#f59e0b' }}>{fmt(num(s.vypl_mzdy)+num(s.vypl_mech)+num(s.vypl_zemni)+num(s.vypl_gn))}</div>
-                  </div>
-                </div>
-              )
-            })()}
-
-
-          </div>
-        )}
+          </tbody>
+        </table>
       </div>
 
-      {/* Dialog schválení nové položky do katalogu */}
-      {katalogDialog && (
-        <KatalogDialog
-          popis={katalogDialog.popis}
-          sekce={katalogDialog.sekce}
-          vsechnySekce={vsechnySekce}
-          T={T}
-          onConfirm={handleKatalogConfirm}
-          onCancel={() => setKatalogDialog(null)}
-        />
-      )}
+      <div ref={paginationRef} style={{ display: cardView || viewMode === "scroll" ? "none" : "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "6px 18px", borderTop: `1px solid ${T.cellBorder}`, background: T.filterBg, flexShrink: 0, minHeight: 44 }}>
+        {totalPages > 1 && <>
+          <button onClick={() => setPage(0)} disabled={page === 0} style={{ padding: "4px 9px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 6, color: T.textMuted, cursor: page === 0 ? "default" : "pointer", opacity: page === 0 ? 0.4 : 1, fontSize: 13 }}>«</button>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} style={{ padding: "4px 9px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 6, color: T.textMuted, cursor: page === 0 ? "default" : "pointer", opacity: page === 0 ? 0.4 : 1, fontSize: 13 }}>‹</button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button key={i} onClick={() => setPage(i)} style={{ padding: "4px 10px", background: page === i ? "#2563eb" : T.cardBg, border: `1px solid ${page === i ? "#2563eb" : T.cardBorder}`, borderRadius: 6, color: page === i ? "#fff" : T.textMuted, cursor: "pointer", fontSize: 13, fontWeight: page === i ? 700 : 400 }}>{i + 1}</button>
+          ))}
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} style={{ padding: "4px 9px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 6, color: T.textMuted, cursor: page === totalPages - 1 ? "default" : "pointer", opacity: page === totalPages - 1 ? 0.4 : 1, fontSize: 13 }}>›</button>
+          <button onClick={() => setPage(totalPages - 1)} disabled={page === totalPages - 1} style={{ padding: "4px 9px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 6, color: T.textMuted, cursor: page === totalPages - 1 ? "default" : "pointer", opacity: page === totalPages - 1 ? 0.4 : 1, fontSize: 13 }}>»</button>
+          <span style={{ color: T.textMuted, fontSize: 12, marginLeft: 6 }}>{page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} z {filtered.length}</span>
+        </>}
+        <span style={{ display: "flex", alignItems: "center", gap: 3, marginLeft: totalPages > 1 ? 10 : 0, borderLeft: totalPages > 1 ? `1px solid ${T.cellBorder}` : "none", paddingLeft: totalPages > 1 ? 10 : 0 }}>
+          <button onClick={() => setPageSize(s => Math.max(3, s - 1))} title="Méně řádků na stránce" style={{ padding: "2px 6px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 5, color: T.textMuted, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>−</button>
+          <span style={{ color: T.textMuted, fontSize: 11, minWidth: 28, textAlign: "center" }}>{PAGE_SIZE} řád.</span>
+          <button onClick={() => setPageSize(s => Math.min(50, s + 1))} title="Více řádků na stránce" style={{ padding: "2px 6px", background: T.cardBg, border: `1px solid ${T.cardBorder}`, borderRadius: 5, color: T.textMuted, cursor: "pointer", fontSize: 12, lineHeight: 1 }}>+</button>
+        </span>
+      </div>
 
-      {/* Confirm dialog */}
-      {confirmDialog && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
-          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontSize:18, fontWeight:800, color: confirmDialog.color||'#f59e0b', marginBottom:12 }}>⚠️ {confirmDialog.title}</div>
-            <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{confirmDialog.text}</div>
-            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-              <button onClick={() => setConfirmDialog(null)}
-                style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13, fontWeight:600 }}>
-                Zrušit
-              </button>
-              <button onClick={() => { setConfirmDialog(null); confirmDialog.onConfirm() }}
-                style={{ padding:'9px 20px', background: confirmDialog.color||'#ef4444', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
-                Potvrdit
-              </button>
+      <div ref={footerRef} style={{ textAlign: "center", padding: "4px", borderTop: `1px solid ${T.cellBorder}`, color: T.textFaint, fontSize: 11, flexShrink: 0 }}>
+        © {appDatum} Stavby Znojmo – Martin Dočekal &amp; Claude AI &nbsp;|&nbsp; v{appVerze}
+      </div>
+
+      {/* HELP MODAL */}
+      {/* IMPORT RESULT MODAL */}
+      {importLog && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 1600, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: "#1e293b", borderRadius: 16, width: "min(480px,92vw)", padding: "28px 32px", border: "1px solid rgba(255,255,255,0.15)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+            <div style={{ fontSize: 32, textAlign: "center", marginBottom: 12 }}>{importLog.chyby?.length > 0 ? "⚠️" : "✅"}</div>
+            <div style={{ color: "#fff", fontWeight: 700, fontSize: 16, textAlign: "center", marginBottom: 8 }}>
+              {importLog.chyby?.length > 0 ? "Import dokončen s chybami" : "Import úspěšný"}
+            </div>
+            {importLog.zprava && <div style={{ color: "#86efac", fontSize: 13, textAlign: "center", marginBottom: 12 }}>{importLog.zprava}</div>}
+            {importLog.chyby?.length > 0 && (
+              <div style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 8, padding: "10px 14px", marginBottom: 14 }}>
+                {importLog.chyby.map((c, i) => <div key={i} style={{ color: "#fca5a5", fontSize: 12, marginBottom: 4 }}>• {c}</div>)}
+              </div>
+            )}
+            <div style={{ textAlign: "center", marginTop: 8 }}>
+              <button onClick={() => setImportLog(null)} style={{ padding: "9px 28px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Zavřít</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Alert dialog */}
-      {alertDialog && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
-          <div style={{ background:T.card, border:`1px solid ${alertDialog.color}40`, borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
-            <div style={{ fontSize:18, fontWeight:800, color: alertDialog.color, marginBottom:12 }}>{alertDialog.title}</div>
-            <div style={{ color:T.text, fontSize:14, lineHeight:1.6, marginBottom:24 }}>{alertDialog.text}</div>
-            <div style={{ display:'flex', justifyContent:'flex-end' }}>
-              <button autoFocus onClick={() => setAlertDialog(null)} onKeyDown={e=>e.key==='Enter'&&setAlertDialog(null)}
-                style={{ padding:'9px 24px', background: alertDialog.color, border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>
-                OK
-              </button>
+      {showHelp && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1400, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ position: "fixed", left: helpPos.x, top: helpPos.y, pointerEvents: "all", background: "#1e293b", borderRadius: 16, width: "min(680px,95vw)", maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column", border: "1px solid rgba(255,255,255,0.18)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}>
+            {/* Header — táhlo */}
+            <div onMouseDown={onHelpDragStart} style={dragHeaderStyle()}>
+              <div>
+                <span style={{ color: "#fff", fontWeight: 700, fontSize: 15 }}>❓ Nápověda – Stavby Znojmo{dragHint}</span>
+              </div>
+              <button onClick={() => setShowHelp(false)} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 20, cursor: "pointer" }}>✕</button>
+            </div>
+            {/* Obsah */}
+            <div id="help-print-content" style={{ overflowY: "auto", padding: "18px 22px", color: "#e2e8f0", fontSize: 13, lineHeight: 1.7 }}>
+              {/* Intro */}
+              <div style={{ marginBottom: 18, padding: "11px 15px", background: "rgba(37,99,235,0.15)", border: "1px solid rgba(37,99,235,0.35)", borderRadius: 10, fontSize: 12, color: "#93c5fd", lineHeight: 1.6 }}>
+                <strong style={{ color: "#60a5fa" }}>Stavby Znojmo</strong> — evidence stavebních zakázek pro kategorie I a II. Každá stavba obsahuje informace o firmě, termínech, fakturaci a realizaci. Změny se automaticky zaznamenávají v historii. Aplikace podporuje role USER, USER EDITOR, ADMIN a SUPERADMIN.
+              </div>
+              {[
+                { icon: "🏗️", title: "Přidání stavby", text: "Klikněte na zelené tlačítko + Přidat stavbu v hlavičce. Vyplňte název stavby (povinný) a ostatní pole dle potřeby. Klávesa Enter přeskočí na další pole ve formuláři. Uložte tlačítkem Uložit — stavba se okamžitě zobrazí v tabulce." },
+                { icon: "✏️", title: "Editace stavby", text: "Klikněte na modré tlačítko ✏️ v levém sloupci u řádku stavby. Otevře se formulář s předvyplněnými hodnotami — změňte co potřebujete a uložte. Všechny změny se automaticky zaznamenají do Historie změn." },
+                { icon: "🗑️", title: "Smazání stavby", text: "Klikněte na červené tlačítko 🗑️ v levém sloupci. Systém požádá o potvrzení — musíte kliknout dvakrát (ochrana proti náhodnému smazání). Smazanou stavbu nelze obnovit." },
+                { icon: "📋", title: "Kopírování stavby", text: "Tlačítko 📋 vedle editace otevře formulář s předvyplněnými daty dané stavby. Číslo stavby dostane příponu \" (kopie)\". Po uložení se vytvoří nový samostatný záznam — původní zůstane nezměněn. Funkce je dostupná pro editory i administrátory." },
+                { icon: "🕐", title: "Historie změn stavby", text: <span>Fialové tlačítko 🕐 v levém sloupci otevře historii změn. Kdo, kdy a která pole změnil. <span style={{display:"inline-flex",alignItems:"center",gap:2}}>Červená tečka <span style={{display:"inline-block",width:8,height:8,borderRadius:"50%",background:"#ef4444",boxShadow:"0 0 6px #ef4444, 0 0 12px rgba(239,68,68,0.7)",verticalAlign:"middle"}}/>  na ikoně</span> = stavba má záznamy v historii. Export jako Excel nebo PDF.</span> },
+                { icon: "📜", title: "Log zakázek", text: "Tlačítko 📜 Log v hlavičce (pouze admin) otevře kompletní přehled všech akcí na zakázkách — přidání, editace i smazání. Záznamy lze filtrovat podle uživatele, typu akce a datumového rozsahu. Exporty: Excel, Barevný Excel a PDF tisk." },
+                { icon: "💬", title: "Poznámka ke stavbě", text: <span>V editačním formuláři najdete fialovou sekci 💬 POZNÁMKA. Ikona <span style={{fontSize:13}}>💬</span> se zobrazí vedle názvu stavby pokud poznámka existuje — najeďte myší pro zobrazení textu.</span> },
+                { icon: "🎨", title: "Barevné řádky", text: <span>Každá firma má přiřazenou barvu (nastavitelnou v Nastavení). <span style={{background:"rgba(34,197,94,0.25)",color:"#4ade80",padding:"1px 5px",borderRadius:4,fontWeight:600}}>Zelený řádek</span> = stavba má fakturu, částku i datum splatnosti — kompletně vyfakturována.</span> },
+                { icon: "⚠️", title: "Termíny ukončení", text: <span>Pole Ukončení se zobrazí <span style={{color:"#f87171",fontWeight:700}}>červeně ⚠️</span> pokud je termín v minulosti a stavba nemá fakturu. Tlačítko <span style={{color:"#f87171",fontWeight:700}}>⚠️ Termíny</span> v hlavičce zobrazí přehled staveb s termínem do 30 dní — včetně zbývajících pracovních dní.</span> },
+                { icon: "🔍", title: "Filtry a vyhledávání", text: "Vyhledávejte podle názvu nebo čísla stavby (pole Hledat). Filtrujte podle firmy, objednatele nebo stavbyvedoucího. Tlačítko Filtr▼ otevře rozšířený filtr: rok, rozsah částky, prošlé termíny, fakturace, kategorie. Když je filtr aktivní, tlačítko Filtr zčervená — je viditelné i po zavření panelu. Graf 📊 a export vždy pracují jen s aktuálně vyfiltrovanými daty." },
+                { icon: "🔍", title: "Rozšířený filtr", text: "Tlačítko Filtr ▾ otevře plovoucí panel s rozšířenými možnostmi: rok uvedení do provozu, rozsah nabídkové ceny (od/do), prošlé termíny bez faktury, stav fakturace a kategorie I / II. Panel lze přetáhnout myší kamkoliv na plochu." },
+                { icon: "📊", title: "Graf nákladů", text: "Tlačítko 📊 Graf ve filtrovací liště otevře interaktivní sloupcový graf. Tři přepínače: 🏢 Firma, 📅 Měsíc, 📂 Kat. I / II (Plán.+SNK+Běžné op. vs. Plán.+Běžné op.+Poruchy). Graf vždy odráží aktuální filtr." },
+                { icon: "📤", title: "Export dat", text: "CSV — prostá tabulka. Excel (.xlsx) — standardní formát. Barevný Excel (.xls) — se zbarvením firem (potvrďte varování Excelu). PDF — tisk na A4 landscape. Vše pracuje s aktuálním filtrem." },
+                { icon: "📥", title: "Import staveb", text: "Tlačítko 📥 Import (pouze superadmin) načte stavby z Excelu — podporuje původní tabulkový formát i zálohu DB. Před importem systém zobrazí náhled a umožní potvrdit nebo zrušit. Existující záznamy se aktualizují, nové přidají." },
+                { icon: "💾", title: "Záloha DB", text: "Tlačítko Záloha DB (pouze superadmin) stáhne kompletní zálohu celé databáze jako Excel se třemi listy: Stavby, Ciselniky, Uzivatele. Doporučujeme zálohovat pravidelně, zvláště před hromadnými změnami nebo aktualizací aplikace." },
+                { icon: "📋", title: "Dva pohledy — Stránky / Vše", text: "Přepínač 📋 Stránky / 📜 Vše v liště přepíná mezi stránkovaným zobrazením (tlačítka −/+ pro počet řádků na stránce) a plným výpisem všech záznamů s vertikálním scrollem." },
+                { icon: "↔️", title: "Šířky a pořadí sloupců", text: "Superadmin: Táhněte ikonu ⟺ v záhlaví sloupce pro změnu šířky. Kliknutím na ⟺ zadáte šířku číslem. Táhněte záhlaví za ikonu ⠿ pro změnu pořadí sloupců. Obojí se ukládá automaticky. Reset v Nastavení → Aplikace." },
+                { icon: "🪟", title: "Plovoucí okna", text: "Všechna okna (formuláře, nastavení, log, nápověda, graf, termíny…) jsou plovoucí — přetáhněte je za záhlaví (⠿ přetáhnout) kamkoliv na plochu. Okno vždy otevře na výchozí pozici uprostřed obrazovky." },
+                { icon: "⚙️", title: "Nastavení", text: "Správa firem (název + barva řádku), číselníků objednatelů a stavbyvedoucích. Admin spravuje uživatele — přidává, mění hesla a role. Role: USER (čtení), USER EDITOR (editace), ADMIN (plný přístup), SUPERADMIN (+ nastavení aplikace)." },
+                { icon: "🌙", title: "Tmavý / světlý režim + Liquid Glass", text: "Přepínejte mezi 🌞 světlým a 🌙 tmavým režimem. Tlačítko 💎 aktivuje Liquid Glass — průsvitné panely s blur efektem, animovanými orby na pozadí a odlesky ve stylu iOS 26. Posuvník síly efektu (10–100 %). Všechny preference se ukládají v prohlížeči." },
+                { icon: "🔔", title: "Notifikace v prohlížeči", text: "Aplikace zobrazuje upozornění na blížící se termíny i mimo otevřenou záložku. Po přihlášení prohlížeč zobrazí dialog — klikněte Povolit. Notifikace se odešlou pro stavby s termínem do 7 pracovních dní, opakují každých 60 min pokud záložka není aktivní." },
+                { icon: "⏱️", title: "Automatické odhlášení", text: "Aplikace se automaticky odhlásí po 15 minutách nečinnosti. Před odhlášením se zobrazí varování s odpočítáváním 60 sekund — klikněte Jsem tady pro pokračování. Neaktivní v demo režimu." },
+                { icon: "🧾", title: "Označení faktur", text: <span>Červené <span style={{fontWeight:700,color:"#ef4444",textShadow:"0 0 6px #ef4444"}}>e</span> před číslem faktury = E.ON (sdružená dodávka). Žluté <span style={{fontWeight:700,color:"#facc15",textShadow:"0 0 6px #facc15"}}>S</span> před druhým číslem faktury = faktura sdružení. Druhá faktura se zobrazí jako druhý řádek v buňce (přerušovaná čára).</span> },
+                { icon: "📱", title: "Mobilní zobrazení — kartičky", text: "Na mobilu (šířka < 768px) se automaticky přepne do kartičkového pohledu. Tlačítko ▦/☰ v liště přepíná mezi kartičkami a tabulkou. Každá kartička zobrazuje: firmu (barevná tečka), číslo stavby, název, 3 finanční metriky (nabídka / vyfakturováno / rozdíl), termín s barevným stavem (žlutý = do 10 dní, červený = prošlý, zelený = vyfakturováno), poznámku a faktury. Akce (🕐 hist, 📋 kopie, ✏️ editovat, 🗑️ smazat) jsou dostupné dle role." },
+                { icon: "☰", title: "Mobilní menu (hamburger)", text: "Na mobilu jsou tlačítka hlavičky (Nastavení, Nápověda, Odhlásit...) skryta za tlačítkem ☰ vpravo nahoře. Kliknutím se rozbalí dropdown s: jménem a rolí uživatele, přepínačem tmavý/světlý režim, Nápovědou, Nastavením (admin), Logem (admin) a tlačítkem Odhlásit." },
+                { icon: "⋯", title: "Mobilní filtr — rozbalovací řádek", text: "Filtrovací lišta na mobilu má dva řádky. Řádek 1 (vždy viditelný): Hledat · Firmy · Filtr▼ · ▦ (kartičky) · ⋯. Kliknutím na ⋯ se zobrazí řádek 2: Objednatel · Stavbyvedoucí · Stránky/Vše · počet záznamů · 📊 Graf · ⬇ Export · + Přidat stavbu." },
+                { icon: "🔐", title: "Oprávnění dle role", text: <span>
+                  <span style={{display:"block",marginBottom:6,color:"rgba(255,255,255,0.5)",fontSize:11}}>Co smí která role:</span>
+                  {[
+                    { role: "USER", color: "#94a3b8", ops: "Čtení tabulky, filtrování, export dat" },
+                    { role: "USER EDITOR", color: "#60a5fa", ops: "Vše výše + přidání, editace a kopírování staveb" },
+                    { role: "ADMIN", color: "#a78bfa", ops: "Vše výše + smazání staveb, správa uživatelů, log zakázek, export logu" },
+                    { role: "SUPERADMIN", color: "#f59e0b", ops: "Vše výše + nastavení aplikace, záloha DB, import staveb, šířky a pořadí sloupců, reset nastavení" },
+                  ].map(({ role, color, ops }) => (
+                    <div key={role} style={{display:"flex",gap:8,alignItems:"flex-start",marginBottom:5}}>
+                      <span style={{background:color+"22",color,border:`1px solid ${color}44`,borderRadius:4,padding:"1px 7px",fontSize:10,fontWeight:700,whiteSpace:"nowrap",flexShrink:0,marginTop:1}}>{role}</span>
+                      <span style={{color:"rgba(255,255,255,0.55)",fontSize:12}}>{ops}</span>
+                    </div>
+                  ))}
+                </span> },
+              ].map(({ icon, title, text }) => {
+                const emojiRe = /(\p{Emoji_Presentation}|\p{Extended_Pictographic})/gu;
+                const glowEmoji = (str) => {
+                  if (typeof str !== "string") return str;
+                  const parts = [];
+                  let last = 0, m;
+                  emojiRe.lastIndex = 0;
+                  while ((m = emojiRe.exec(str)) !== null) {
+                    if (m.index > last) parts.push(str.slice(last, m.index));
+                    parts.push(<span key={m.index} style={{ filter: "brightness(1.4) saturate(1.3)", display: "inline-block", fontSize: 15 }}>{m[0]}</span>);
+                    last = m.index + m[0].length;
+                  }
+                  if (last < str.length) parts.push(str.slice(last));
+                  return parts.length > 1 ? parts : str;
+                };
+                const glowNode = (node) => {
+                  if (typeof node === "string") return glowEmoji(node);
+                  if (!node || typeof node !== "object" || !node.props) return node;
+                  const kids = node.props.children;
+                  const newKids = Array.isArray(kids) ? kids.map(glowNode) : glowNode(kids);
+                  return { ...node, props: { ...node.props, children: newKids } };
+                };
+                return (
+                  <div key={title} style={{ marginBottom: 12, paddingBottom: 12, borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div style={{ fontWeight: 700, marginBottom: 3, color: "#60a5fa" }}><span style={{ filter: "brightness(1.4) saturate(1.3)", display: "inline-block", fontSize: 16 }}>{icon}</span> {title}</div>
+                    <div style={{ color: "rgba(255,255,255,0.62)", fontSize: 12 }}>{typeof text === "string" ? glowEmoji(text) : glowNode(text)}</div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ padding: "11px 22px", borderTop: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(255,255,255,0.02)" }}>
+              <button onClick={() => {
+                const content = document.getElementById("help-print-content");
+                if (!content) return;
+                const w = window.open("", "_blank");
+                w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Nápověda — Stavby Znojmo</title><style>
+                  @page { size: A4; margin: 12mm; }
+                  body { font-family: Arial, sans-serif; font-size: 11px; color: #1e293b; }
+                  h1 { font-size: 16px; margin: 0 0 4px; }
+                  .subtitle { color: #64748b; font-size: 10px; margin-bottom: 14px; }
+                  .item { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid #e2e8f0; break-inside: avoid; }
+                  .item-title { font-weight: 700; font-size: 12px; color: #1e3a8a; margin-bottom: 3px; }
+                  .item-text { color: #475569; font-size: 11px; line-height: 1.5; }
+                  .role-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 4px; }
+                  .role-badge { font-weight: 700; font-size: 9px; border: 1px solid #94a3b8; border-radius: 3px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
+                  @media print { button { display: none; } }
+                </style></head><body>
+                <h1>❓ Nápověda — Stavby Znojmo</h1>
+                <div class="subtitle">Vygenerováno: ${new Date().toLocaleDateString("cs-CZ")}</div>
+                ${content.innerHTML}
+                <script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script>
+                </body></html>`);
+                w.document.close();
+              }} style={{ padding: "8px 16px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", borderRadius: 8, color: "rgba(255,255,255,0.7)", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>🖨️ Tisk nápovědy</button>
+              <button onClick={() => setShowHelp(false)} style={{ padding: "8px 20px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Zavřít</button>
             </div>
           </div>
         </div>
       )}
 
-      {sazbyInfoOpen && <SazbyInfoDialog T={T} s={s} onClose={() => setSazbyInfoOpen(false)} />}
-      {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
+      {/* TOOLTIP */}
+      {tooltip.visible && (
+        <div style={{ position: "fixed", left: tooltip.x, top: tooltip.y, transform: "translateX(-50%)", background: "rgba(15,23,42,0.95)", color: "#e2e8f0", fontSize: 12, padding: "5px 10px", borderRadius: 6, pointerEvents: "none", zIndex: 9999, whiteSpace: "nowrap", border: "1px solid rgba(255,255,255,0.12)", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
+          {tooltip.text}
+          <div style={{ position: "absolute", top: -4, left: "50%", transform: "translateX(-50%)", width: 8, height: 8, background: "rgba(15,23,42,0.95)", border: "1px solid rgba(255,255,255,0.12)", borderBottom: "none", borderRight: "none", rotate: "45deg" }} />
+        </div>
+      )}
 
-      {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} defaultSazby={sazbyDialog.defaultSazby} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
-
-      {/* Dialog chybějící položky při importu */}
-      {importDialog && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000 }}>
-          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:28, maxWidth:480, width:'90%' }}>
-            <div style={{ color:'#f59e0b', fontWeight:800, fontSize:16, marginBottom:12 }}>⚠️ Chybějící položky</div>
-            <div style={{ color:T.muted, fontSize:13, marginBottom:16 }}>
-              Následující položky mají v rozpočtu hodnotu 0. Chceš je přeskočit nebo zadat ručně po importu?
+      {/* LOGOUT CONFIRM */}
+      {showLogoutConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1500, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 320, textAlign: "center", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>👋</div>
+            <div style={{ color: isDark ? "#fff" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Odhlásit se?</div>
+            <div style={{ color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.5)", fontSize: 13, marginBottom: 22 }}>Budete přesměrováni na přihlašovací obrazovku.</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setShowLogoutConfirm(false)} style={{ padding: "9px 20px", background: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.12)"}`, borderRadius: 8, color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+              <button onClick={() => { setShowLogoutConfirm(false); setUser(null); }} style={{ padding: "9px 20px", background: "linear-gradient(135deg,#ef4444,#dc2626)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Odhlásit se</button>
             </div>
-            <div style={{ marginBottom:20 }}>
-              {importDialog.missing.map(m => (
-                <div key={m} style={{ padding:'6px 10px', background:'rgba(245,158,11,0.1)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:6, marginBottom:6, color:'#fbbf24', fontSize:13 }}>
-                  • {m}
+          </div>
+        </div>
+      )}
+
+      {/* POTVRZOVACÍ DIALOG */}
+      {confirmExport && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 14, padding: "28px 32px", width: 380, border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, boxShadow: "0 24px 60px rgba(0,0,0,0.5)", textAlign: "center" }}>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>📤</div>
+            <div style={{ color: isDark ? "#f8fafc" : "#1e293b", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Exportovat data?</div>
+            <div style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 13, marginBottom: 24 }}>Bude exportováno <strong>{filtered.length} záznamů</strong> jako <strong>{confirmExport.label}</strong>{confirmExport.type === "xls-color" ? <><br/><span style={{ fontSize: 13, color: "#f97316", marginTop: 8, display: "block", fontWeight: 600 }}>⚠️ Excel zobrazí varování o formátu – klikněte <strong>Ano</strong> pro otevření.</span></> : ""}</div>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setConfirmExport(null)} style={{ padding: "9px 22px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>Zrušit</button>
+              <button onClick={() => {
+                const t = confirmExport.type;
+                setConfirmExport(null);
+                if (t === "xls-color") { doExportXLSColor(); }
+                else { setExportPreview({ type: t }); }
+              }} style={{ padding: "9px 22px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>✅ Ano, exportovat</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* EXPORT PREVIEW - sdílená tabulka pro CSV a XLS */}
+      {(exportPreview?.type === "csv" || exportPreview?.type === "xls") && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: "#1e293b", borderRadius: 16, width: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ color: "#fff", margin: 0, fontSize: 16 }}>
+                {exportPreview.type === "csv" ? "📄 Export CSV" : "📊 Export Excel"}
+              </h3>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: 12 }}>{filtered.length} řádků</span>
+                <button
+                  onClick={() => {
+                    const ts = new Date().toISOString().slice(0,16).replace("T","_").replace(":","-");
+                    const ws_data = [COLUMNS.map(c => c.label), ...filtered.map(r => COLUMNS.map(c => r[c.key] ?? ""))];
+                    if (exportPreview.type === "xls") {
+                      const wb = XLSX.utils.book_new();
+                      const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                      ws["!cols"] = COLUMNS.map(c => ({ wch: Math.max(c.label.length, 14) }));
+                      XLSX.utils.book_append_sheet(wb, ws, "Stavby");
+                      XLSX.writeFile(wb, `stavby_znojmo_${ts}.xlsx`);
+                    } else {
+                      const BOM = "\uFEFF";
+                      const h = COLUMNS.map(c => `"${c.label}"`).join(";");
+                      const rows = filtered.map(r => COLUMNS.map(c => `"${String(r[c.key] ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
+                      const blob = new Blob([BOM + h + "\n" + rows], { type: "text/csv;charset=utf-8;" });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement("a"); a.href = url; a.download = `stavby_znojmo_${ts}.csv`;
+                      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                    }
+                  }}
+                  style={{ padding: "7px 16px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                  ⬇ Stáhnout {exportPreview.type === "xls" ? ".xlsx" : ".csv"}
+                </button>
+                <button onClick={() => setExportPreview(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 20, cursor: "pointer" }}>✕</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: 24, background: "#fff" }}>
+              <div style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#111" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#1e3a5f" }}>Stavby Znojmo</div>
+                  <div style={{ fontSize: 10, color: "#666" }}>kategorie 1 & 2 | Export: {new Date().toLocaleDateString("cs-CZ")} | Záznamů: {filtered.length}</div>
                 </div>
-              ))}
-            </div>
-            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-              <button onClick={() => setImportDialog(null)}
-                style={{ padding:'8px 18px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:7, color:T.muted, cursor:'pointer', fontSize:13 }}>
-                Zrušit
-              </button>
-              <button onClick={() => applyImport(importDialog.parsed)}
-                style={{ padding:'8px 18px', background:'rgba(99,102,241,0.2)', border:'1px solid rgba(99,102,241,0.5)', borderRadius:7, color:'#818cf8', cursor:'pointer', fontSize:13, fontWeight:700 }}>
-                Importovat (doplním ručně)
-              </button>
+                <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 9 }}>
+                  <thead>
+                    <tr style={{ background: "#1e3a5f" }}>
+                      {COLUMNS.map(c => <th key={c.key} style={{ color: "#fff", padding: "4px 6px", textAlign: c.key === "id" ? "center" : c.type === "number" ? "right" : "left", whiteSpace: "nowrap", border: "1px solid #2563eb", fontSize: 8 }}>{c.label}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((row, i) => (
+                      <tr key={row.id} style={{ background: i % 2 === 0 ? (row.firma === "DUR plus" ? "#eff6ff" : "#fefce8") : "#fff" }}>
+                        {COLUMNS.map(c => {
+                          const v = row[c.key] ?? "";
+                          const isNum = c.type === "number" && v !== "" && Number(v) !== 0;
+                          const display = isNum ? Number(v).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v;
+                          const color = c.key === "rozdil" ? (Number(v) >= 0 ? "#166534" : "#991b1b") : "#111";
+                          return <td key={c.key} style={{ padding: "3px 6px", border: "1px solid #e2e8f0", whiteSpace: "nowrap", textAlign: c.key === "id" ? "center" : c.type === "number" ? "right" : "left", color, fontSize: 9 }}>{display}</td>;
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {exportPreview?.type === "pdf" && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: "#1e293b", borderRadius: 16, width: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+            <div style={{ padding: "16px 24px", borderBottom: "1px solid rgba(255,255,255,0.08)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h3 style={{ color: "#fff", margin: 0, fontSize: 16 }}>🖨️ Náhled pro tisk / PDF</h3>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => {
+                  const rows = filtered.map((row, i) => {
+                    const hex = firmaColorMapCache[row.firma] || "#3b82f6";
+                    const rgb = hexToRgb(hex);
+                    const bg = i%2===0 ? `rgba(${rgb},0.18)` : `rgba(${rgb},0.07)`;
+                    return `<tr>${COLUMNS.map(c => {
+                      const v = row[c.key] ?? "";
+                      const isNum = c.type === "number" && v !== "" && Number(v) !== 0;
+                      const display = isNum ? Number(v).toLocaleString("cs-CZ",{minimumFractionDigits:2,maximumFractionDigits:2}) : v;
+                      const color = c.key === "rozdil" ? (Number(v)>=0?"#166534":"#991b1b") : "#111";
+                      const cellBg = c.key === "firma" ? hex : bg;
+                      const cellColor = c.key === "firma" ? "#fff" : color;
+                      const cellWeight = c.key === "firma" ? "700" : "400";
+                      return `<td style="padding:3px 6px;border:1px solid #e2e8f0;white-space:nowrap;text-align:${c.key==="id"?"center":c.type==="number"?"right":"left"};color:${cellColor};background:${cellBg};font-size:8px;font-weight:${cellWeight}">${display}</td>`;
+                    }).join("")}</tr>`;
+                  }).join("");
+                  const headers = COLUMNS.map(c => `<th style="color:#fff;padding:4px 6px;text-align:${c.key==="id"?"center":c.type==="number"?"right":"left"};white-space:nowrap;border:1px solid #2563eb;font-size:8px">${c.label}</th>`).join("");
+                  const win = window.open("","_blank");
+                  win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stavby Znojmo – tisk</title>
+                  <style>
+                    @page { size: A4 landscape; margin: 10mm; }
+                    body { font-family: Arial, sans-serif; font-size: 9px; color: #111; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    table { border-collapse: collapse; width: 100%; }
+                    thead tr { background: #1e3a5f; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    td, th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    h2 { font-size: 13px; margin: 0 0 2px; }
+                    .sub { font-size: 9px; color: #666; margin-bottom: 8px; }
+                  </style></head><body>
+                  <h2>Stavby Znojmo</h2>
+                  <div class="sub">kategorie 1 & 2 | Tisk: ${new Date().toLocaleDateString("cs-CZ")} | Záznamů: ${filtered.length}</div>
+                  <table><thead><tr>${headers}</tr></thead><tbody>${rows}</tbody></table>
+                  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close()};}<\/script>
+                  </body></html>`);
+                  win.document.close();
+                }} style={{ padding: "7px 16px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🖨️ Tisk / Uložit jako PDF</button>
+                <button onClick={() => setExportPreview(null)} style={{ background: "none", border: "none", color: "rgba(255,255,255,0.4)", fontSize: 20, cursor: "pointer" }}>✕</button>
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: 24, background: "#fff" }}>
+              <div style={{ fontFamily: "Arial,sans-serif", fontSize: 10, color: "#111" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{ fontWeight: 800, fontSize: 16, color: "#1e3a5f" }}>Stavby Znojmo</div>
+                  <div style={{ fontSize: 10, color: "#666" }}>kategorie 1 & 2 | Export: {new Date().toLocaleDateString("cs-CZ")} | Záznamů: {filtered.length}</div>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table style={{ borderCollapse: "collapse", fontSize: 9 }}>
+                    <thead>
+                      <tr style={{ background: "#1e3a5f" }}>
+                        {COLUMNS.map(c => <th key={c.key} style={{ color: "#fff", padding: "4px 6px", textAlign: c.key === "id" ? "center" : c.type === "number" ? "right" : "left", whiteSpace: "nowrap", border: "1px solid #2563eb", fontSize: 8 }}>{c.label}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.map((row, i) => {
+                        const hex = firmaColorMapCache[row.firma] || "#3b82f6";
+                        const rgb = hexToRgb(hex);
+                        const bg = i % 2 === 0 ? `rgba(${rgb},0.18)` : `rgba(${rgb},0.07)`;
+                        return (
+                          <tr key={row.id}>
+                            {COLUMNS.map(c => {
+                              const v = row[c.key] ?? "";
+                              const isNum = c.type === "number" && v !== "" && Number(v) !== 0;
+                              const display = isNum ? Number(v).toLocaleString("cs-CZ", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : v;
+                              const color = c.key === "rozdil" ? (Number(v) >= 0 ? "#166534" : "#991b1b") : "#111";
+                              const cellBg = c.key === "firma" ? hex : bg;
+                              const cellColor = c.key === "firma" ? "#fff" : color;
+                              return <td key={c.key} style={{ padding: "3px 6px", border: "1px solid #e2e8f0", whiteSpace: "nowrap", textAlign: c.key === "id" ? "center" : c.type === "number" ? "right" : "left", color: cellColor, background: cellBg, fontSize: 9, fontWeight: c.key === "firma" ? 700 : 400 }}>{display}</td>;
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {adding && <FormModal title="➕ Nová stavba" initial={emptyRow} onSave={handleAdd} onClose={() => setAdding(false)} firmy={firmy.map(f => f.hodnota)} objednatele={objednatele} stavbyvedouci={stavbyvedouci} />}
+      {editRow && <FormModal title={`✏️ Editace stavby #${editRow.id}`} initial={editRow} onSave={handleSave} onClose={() => setEditRow(null)} firmy={firmy.map(f => f.hodnota)} objednatele={objednatele} stavbyvedouci={stavbyvedouci} />}
+      {copyRow && <FormModal title="📋 Kopírovat stavbu" initial={copyRow} onSave={handleCopySave} onClose={() => setCopyRow(null)} firmy={firmy.map(f => f.hodnota)} objednatele={objednatele} stavbyvedouci={stavbyvedouci} />}
+      {showSettings && <SettingsModal firmy={firmy} objednatele={objednatele} stavbyvedouci={stavbyvedouci} users={users} onChange={saveSettings} onChangeUsers={saveUsers} onClose={() => setShowSettings(false)} onLoadLog={loadLog} isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} isDark={isDark} appVerze={appVerze} appDatum={appDatum} onSaveAppInfo={saveAppInfo} stavbyData={data} onResetColWidths={() => { setColWidths({}); saveColWidths({}); }} onResetColOrder={resetColOrder} isDemo={isDemo} notifyEmails={notifyEmails} onSaveNotifyEmails={saveNotifyEmails} />}
+
+      {showOrphanWarning && (() => {
+        const firmyNames = firmy.map(f => f.hodnota);
+        const orphans = data.filter(s => s.firma && !firmyNames.includes(s.firma));
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 2100, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+            <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 16, width: 500, maxHeight: "80vh", display: "flex", flexDirection: "column", border: "1px solid rgba(251,191,36,0.4)", boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+              <div style={{ padding: "18px 24px", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(251,191,36,0.08)", borderRadius: "16px 16px 0 0" }}>
+                <h3 style={{ color: "#fbbf24", margin: 0, fontSize: 17 }}>🏚️ Stavby bez firmy</h3>
+                <button onClick={() => setShowOrphanWarning(false)} style={{ background: "none", border: "none", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", fontSize: 20, cursor: "pointer" }}>✕</button>
+              </div>
+              <div style={{ padding: "16px 24px", overflowY: "auto" }}>
+                <p style={{ color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", fontSize: 13, marginTop: 0 }}>
+                  Následující stavby mají přiřazenou firmu která již neexistuje v číselníku:
+                </p>
+                {orphans.map(s => (
+                  <div key={s.id} style={{ padding: "8px 12px", marginBottom: 6, background: isDark ? "rgba(251,191,36,0.08)" : "rgba(251,191,36,0.1)", borderRadius: 8, border: "1px solid rgba(251,191,36,0.2)", display: "flex", justifyContent: "space-between" }}>
+                    <span style={{ color: isDark ? "#e2e8f0" : "#1e293b", fontSize: 13, fontWeight: 600 }}>{s.nazev_stavby || `Stavba #${s.id}`}</span>
+                    <span style={{ color: "#fbbf24", fontSize: 12 }}>{s.firma}</span>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding: "14px 24px", borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", justifyContent: "flex-end" }}>
+                <button onClick={() => {
+                  const rows = orphans.map((s, i) => {
+                    const rowBg = i % 2 === 0 ? "#fefce8" : "#ffffff";
+                    return `<tr>
+                      <td style="background:${rowBg}">${s.cislo_stavby || ""}</td>
+                      <td style="background:${rowBg};font-weight:600">${s.nazev_stavby || ""}</td>
+                      <td style="background:#fef3c7;color:#92400e;font-weight:700;text-align:center">${s.firma || ""}</td>
+                      <td style="background:${rowBg}">${s.objednatel || ""}</td>
+                      <td style="background:${rowBg}">${s.stavbyvedouci || ""}</td>
+                    </tr>`;
+                  }).join("");
+                  const w = window.open("", "_blank");
+                  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stavby bez firmy</title>
+                  <style>
+                    @page { size: A4 landscape; margin: 10mm; }
+                    body { font-family: Arial,sans-serif; padding: 0; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    h2 { margin: 0 0 4px; font-size: 15px; }
+                    p { margin: 0 0 12px; color: #64748b; font-size: 11px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                    th { background: #1e3a8a; color: #fff; padding: 7px 10px; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    td { padding: 6px 10px; border: 1px solid #e2e8f0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    @media print { button { display: none; } }
+                  </style>
+                  </head><body>
+                  <h2>🏚️ Stavby Znojmo – Stavby bez firmy</h2>
+                  <p>Vygenerováno: ${new Date().toLocaleDateString("cs-CZ")} &nbsp;|&nbsp; Celkem ${orphans.length} staveb bez přiřazené firmy</p>
+                  <table><thead><tr><th>Č. stavby</th><th>Název stavby</th><th>Původní firma</th><th>Objednatel</th><th>Stavbyvedoucí</th></tr></thead>
+                  <tbody>${rows}</tbody></table>
+                  <script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script>
+                  </body></html>`);
+                  w.document.close();
+                }} style={{ padding: "9px 22px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🖨️ Tisk / PDF</button>
+                <button onClick={() => setShowOrphanWarning(false)} style={{ padding: "9px 22px", background: "linear-gradient(135deg,#d97706,#b45309)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>Rozumím</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {showDeadlines && deadlineWarnings.length > 0 && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 2000, pointerEvents: "none", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ position: "fixed", left: deadlinesPos.x, top: deadlinesPos.y, pointerEvents: "all", background: isDark ? "#1e293b" : "#fff", borderRadius: 16, width: "min(820px, 96vw)", maxHeight: "88vh", display: "flex", flexDirection: "column", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 32px 80px rgba(0,0,0,0.7)" }}>
+            {/* header — táhlo */}
+            <div onMouseDown={onDeadlinesDragStart} style={{ padding: "14px 18px", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center", background: "rgba(239,68,68,0.1)", borderRadius: "16px 16px 0 0", gap: 10, cursor: "grab", userSelect: "none" }}>
+              <div style={{ minWidth: 0 }}>
+                <span style={{ color: "#f87171", fontWeight: 700, fontSize: 15 }}>⚠️ Blížící se termíny ukončení{dragHint}</span>
+                <div style={{ color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.5)", fontSize: 11, marginTop: 3 }}>{deadlineWarnings.length} zakázek s termínem do 30 pracovních dní</div>
+              </div>
+              <button onClick={() => setShowDeadlines(false)} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", fontSize: 22, cursor: "pointer", flexShrink: 0, padding: "0 4px" }}>✕</button>
+            </div>
+            {/* tabulka */}
+            <div style={{ overflowX: "auto", overflowY: "auto", flex: 1, padding: isMobile ? "12px" : 24 }} id="deadline-print-area">
+              <div style={{ marginBottom: 16, display: "none" }} className="print-header">
+                <div style={{ fontWeight: 800, fontSize: 18 }}>Stavby Znojmo – Blížící se termíny</div>
+                <div style={{ fontSize: 12, color: "#64748b" }}>Vygenerováno: {new Date().toLocaleDateString("cs-CZ")} | Zakázky s termínem do 30 pracovních dní</div>
+                <hr style={{ margin: "8px 0" }} />
+              </div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ background: isDark ? "#1a2744" : "#e2e8f0" }}>
+                    {["Č. stavby","Název stavby","Termín ukončení","Dní do termínu","Objednatel","Stavbyvedoucí"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.6)", fontWeight: 700, fontSize: 11, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, whiteSpace: "nowrap" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deadlineWarnings.map((r, i) => {
+                    const urgentColor = r.dniDo <= 5 ? "#f87171" : r.dniDo <= 15 ? "#fb923c" : "#facc15";
+                    return (
+                      <tr key={r.id} style={{ background: i % 2 === 0 ? (isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)") : "transparent" }}>
+                        <td style={{ padding: "8px 12px", color: isDark ? "#e2e8f0" : "#1e293b", fontWeight: 600, whiteSpace: "nowrap", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>{r.cislo_stavby}</td>
+                        <td style={{ padding: "8px 12px", color: isDark ? "#e2e8f0" : "#1e293b", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>{r.nazev_stavby}</td>
+                        <td style={{ padding: "8px 12px", color: isDark ? "#e2e8f0" : "#1e293b", whiteSpace: "nowrap", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>{r.ukonceni}</td>
+                        <td style={{ padding: "8px 12px", whiteSpace: "nowrap", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>
+                          <span style={{ background: urgentColor + "22", color: urgentColor, border: `1px solid ${urgentColor}44`, borderRadius: 5, padding: "2px 8px", fontSize: 12, fontWeight: 700 }}>{r.dniDo} dní</span>
+                        </td>
+                        <td style={{ padding: "8px 12px", color: isDark ? "#e2e8f0" : "#1e293b", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>{r.objednatel}</td>
+                        <td style={{ padding: "8px 12px", color: isDark ? "#e2e8f0" : "#1e293b", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}` }}>{r.stavbyvedouci}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* footer */}
+            <div style={{ padding: "12px 18px", borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => {
+                const firmaColorMap = Object.fromEntries(firmy.map(f => [f.hodnota, f.barva || "#3b82f6"]));
+                const rows = deadlineWarnings.map((r, i) => {
+                  const urgentColor = r.dniDo <= 5 ? "#dc2626" : r.dniDo <= 15 ? "#ea580c" : "#ca8a04";
+                  const urgentBg = r.dniDo <= 5 ? "#fee2e2" : r.dniDo <= 15 ? "#ffedd5" : "#fef9c3";
+                  const firmaBg = firmaColorMap[r.firma] || "#3b82f6";
+                  const rowBg = i % 2 === 0 ? "#f8fafc" : "#ffffff";
+                  return `<tr>
+                    <td style="background:${rowBg}">${r.cislo_stavby || ""}</td>
+                    <td style="background:${rowBg};font-weight:600">${r.nazev_stavby || ""}</td>
+                    <td style="background:${firmaBg};color:#fff;font-weight:700;text-align:center">${r.firma || ""}</td>
+                    <td style="background:${rowBg}">${r.ukonceni || ""}</td>
+                    <td style="background:${urgentBg};color:${urgentColor};font-weight:700;text-align:center">${r.dniDo} dní</td>
+                    <td style="background:${rowBg}">${r.objednatel || ""}</td>
+                    <td style="background:${rowBg}">${r.stavbyvedouci || ""}</td>
+                  </tr>`;
+                }).join("");
+                const w = window.open("", "_blank");
+                w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Blížící se termíny</title>
+                <style>
+                  @page { size: A4 landscape; margin: 10mm; }
+                  body { font-family: Arial,sans-serif; padding: 0; color: #1e293b; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                  h2 { margin: 0 0 4px; font-size: 15px; }
+                  p { margin: 0 0 12px; color: #64748b; font-size: 11px; }
+                  table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                  th { background: #1e3a8a; color: #fff; padding: 7px 10px; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                  td { padding: 6px 10px; border: 1px solid #e2e8f0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                  @media print { button { display: none; } }
+                </style>
+                </head><body>
+                <h2>⚠️ Stavby Znojmo – Blížící se termíny ukončení</h2>
+                <p>Vygenerováno: ${new Date().toLocaleDateString("cs-CZ")} &nbsp;|&nbsp; Zakázky s termínem do 30 pracovních dní (${deadlineWarnings.length} zakázek)</p>
+                <table><thead><tr><th>Č. stavby</th><th>Název stavby</th><th>Firma</th><th>Termín ukončení</th><th>Dní do termínu</th><th>Objednatel</th><th>Stavbyvedoucí</th></tr></thead>
+                <tbody>${rows}</tbody></table>
+                <script>window.onload=function(){window.print();window.onafterprint=function(){window.close()}}<\/script>
+                </body></html>`);
+                w.document.close();
+              }} style={{ padding: "9px 18px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>🖨️ Tisk / PDF</button>
+              <button onClick={() => setShowDeadlines(false)} style={{ padding: "9px 18px", background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)", border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`, borderRadius: 8, color: isDark ? "#fff" : "#1e293b", cursor: "pointer", fontSize: 13 }}>Zavřít</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#1e293b", borderRadius: 14, padding: 28, width: 360, border: "1px solid rgba(255,255,255,0.1)", textAlign: "center" }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>{deleteConfirm.step === 2 ? "🚨" : "⚠️"}</div>
+            <h3 style={{ color: "#fff", margin: "0 0 8px" }}>{deleteConfirm.step === 2 ? "Opravdu smazat?" : "Smazat záznam?"}</h3>
+            <p style={{ color: "rgba(255,255,255,0.4)", margin: "0 0 6px", fontSize: 13 }}>
+              {deleteConfirm.step === 2
+                ? <><span style={{ color: "#f87171", fontWeight: 700 }}>Toto je poslední varování.</span><br />Záznam bude trvale odstraněn.</>
+                : "Chystáš se smazat tento záznam."}
+            </p>
+            <p style={{ color: "rgba(255,255,255,0.25)", margin: "0 0 22px", fontSize: 12 }}>
+              {deleteConfirm.step === 2 ? "Krok 2 z 2 – akce je nevratná." : "Krok 1 z 2 – pokračuj pro potvrzení."}
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={() => setDeleteConfirm(null)} style={{ padding: "9px 18px", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", cursor: "pointer" }}>Zrušit</button>
+              {deleteConfirm.step === 1
+                ? <button onClick={() => setDeleteConfirm({ id: deleteConfirm.id, step: 2 })} style={{ padding: "9px 18px", background: "linear-gradient(135deg,#d97706,#b45309)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Ano, smazat</button>
+                : <button onClick={() => handleDelete(deleteConfirm.id)} style={{ padding: "9px 18px", background: "linear-gradient(135deg,#dc2626,#b91c1c)", border: "none", borderRadius: 8, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Potvrdit smazání</button>
+              }
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ROZŠÍŘENÝ FILTR — plovoucí overlay */}
+      {showAdvFilter && (
+        <div style={{ position: "fixed", left: advFilterPos.x, top: advFilterPos.y, zIndex: 500, background: isDark ? "#1e293b" : "#fff", border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.15)"}`, borderRadius: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.35)", width: 340, fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div onMouseDown={onAdvFilterDragStart} style={{ padding: "10px 16px", borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "grab", userSelect: "none", borderRadius: "12px 12px 0 0", background: isDark ? "rgba(37,99,235,0.15)" : "rgba(37,99,235,0.08)" }}>
+            <span style={{ color: isDark ? "#60a5fa" : "#2563eb", fontWeight: 700, fontSize: 13 }}>🔍 Rozšířený filtr</span>
+            <button onClick={() => setShowAdvFilter(false)} onMouseDown={e => e.stopPropagation()} style={{ background: "none", border: "none", color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)", fontSize: 16, cursor: "pointer", lineHeight: 1, padding: 0 }}>✕</button>
+          </div>
+          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12, width: 100, flexShrink: 0 }}>Rok:</span>
+              <input value={filterRok} onChange={e => setFilterRok(e.target.value)} placeholder="např. 2025" style={{ ...inputSx, flex: 1, background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, color: isDark ? "#fff" : "#1e293b", padding: "7px 10px" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12, width: 100, flexShrink: 0 }}>Nab. cena od:</span>
+              <input value={filterCastkaOd} onChange={e => setFilterCastkaOd(e.target.value)} placeholder="0" type="number" style={{ ...inputSx, flex: 1, background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, color: isDark ? "#fff" : "#1e293b", padding: "7px 10px" }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12, width: 100, flexShrink: 0 }}>Nab. cena do:</span>
+              <input value={filterCastkaDo} onChange={e => setFilterCastkaDo(e.target.value)} placeholder="∞" type="number" style={{ ...inputSx, flex: 1, background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, color: isDark ? "#fff" : "#1e293b", padding: "7px 10px" }} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="checkbox" checked={filterProslé} onChange={e => setFilterProslé(e.target.checked)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#ef4444", flexShrink: 0 }} />
+              <span style={{ color: isDark ? "#e2e8f0" : "#1e293b", fontSize: 13 }}>⚠️ Jen prošlé termíny bez faktury</span>
+            </label>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12, width: 100, flexShrink: 0 }}>Fakturace:</span>
+              <select value={filterFakturace} onChange={e => setFilterFakturace(e.target.value)} style={{ ...inputSx, flex: 1, background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, color: isDark ? "#fff" : "#1e293b", padding: "7px 10px" }}>
+                <option value="">Vše</option>
+                <option value="ano">✅ Vyfakturováno</option>
+                <option value="ne">❌ Nevyfakturováno</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", fontSize: 12, width: 100, flexShrink: 0 }}>Kategorie:</span>
+              <select value={filterKat} onChange={e => setFilterKat(e.target.value)} style={{ ...inputSx, flex: 1, background: isDark ? "#0f172a" : "#f8fafc", border: `1px solid ${isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)"}`, color: isDark ? "#fff" : "#1e293b", padding: "7px 10px" }}>
+                <option value="">Vše</option>
+                <option value="I">Kategorie I</option>
+                <option value="II">Kategorie II</option>
+              </select>
+            </div>
+            {(filterRok || filterCastkaOd || filterCastkaDo || filterProslé || filterFakturace || filterKat) && (
+              <div style={{ paddingTop: 8, borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}` }}>
+                <button onClick={() => { setFilterRok(""); setFilterCastkaOd(""); setFilterCastkaDo(""); setFilterProslé(false); setFilterFakturace(""); setFilterKat(""); }} style={{ padding: "6px 14px", background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.3)", borderRadius: 7, color: "#f87171", cursor: "pointer", fontSize: 12, width: "100%" }}>✕ Vymazat rozšířené filtry</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* LOG MODAL */}
+      {showLog && <LogModal isDark={isDark} firmy={firmy} onClose={() => setShowLog(false)} isDemo={isDemo} />}
+
+      {/* HISTORIE MODAL */}
+      {historieRow && <HistorieModal row={historieRow} isDark={isDark} onClose={() => setHistorieRow(null)} isDemo={isDemo} />}
+
+      {/* GRAF MODAL */}
+      {showGraf && <GrafModal data={filtered} firmy={firmy} isDark={isDark} onClose={() => setShowGraf(false)} />}
+
+      {/* AUTO-LOGOUT VAROVÁNÍ */}
+      {autoLogoutWarning && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Segoe UI',Tahoma,sans-serif" }}>
+          <div style={{ background: isDark ? "#1e293b" : "#fff", borderRadius: 16, padding: "32px 36px", width: 360, textAlign: "center", border: "1px solid rgba(239,68,68,0.4)", boxShadow: "0 24px 60px rgba(0,0,0,0.6)" }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>⏱️</div>
+            <h3 style={{ color: isDark ? "#fff" : "#1e293b", margin: "0 0 8px", fontSize: 18 }}>Automatické odhlášení</h3>
+            <p style={{ color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)", margin: "0 0 6px", fontSize: 14 }}>
+              Detekována nečinnost ({AUTO_LOGOUT_MINUTES} minut).
+            </p>
+            <div style={{ fontSize: 48, fontWeight: 800, color: autoLogoutCountdown <= 10 ? "#f87171" : "#fbbf24", margin: "16px 0", fontVariantNumeric: "tabular-nums" }}>
+              {autoLogoutCountdown}
+            </div>
+            <p style={{ color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.4)", margin: "0 0 24px", fontSize: 13 }}>
+              Budete odhlášeni za <strong>{autoLogoutCountdown}</strong> {autoLogoutCountdown === 1 ? "sekundu" : autoLogoutCountdown < 5 ? "sekundy" : "sekund"}.
+            </p>
+            <button
+              onClick={() => {
+                setAutoLogoutWarning(false);
+                clearInterval(autoLogoutCountdownTimer.current);
+                clearTimeout(autoLogoutTimer.current);
+                autoLogoutTimer.current = setTimeout(() => {
+                  setAutoLogoutWarning(true);
+                  setAutoLogoutCountdown(60);
+                }, AUTO_LOGOUT_MINUTES * 60 * 1000);
+              }}
+              style={{ padding: "11px 28px", background: "linear-gradient(135deg,#2563eb,#1d4ed8)", border: "none", borderRadius: 10, color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700 }}
+            >
+              ✅ Jsem tady – pokračovat
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
-  )
+  );
 }
