@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_02
+// Build: 20260317_03
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2417,24 +2417,18 @@ export default function StavbaPage() {
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 8mm 10mm; }
-          /* Vynutit světlý motiv — přepíše tmavý motiv */
           body { background: white !important; color: black !important; }
-          body * { background-color: transparent !important; color: black !important; border-color: #cccccc !important; }
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-          /* Skryj header, záložky, tlačítka */
-          .no-print { display: none !important; }
-          /* Rozbor přes celou šířku bez paddingu */
-          .rozbor-print { padding: 0 !important; width: 100% !important; }
-          /* Tabulky bez scrollbaru */
-          * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          /* Barevná pozadí sekcí */
-          .rozbor-mzdy-header   { background-color: #dbeafe !important; color: #1d4ed8 !important; }
-          .rozbor-mech-header   { background-color: #fef3c7 !important; color: #b45309 !important; }
-          .rozbor-zemni-header  { background-color: #fee2e2 !important; color: #b91c1c !important; }
-          .rozbor-gn-header     { background-color: #d1fae5 !important; color: #047857 !important; }
-          .rozbor-ost-header    { background-color: #ede9fe !important; color: #6d28d9 !important; }
-          .rozbor-celkem-header { background-color: #dbeafe !important; color: #1d4ed8 !important; }
+          body * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .no-print { display: none !important; visibility: hidden !important; height: 0 !important; overflow: hidden !important; }
+          .rozbor-print { padding: 0 !important; width: 100% !important; display: block !important; }
+          * { overflow: visible !important; position: static !important; }
+          /* Přepsat tmavé barvy */
+          [style*="background:#080f1c"], [style*="background: #080f1c"] { background: white !important; }
+          [style*="background:#0d1829"], [style*="background: #0d1829"] { background: white !important; }
+          [style*="background:#0a1520"], [style*="background: #0a1520"] { background: white !important; }
+          [style*="color:#e2e8f0"], [style*="color: #e2e8f0"] { color: black !important; }
+          [style*="color:#64748b"], [style*="color: #64748b"] { color: #444 !important; }
+          [style*="color:#94a3b8"], [style*="color: #94a3b8"] { color: #666 !important; }
         }
       `}</style>
       {/* HEADER */}
