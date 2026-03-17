@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_26
+// Build: 20260317_27
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,53 +91,78 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260317_18    – Odstraněna přirážka z řádků CELKEM (všechny sekce)
-// 20260317_17    – CELKEM ZA STAVBU: přirážka pryč, zisk ve dvou sloupcích; zoom per záložka
-// 20260317_16    – Vstupní hodnoty: odebráno Uložit; přidány A−/A+ zoom (70–150%)
+// 20260317_27    – Dashboard: build aktualizován; sloupce vycentrovány; čísla odsazena vpravo
+// 20260317_26    – CELKEM nadpisy fontSize:13; data fontSize:13/800; fix K vyplacení+Zisk v CZS
+// 20260317_25    – CELKEM data buňky fontSize:13, fontWeight:800
+// 20260317_24    – CELKEM ZA STAVBU: Zisk Kč + % ve dvou sloupcích, ⚠/✓ pod každým
+// 20260317_22    – CELKEM sekce: odstraněno ⚠; % vlevo vedle zisku
+// 20260317_21    – Fix crash: kompletni nebyla definována v sekcích
+// 20260317_20    – CELKEM ZA STAVBU styl jako ostatní; ⚠ neúplná data pod ziskem
+// 20260317_19    – "neúplná" → "neúplná data"; % vedle zisku; zesvětlena legenda grafu
+// 20260317_18    – Odstraněna přirážka ze všech CELKEM řádků
+// 20260317_17    – CELKEM ZA STAVBU: zisk ve dvou sloupcích; zoom per záložka
+// 20260317_16    – Vstupní hodnoty: odebráno Uložit; zoom A−/A+ (70–150%)
 //                  Dashboard: build kódu, zvýrazněné Nastavení + Odhlásit
-// 20260317_15    – Rozbor hlavička: Zisk celkem ve dvou sloupcích (Kč + %)
-//                  každý sloupec má ⚠ neúplná / ✓ kompletní data
+// 20260317_15    – Rozbor hlavička: Zisk Kč + % ve dvou sloupcích, ⚠/✓
 // 20260317_14    – Rozbor: skryt název stavby z horního headeru
 // 20260317_13    – Vstupní hodnoty: build kódu vedle "Kalkulace stavby"
-//                  Rozbor: import_build přesunut pod název stavby v hlavičce
-// 20260317_12    – Fix: Zisk = součet zisků z vyplněných řádků (ne celková cena - vyplaceno)
-//                  Mzdy: ZISK = sP - vypl×1.34, Mech/Zemní/GN/Ostatní: ZISK = sP - vypl
-// 20260317_11    – Fix: Zisk v hlavičce rozboru počítá jen z vyplněných Vyplaceno
-// 20260317_10    – UI Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙
-//                  UI Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Uložit
+//                  Rozbor: import_build pod názvem stavby v hlavičce rozboru
+// 20260317_12    – Fix Zisk = součet zisků z vyplněných řádků
+//                  Mzdy: sP−vypl×1.34 | Mech/Zemní/GN/Ost: sP−vypl
+// 20260317_11    – Fix: Zisk v hlavičce rozboru jen z vyplněných Vyplaceno
+// 20260317_10    – Rozbor: ← zpět | Sazby | Rozpis | Tisk | ☀️🌙
+//                  Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat
 // 20260317_09    – Fix: import_build se zapisoval natvrdo jako 20260315_28
-// 20260317_05    – Tisk: okraje 4mm; tlačítko Tisk mezi Sazby a Importovat
+// 20260317_05    – Tisk: okraje 4mm; tlačítko Tisk v headeru
 // 20260317_04    – Fix tisk tmavý motiv: třída printing na html element
-// 20260317_01    – Tisk: @media print, A4 landscape, no-print, rozbor-print
-// 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá; popisky grafu T.text/T.muted
-// 20260316_36    – graf: Ostatní, bázová cena; zisk %; linky opraveny pro světlý motiv
-// 20260316_34    – přidán CELKEM ZA STAVBU (RozborCelkem)
-// 20260316_32    – Rozbor: sekce Ostatní položky; čáry ve všech sekcích
+// 20260317_01    – Tisk: @media print, A4 landscape
+// 20260316_40    – UI: zisk %, žlutá, popisky grafu
+// 20260316_36    – Graf: Ostatní, bázová cena, zisk %, linky
+// 20260316_34    – Přidán CELKEM ZA STAVBU (RozborCelkem)
+// 20260316_32    – Rozbor: sekce Ostatní položky; čáry
 // 20260316_31    – Rozbor: sekce Globální náklady; menu stejně široké
-// 20260316_30    – fix ZISK Mech/Zemní = sP - vypl; fix šířka hlavičky
-// 20260316_28    – Rozbor: sekce Zemní práce (normální+oranžové zamčené)
-// 20260316_25    – UI: permanentní barevné rámečky (žlutá/fialová/šedá)
+// 20260316_30    – Fix ZISK Mech/Zemní = sP−vypl
+// 20260316_28    – Rozbor: sekce Zemní práce (normální + oranžové zamčené)
+// 20260316_25    – UI: rámečky (žlutá=Vyplaceno, fialová=Index, šedá=Poznámka)
 // 20260316_22    – Rozbor: sekce Mechanizace
-// 20260316_14    – Rozbor: Index editovatelný; nastaveni: Index ZMES/HZS
-// 20260316_10    – kompletní přepis rozboru: RbInput+RozborMzdy top-level komponenty
-// 20260315_29    – Rozbor: sekce Mzdy montáže podle Excel vzoru (9 řádků)
+// 20260316_14    – Rozbor: Index editovatelný; Nastavení: Index ZMES/HZS
+// 20260316_10    – Kompletní přepis rozboru: RbInput+RozborMzdy top-level
+// 20260315_29    – Rozbor: Mzdy montáže (9 řádků)
 //                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
-// 20260315_28    – Dashboard: vyhledávání + seskupení verzí stavby
+// 20260315_28    – Dashboard: vyhledávání + seskupení verzí
 //                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
-// 20260315_27    – fix save: explicitní user_id (RLS)
-// 20260315_26    – fix: sRef.current po importu
-// 20260315_24    – dashboard: přepínač ☀️🌙; kontrola duplicitní stavby
-// 20260315_23    – fix archeologický dozor: gnRowAll + fallback text 'archeolog'
-// 20260315_18    – fix dvojité počítání stroje 250 (protlakStrojKc)
-// 20260315_17    – fix zemní práce, protlak kódy, PP/PPV, colCena detekce
-// 20260315_16    – fix S stroje: poslední nenulová hodnota
-// 20260314_11    – nastaveni tab Výchozí sazby
+// 20260315_27    – Fix save: user_id (RLS)
+// 20260315_26    – Fix: sRef.current po importu
+// 20260315_24    – Dashboard: ☀️🌙; kontrola duplicitní stavby
+// 20260315_23    – Fix archeologický dozor
+// 20260315_18    – Fix dvojité počítání stroje 250
+// 20260315_17    – Fix zemní práce, protlak, PP/PPV, colCena
+// 20260314_11    – Nastavení: Výchozí sazby
 //                  SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
-// 20260314_05    – DOFEGD vyjmuty z bazové ceny
+// 20260314_05    – DOFEGD vyjmuty z bázové ceny
 // 20260314_03    – DOF rozděleno na Zhotovitel + EGD
 //                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS dofegd jsonb DEFAULT '{}';
-// 20260314_02    – kompletní přepis importu podle mapovací tabulky v2
-// 20260312_01    – EBC mont VN/NN/Opto, fix gnRowAll, plovoucí SazbyDialog
+// 20260314_02    – Kompletní přepis importu v2
+// 20260312_01    – EBC mont VN/NN/Opto, gnRowAll, SazbyDialog
+//
+// AKTUÁLNÍ STAV UI (build 20260317_27):
+// Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙 | A− | % | A+
+// Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat | A− | % | A+
+// Zoom: každá záložka vlastní (70–150%), střed = reset 100%
+// Tisk: A4 landscape 4mm, světlý motiv (třída printing)
+// Dashboard: build kódu, Nastavení fialové, Odhlásit červené
+//
+// ZÁLOŽKA ROZBOR — sekce a vzorce:
+// Mzdy montáže: K vypl = hod×ZMES×(1+idx/100), ZISK = sP − vypl×1.34
+// Mechanizace: K vypl = (bez×0.6)×(1+idx/100), ZISK = sP − vypl
+// Zemní práce: K vypl = (bez×0.8)×(1+idx/100), ZISK = sP − vypl
+//   Oranžové (Roura PE/Písek/Štěrk/Beton): přirážka 0%, index 0%, zamčeno
+// GN: K vypl = (bez×0.8)×(1+idx/100), ZISK = sP − vypl
+// Ostatní: K vypl = (bez×0.8)×(1+idx/100), ZISK = sP − vypl
+//   Mat. zhotovitele: přirážka 0%, zamčeno
+// CELKEM ZA STAVBU: Zisk jen z vyplněných řádků
+//   Kompletní = všechna Vyplaceno vyplněna → jasná zelená + ✓ kompletní data
+//   Neúplné = tmavší zelená + ⚠ neúplná data
 // ============================================================
 // 20260314_7     – fix mat_vlastni přidán zpět
 // 20260314_6     – fix gzs+stimul_prirazka fallback
@@ -623,7 +648,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'center', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
   )
 
   const RowAuto = ({label, bez, rbKey, ti, hod, zmes}) => {
@@ -639,19 +664,19 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
             style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -678,18 +703,18 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
           <RbInput numeric tabIndex={ti} value={String(rb[rbKey]?.bez||'')} onChange={v=>setRb(rbKey,'bez',v)} placeholder="0"
             style={{ width:'100%', background:'rgba(59,130,246,0.1)', border:'1px solid #3b82f6', borderRadius:4, color:'#60a5fa', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti+1} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
             style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={ti+2} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti+3} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -794,13 +819,13 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
       <RowManual label="Rezerv. mont."                                                  rbKey="mzdy_rezerv"  ti={26} />
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(59,130,246,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:12 }}>CELKEM MZDY</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#3b82f6' }}>{fmt(celkemBez)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#3b82f6' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
       </div>
     </div>
@@ -830,7 +855,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'center', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
   )
 
   const Row = ({label, bez, rbKey, ti}) => {
@@ -842,19 +867,19 @@ function RozborMech({ s, T, c, sRef, setS }) {
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
             style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -905,13 +930,13 @@ function RozborMech({ s, T, c, sRef, setS }) {
       {ROWS.map((r, i) => <Row key={r.rbKey} label={r.label} bez={r.bez} rbKey={r.rbKey} ti={100 + i*3} />)}
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(245,158,11,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:12 }}>CELKEM MECHANIZACE</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{fmt(celkemBez)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{fmt(celkemSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
       </div>
     </div>
@@ -941,7 +966,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'center', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
   )
 
   // Normální řádek — K vyplacení = (bez × 0.8) × (1 + index/100)
@@ -957,9 +982,9 @@ function RozborZemni({ s, T, c, sRef, setS }) {
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)', background:bg }}>
         <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           {locked
             ? <div style={{ padding:'3px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#f97316' }}>0 %</div>
@@ -967,12 +992,12 @@ function RozborZemni({ s, T, c, sRef, setS }) {
                 style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
           }
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={locked?-1:ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={locked?-1:ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -1043,13 +1068,13 @@ function RozborZemni({ s, T, c, sRef, setS }) {
       {ROWS_LOCKED.map((r, i) => <Row key={r.rbKey} label={r.label} rbKey={r.rbKey} ti={250 + i*3} locked={true} />)}
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(239,68,68,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:12 }}>CELKEM ZEMNÍ PRÁCE</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#ef4444' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#ef4444' }}>{fmt(celkemBez)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#ef4444' }}>{fmt(celkemSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#ef4444' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
       </div>
     </div>
@@ -1079,7 +1104,7 @@ function RozborGN({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'center', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
   )
 
   const Row = ({label, bez, rbKey, ti}) => {
@@ -1091,19 +1116,19 @@ function RozborGN({ s, T, c, sRef, setS }) {
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)' }}>
         <div style={{ padding:'6px 8px', color:T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{(pri*100).toFixed(1)} %</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti} value={String(rb[rbKey]?.idx ?? defaultIdx)} onChange={v=>setRb(rbKey,'idx',v)} placeholder="-15"
             style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400 }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -1155,13 +1180,13 @@ function RozborGN({ s, T, c, sRef, setS }) {
       {ROWS.map((r, i) => <Row key={r.rbKey} label={r.label} bez={r.bez} rbKey={r.rbKey} ti={300 + i*3} />)}
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(16,185,129,0.3)' }}>
         <div style={{ padding:'8px 8px', color:'#10b981', fontWeight:800, fontSize:12 }}>CELKEM GN</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#10b981' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#10b981' }}>{fmt(celkemBez)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#10b981' }}>{fmt(celkemSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#10b981' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
       </div>
     </div>
@@ -1191,7 +1216,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   const TH = ({children, left=false}) => (
-    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:left?'left':'right', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
+    <div style={{ color:'#94a3b8', fontSize:9, fontWeight:800, textTransform:'uppercase', letterSpacing:0.5, textAlign:'center', padding:'6px 6px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{children}</div>
   )
 
   const Row = ({label, bez, rbKey, ti, locked=false}) => {
@@ -1205,9 +1230,9 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
     return (
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:'1px solid rgba(100,116,139,0.5)', background:bg }}>
         <div style={{ padding:'6px 8px', color:locked?'#f97316':T.text, fontSize:13, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{label}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{bez>0?fmt(bez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:locked?'#f97316':'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{locked?'0 %':`${(pri*100).toFixed(1)} %`}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{sP>0?fmt(sP):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           {locked
             ? <div style={{ padding:'3px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#f97316' }}>0 %</div>
@@ -1215,12 +1240,12 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
                 style={{ width:'100%', background:'rgba(168,85,247,0.08)', border:'1px solid #a855f7', borderRadius:4, color:'#a855f7', fontSize:12, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
           }
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b', borderRight:'1px solid rgba(100,116,139,0.6)' }}>{kVypl>0?fmt(kVypl):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput numeric tabIndex={locked?-1:ti+1} value={String(rb[rbKey]?.vypl||'')} onChange={v=>setRb(rbKey,'vypl',v)} placeholder="—"
             style={{ width:'100%', background:'rgba(245,158,11,0.08)', border:'1px solid #f59e0b', borderRadius:4, color:'#f59e0b', fontSize:13, padding:'3px 6px', textAlign:'right', fontFamily:'monospace', outline:'none', boxSizing:'border-box' }} />
         </div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{zisk!==null?fmt(zisk):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:zisk!==null?(zisk>=0?'#10b981':'#ef4444'):'#64748b', fontWeight:zisk!==null?700:400, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{zisk!==null?fmt(zisk):'—'}</div>
         <div style={{ padding:'3px 4px', borderRight:'1px solid rgba(100,116,139,0.6)' }}>
           <RbInput tabIndex={locked?-1:ti+2} value={String(rb[rbKey]?.pozn||'')} onChange={v=>setRb(rbKey,'pozn',v)} placeholder="Poznámka…"
             style={{ width:'100%', background:'transparent', border:'1px solid #64748b', borderRadius:4, color:'#64748b', fontSize:12, padding:'3px 6px', outline:'none', boxSizing:'border-box' }} />
@@ -1276,7 +1301,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
       {/* Doloženo fakturou — info řádek */}
       <div style={{ display:'grid', gridTemplateColumns:cols, borderBottom:`1px solid ${T.border}40`, background:'rgba(59,130,246,0.04)' }}>
         <div style={{ padding:'6px 8px', color:'#60a5fa', fontSize:13, fontWeight:600, borderRight:'1px solid rgba(100,116,139,0.6)' }}>Doloženo fakturou</div>
-        <div style={{ padding:'6px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{dofBez>0?fmt(dofBez):'—'}</div>
+        <div style={{ padding:'6px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, color:T.text, borderRight:'1px solid rgba(100,116,139,0.6)' }}>{dofBez>0?fmt(dofBez):'—'}</div>
         <div style={{ gridColumn:'3/10', padding:'6px 8px', color:'#f59e0b', fontSize:11, fontStyle:'italic' }}>
           DIO, vytýčení sítí, správní poplatky, omezení dopravy … bude dofakturováno
         </div>
@@ -1284,13 +1309,13 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
       {/* CELKEM OSTATNÍ */}
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.12)', borderRadius:'0 0 6px 6px', border:'1px solid rgba(139,92,246,0.3)', marginBottom:16 }}>
         <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:12 }}>CELKEM OSTATNÍ</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#8b5cf6' }}>{fmt(celkemBez)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#8b5cf6' }}>{fmt(celkemBez)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#8b5cf6' }}>{fmt(celkemSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#8b5cf6' }}>{fmt(celkemSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>{fmt(celkemKVypl)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:celkemZisk!==null?(celkemZisk>=0?'#10b981':'#ef4444'):'#64748b' }}>{celkemZisk!==null?fmt(celkemZisk):'—'}</div>
         <div/>
       </div>
     </div>
@@ -1388,12 +1413,12 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
     <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
       <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(37,99,235,0.18)', borderRadius:8 }}>
         <div style={{ padding:'8px 8px', color:'#60a5fa', fontWeight:800, fontSize:12 }}>CELKEM ZA STAVBU</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#60a5fa' }}>{fmt(c.bazova)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#60a5fa' }}>{fmt(ziskSP)}</div>
         <div/>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>—</div>
-        <div style={{ padding:'8px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#64748b' }}>—</div>
+        <div style={{ padding:'8px 12px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:800, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
         {/* Zisk Kč — sloupec 8 */}
         <div style={{ padding:'6px 6px', textAlign:'right' }}>
           {hasAnyVypl ? (<>
@@ -2480,7 +2505,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_26 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_27 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2529,7 +2554,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_26</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_27</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
