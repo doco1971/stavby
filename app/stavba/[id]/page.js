@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_07
+// Build: 20260317_08
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1312,9 +1312,9 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
 }
 
 // RozborCelkem — řádek CELKEM ZA STAVBU
-function RozborCelkem({ s, T, c, sRef }) {
+function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
   const pri = num(s.prirazka)
-  const rb = s.rozbor || {}
+  const rb = rbProp || s.rozbor || {}
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
 
   // Všechny klíče vyplaceno které se mají vyplnit
@@ -2708,7 +2708,7 @@ export default function StavbaPage() {
             {/* TABULKA ROZBORU — Ostatní položky */}
             <RozborOstatni s={s} T={T} c={c} sRef={sRef} setS={setS} />
             {/* CELKEM ZA STAVBU */}
-            <RozborCelkem s={s} T={T} c={c} sRef={sRef} />
+            <RozborCelkem s={s} T={T} c={c} sRef={sRef} rozbor={s.rozbor} />
             {false && (() => {
               const pri = num(s.prirazka)
               const zmesM = num(s.zmes_mont), zmesZ = num(s.zmes_zem)
