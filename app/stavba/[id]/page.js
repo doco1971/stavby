@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_06
+// Build: 20260317_07
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1329,33 +1329,19 @@ function RozborCelkem({ s, T, c, sRef }) {
     'ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs',
   ]
 
-  // Kompletní = všechna pole Vyplaceno jsou vyplněna (včetně 0)
+  // Kompletní = všechna pole Vyplaceno jsou vyplněna (včetně 0, ale ne prázdný string)
   const kompletni = VYPL_KEYS.every(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
 
-  // Celkem vyplaceno = součet všech vyplacených hodnot
-  const celkemVypl = VYPL_KEYS.reduce((a, k) => a + num(rb[k]?.vypl||0), 0)
+  // Celkem vyplaceno = součet pouze vyplněných hodnot
+  const vyplneneKeys = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
+  const celkemVypl = vyplneneKeys.reduce((a, k) => a + num(rb[k].vypl), 0)
 
-  // Zisk = počítá se POUZE z řádků kde je Vyplaceno vyplněno
-  const ziskSP = c.bazova * (1 + pri) // Cena s přirážkou
-  const ziskVyplneno = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
-  const ziskCelkem = ziskVyplneno.length > 0 ? (() => {
-    // Součet SP z vyplněných řádků minus jejich vyplaceno
-    // Použijeme celkový SP * podíl vyplacených nebo jednodušeji z dat rozboru
-    return VYPL_KEYS.reduce((a, k) => {
-      if (rb[k]?.vypl === undefined || rb[k]?.vypl === '') return a
-      // Najdi odpovídající sP pro daný klíč
-      const vypl = num(rb[k].vypl)
-      // Zisk řádku se počítá různě — pro jednoduchost bereme součet z rb[k].zisk pokud existuje
-      // Jinak spočítáme jako vypl odečteme od celkového podílu
-      return a + vypl
-    }, 0)
-  })() : 0
-
-  // Jednodušší výpočet — celkový zisk = cena s přirážkou - celkem vyplaceno (z vyplněných řádků)
-  const zisk = ziskVyplneno.length > 0 ? ziskSP - celkemVypl : null
+  // Zisk = Cena s přirážkou - celkem vyplaceno (jen z vyplněných řádků)
+  // Zobrazíme pokud je alespoň jedno pole vyplněno
+  const ziskSP = c.bazova * (1 + pri)
+  const zisk = vyplneneKeys.length > 0 ? ziskSP - celkemVypl : null
   const ziskPct = zisk !== null && ziskSP > 0 ? (zisk / ziskSP * 100).toFixed(1) : null
-
-  const ziskColor = kompletni ? '#10b981' : '#059669' // jasná vs tmavší zelená
+  const ziskColor = kompletni ? '#10b981' : '#059669'
 
   return (
     <div style={{ background:T.card, border:'2px solid rgba(37,99,235,0.5)', borderRadius:10, padding:'4px 14px', overflowX:'auto', marginBottom:16 }}>
