@@ -91,6 +91,14 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260317_11    – Fix: Zisk v hlavičce rozboru počítá jen z vyplněných Vyplaceno
+//                  — dokud není nic, tmavší zelená + "neúplná data", kompletní → jasná zelená
+// 20260317_10    – UI Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙
+//                  UI Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Uložit
+// 20260317_09    – Fix: import_build se zapisoval natvrdo jako 20260315_28
+// 20260317_05    – Tisk: okraje 4mm; tlačítko Tisk mezi Sazby a Importovat
+// 20260317_04    – Fix tisk tmavý motiv: třída printing na html element
+// 20260317_01    – Tisk: @media print, A4 landscape, no-print, rozbor-print
 // 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá barva; popisky grafu T.text/T.muted
 // 20260316_39    – UI: zisk % pod číslem bez závorek; bázová cena v legendě grafu
 // 20260316_38    – UI: linky zesvětleny rgba(148,163,184); popisky grafu světlejší
@@ -2436,7 +2444,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_08 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_11 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2481,31 +2489,17 @@ export default function StavbaPage() {
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '0 120px' : '0' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
-            {/* Zpět */}
-            <button onClick={async () => {
-              if (sazbyDialog) {
-                if (!window.confirm('Import nebyl dokončen — sazby nebyly potvrzeny. Opravdu odejít?')) return
-                setSazbyDialog(null)
-              }
-              // Použij sRef.current pokud existuje (po importu je s zastaralý kvůli async setState)
-              const dataToSave = sRef.current || s
-              setSaving(true)
-              await supabase.from('stavby').update({ ...dataToSave, updated_at: new Date().toISOString() }).eq('id', params.id)
-              setSaving(false)
-              router.push('/dashboard')
-            }} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'4px 10px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>← zpět</button>
-
-            {/* Název + import info */}
+          {/* Název + import info — jen jedna řádka */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Kalkulace stavby · {s.oblast}</div>
-              <div style={{ fontSize:16, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
-              <div style={{ display:'flex', alignItems:'center', gap:12, marginTop:3, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
                 {profile?.role === 'admin' && (
                   <div style={{ fontSize:10, color:'#94a3b8', fontFamily:'monospace' }}>
-                    📦 {s.import_build || '—'} 
+                    📦 {s.import_build || '—'}
                   </div>
                 )}
                 {lastSaved && (
@@ -2515,11 +2509,32 @@ export default function StavbaPage() {
                 )}
               </div>
             </div>
+          </div>
+          <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:6, marginBottom:4 }}>
+            {/* Vlevo: ← zpět */}
+            <button onClick={async () => {
+              if (sazbyDialog) {
+                if (!window.confirm('Import nebyl dokončen — sazby nebyly potvrzeny. Opravdu odejít?')) return
+                setSazbyDialog(null)
+              }
+              const dataToSave = sRef.current || s
+              setSaving(true)
+              await supabase.from('stavby').update({ ...dataToSave, updated_at: new Date().toISOString() }).eq('id', params.id)
+              setSaving(false)
+              router.push('/dashboard')
+            }} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'5px 12px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', flexShrink:0 }}>← zpět</button>
 
-            {/* Tlačítka — různá pro Vstupní hodnoty vs Rozbor */}
+            {/* Střed: záložky */}
+            <div style={{ display:'flex', flex:1, justifyContent:'center' }}>
+              {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
+                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ const d=sRef.current||s; await supabase.from('stavby').update({...d,updated_at:new Date().toISOString()}).eq('id',params.id); setTab(t.k) } }}
+                  style={{ padding:'6px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
+              ))}
+            </div>
+
+            {/* Vpravo: tlačítka podle záložky */}
             <div style={{ display:'flex', gap:8, flexShrink:0, alignItems:'center' }}>
               {tab === 'rozbor' ? (<>
-                {/* ROZBOR: Sazby | Rozpis | Tisk | ☀️🌙 */}
                 <button onClick={() => setSazbyInfoOpen(true)}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   📋 Sazby
@@ -2542,7 +2557,6 @@ export default function StavbaPage() {
                   <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
                 </div>
               </>) : (<>
-                {/* VSTUPNÍ HODNOTY: Rozpis | ☀️🌙 | Smazat | Uložit */}
                 {profile?.role === 'admin' && (
                   <button onClick={() => setRozpisDialog(true)}
                     style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
@@ -2561,23 +2575,12 @@ export default function StavbaPage() {
                 <button onClick={() => save()} style={{ padding:'6px 14px', background: saved?'#10b981':'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:6, color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   {saving ? '…' : saved ? '✓ Uloženo' : '💾 Uložit'}
                 </button>
+                <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
+                <button onClick={() => importFileRef.current?.click()}
+                  style={{ padding:'6px 14px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:6, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  📂 Importovat z Excelu
+                </button>
               </>)}
-            </div>
-          </div>
-
-          {/* Tabs + Import */}
-          <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
-            <div style={{ display:'flex' }}>
-              {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
-                <button key={t.k} onClick={async()=>{ if(tab!==t.k){ const d=sRef.current||s; await supabase.from('stavby').update({...d,updated_at:new Date().toISOString()}).eq('id',params.id); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
-              ))}
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
-              <button onClick={() => importFileRef.current?.click()}
-                style={{ padding:'7px 16px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:7, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                📂 Importovat z Excelu
-              </button>
             </div>
           </div>
         </div>
