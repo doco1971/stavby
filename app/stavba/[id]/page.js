@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260316_40
+// Build: 20260317_01
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -88,43 +88,72 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260315_28    – SQL migrace: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
-//                  přidána do poznámek v hlavičce
-// 20260315_27    – fix save: explicitní user_id v update (RLS), chybová hláška při selhání uložení
-//                  debug: console.log v applySazby pro sledování co se ukládá
-// 20260315_26    – fix: nová stavba po importu prázdná — sRef.current drží aktuální stav po importu
-//                  tlačítko ← zpět používá sRef.current místo zastaralého React state s
-// 20260315_25    – fix: tlačítko ← zpět varuje pokud je otevřený SazbyDialog (import nedokončen)
-// 20260315_24    – dashboard: přepínač ☀️🌙 vedle sebe (stejný styl jako stavba)
-//                  import: kontrola duplicitní stavby podle čísla → dotaz uživateli
-//                  UI: build info vždy viditelný pro admina (i bez importu)
-//                  Poznámky: aktualizovány (DOF+archeolog, DOFEGD bez archeolog, protlak_rizeny kódy)
-// 20260315_23    – fix archeologický dozor: gnRowAll + fallback text 'archeolog' v GN listu
-//                  bázová cena sedí s EBC (rozdíl ~7 Kč = zaokrouhlení)
-// 20260315_22    – UI: bázová cena + zisk do spodní lišty vedle Importovat z Excelu
-//                  UI: název stavby celá šířka horního řádku
-// 20260315_21    – NEFUNKČNÍ BUILD
-// 20260315_20    – fix archeologický dozor: pmRowAll() z PM listu (nefunkční — kód je v GN listu)
+// 20260316_40    – UI: zisk % stejně velké jako číslo, žlutá barva; popisky grafu T.text/T.muted
+// 20260316_39    – UI: zisk % pod číslem bez závorek; bázová cena v legendě grafu
+// 20260316_38    – UI: linky zesvětleny rgba(148,163,184); popisky grafu světlejší
+// 20260316_37    – fix: zisk % zobrazovalo kód funkce — opraveno destrukturování
+// 20260316_36    – graf: Ostatní, bázová cena; zisk %; linky opraveny pro světlý motiv
+// 20260316_35    – odstraněna duplikátní bázová cena z menu; opraven sloupcový graf
+// 20260316_34    – přidán CELKEM ZA STAVBU (RozborCelkem); čáry zesíleny na T.border
+// 20260316_33    – CELKEM OSTATNÍ přidán; čáry zesíleny (0.35 opacity)
+// 20260316_32    – Rozbor: sekce Ostatní položky (Mat.zhotovitele, Příspěvek, GZS, Doloženo fakturou)
+//                  tenké svislé i vodorovné čáry ve všech sekcích rozboru
+// 20260316_31    – Rozbor: sekce Globální náklady (RozborGN); menu stejně široké; jemné čáry v hlavičkách
+// 20260316_30    – fix ZISK Mech/Zemní = sP - vypl (bez ×1.34); fix šířka hlavičky rozboru
+// 20260316_29    – fix Zemní práce celkem (sP, kVypl); tlačítko Sazby za Ziskem; plovoucí dialog
+// 20260316_28    – Rozbor: sekce Zemní práce (normální+oranžové zamčené); tlačítko Sazby; zúžení tabulky
+// 20260316_27    – fix: rámečky polí měly průhlednost #40 — opraveno na plnou barvu
+// 20260316_26    – zbytečné zúžení sloupců vráceno zpět
+// 20260316_25    – UI: permanentní barevné rámečky (žlutá=vyplaceno, fialová=index, šedá=pozn.)
+// 20260316_24    – UI: rámečky na editovatelných polích (neúplné)
+// 20260316_23    – UI: permanentní rámeček na Poznámka (neúplné)
+// 20260316_22    – Rozbor: sekce Mechanizace (RozborMech) — Jeřáb, Nákladní, Traktor, Plošina, Dodávka, Kango, Pila
+// 20260316_21    – fix Celkem mzdy K vyplacení = součet z řádků (ne celkemBez×0.66)
+// 20260316_20    – UI: přejmenováno na "ZISK MZDY" v řádku Celkem mzdy
+// 20260316_19    – fix Celkem mzdy ZISK = součet zisku z jednotlivých řádků
+// 20260316_18    – K vyplacení ostatních RowAuto = (bez×0.6)×(1+idx/100)
+// 20260316_17    – Zemní práce: K vyplacení = (bez/HZS_mont)×ZMES_zem×(1+idx/100); ZISK = sP-vypl×1.34
+// 20260316_16    – fix K vyplacení Montážní práce: hodiny z c.mzdyT (ne itemSum)
+// 20260316_15    – Montážní práce: opraveny vzorce (bez opto, K vyplacení = hod×ZMES×(1+idx/100))
+// 20260316_14    – Rozbor: sloupec Index editovatelný, výchozí z nastavení; nastaveni: Index ZMES/HZS
+// 20260316_13    – fix Enter/Tab: explicitní tabIndex data-rb 1-30
+// 20260316_12    – fix goNext: setTimeout+pozice (nefungovalo)
+// 20260316_11    – skipBlur ref; zvětšen font v RozborMzdy
+// 20260316_10    – kompletní přepis rozboru od základu: RbInput+RozborMzdy top-level komponenty
+// 20260316_09    – fix syntax errors
+// 20260316_08    – fix syntax errors
+// 20260316_07    – Enter/Tab přeskok data-rb; Rozbor na celou šířku stránky
+// 20260316_06    – RozborMzdy jako top-level komponenta (ne IIFE) — root cause fix
+// 20260316_05    – setRb aktualizuje sRef; autosave při přepnutí záložky
+// 20260316_04    – autosave při přepnutí záložky; formátování tisíců v numeric inputech
+// 20260316_03    – fix RbInput editing.current ref; Celkem mzdy Vyplaceno = součet řádků
+// 20260316_02    – Enter potvrdí hodnotu v RbInput
+// 20260316_01    – fix inputy v rozboru ztrácely focus (RbInput komponenta)
+// 20260315_29    – Rozbor: sekce Mzdy montáže podle Excel vzoru (9 řádků)
+//                  SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
+// 20260315_28    – SQL: ALTER TABLE stavby ADD COLUMN IF NOT EXISTS import_build text
+//                  Dashboard: vyhledávání + seskupení verzí stavby
+// 20260315_27    – fix save: explicitní user_id (RLS), chybová hláška při selhání
+// 20260315_26    – fix: nová stavba po importu prázdná — sRef.current
+// 20260315_25    – fix: varování při odchodu s nedokončeným importem
+// 20260315_24    – dashboard: přepínač ☀️🌙; import: kontrola duplicitní stavby
+// 20260315_23    – fix archeologický dozor: gnRowAll + fallback text 'archeolog'
+// 20260315_22    – UI: bázová cena + zisk vedle Importovat z Excelu
 // 20260315_19    – archeologický dozor přesunut z DOFEGD → DOF
-//                  UI: Den/Noc přepínač vedle sebe
-// 20260315_18    – fix dvojité počítání stroje 250: protlak neřízený vyloučen ze zemniSumBez
-//                  stroj 250 přičítán samostatně přes protlakStrojKc
-// 20260315_17    – fix zemní práce (52:), protlak PZ kódy EK21-EK26, protlak řízený kódy
-//                  fix PP/PPV (GZS, stimulační), fix bazova noIdx
-//                  nová robustní detekce colCena
-// 20260315_16    – fix import EBC: cena S řádků = poslední nenulová hodnota v řádku
-//                  fix stimulační přirážka: PPV se nepočítala dvakrát
-// 20260315_15    – opraveny cesty nastaveni (../../lib/supabase, ../layout)
-// 20260315_14    – fix hodiny: fallback PM/PZ detailní řádky pro xls/xlsx
-// 20260315_13    – MECH: každý kód = samostatný řádek, nakladni SH+KM páry u sebe
-// 20260314_12    – formát data importu, fix newEmail v nastaveni
-// 20260314_11    – nastaveni: tab Výchozí sazby, SazbyDialog předvyplnění
+// 20260315_18    – fix dvojité počítání stroje 250 (protlakStrojKc)
+// 20260315_17    – fix zemní práce, protlak kódy, PP/PPV, colCena detekce
+// 20260315_16    – fix S stroje: poslední nenulová hodnota; fix stimulační přirážka
+// 20260315_15    – opraveny cesty nastaveni
+// 20260315_14    – fix hodiny fallback PM/PZ
+// 20260315_13    – MECH každý kód = řádek
+// 20260314_12    – formát data importu, fix newEmail
+// 20260314_11    – nastaveni tab Výchozí sazby
 //                  SQL: ALTER TABLE profiles ADD COLUMN IF NOT EXISTS default_sazby jsonb DEFAULT '{}';
 // 20260314_10    – fix duplikát matVlastniR
 // 20260314_9     – bazova: matZhot → matVlastni
 // 20260314_8     – smazány zem_vn/zem_nn z MZDY
-// 20260314_7     – fix mat_vlastni přidán zpět do importu
-// 20260314_6     – fix gzs+stimul_prirazka fallback do s.dof
+// 20260314_7     – fix mat_vlastni přidán zpět
+// 20260314_6     – fix gzs+stimul_prirazka fallback
 // 20260314_5     – DOFEGD vyjmuty z bazové ceny
 // 20260314_4     – fix kódy 420+440 do nakladni
 // 20260314_3     – DOF rozděleno na Zhotovitel + EGD
@@ -2384,8 +2413,26 @@ export default function StavbaPage() {
 
   return (
     <div style={{ minHeight:'100vh', background:T.bg }}>
+      {/* PRINT STYLY */}
+      <style>{`
+        @media print {
+          @page { size: A4 landscape; margin: 8mm 10mm; }
+          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .no-print { display: none !important; }
+          .rozbor-print { padding: 0 !important; width: 100% !important; }
+          /* Tabulky přes celou šířku */
+          .rozbor-print > div { overflow: visible !important; }
+          [style*="overflowX: auto"], [style*="overflowX:'auto'"] { overflow: visible !important; }
+          /* Barvy pozadí */
+          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          /* Velikost textu pro tisk */
+          .rozbor-print { font-size: 10px !important; }
+          /* Nezalamuj řádky tabulek */
+          .rozbor-print [style*="display:'grid'"] { page-break-inside: avoid; }
+        }
+      `}</style>
       {/* HEADER */}
-      <div style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
+      <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '0 120px' : '0' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 0 0', flexWrap:'wrap' }}>
             {/* Zpět */}
@@ -2447,7 +2494,7 @@ export default function StavbaPage() {
           </div>
 
           {/* Tabs + Bázová cena + Import */}
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
+          <div className="no-print" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:10 }}>
             <div style={{ display:'flex' }}>
               {[{k:'vstup',l:'📥 Vstupní hodnoty'},{k:'rozbor',l:'📊 Rozbor'}].map(t=>(
                 <button key={t.k} onClick={async()=>{ if(tab!==t.k){ const d=sRef.current||s; await supabase.from('stavby').update({...d,updated_at:new Date().toISOString()}).eq('id',params.id); setTab(t.k) } }} style={{ padding:'8px 20px', background:tab===t.k?'rgba(37,99,235,0.2)':'transparent', border:'none', borderBottom:tab===t.k?'3px solid #3b82f6':'3px solid transparent', borderRadius:'6px 6px 0 0', color:tab===t.k?'#3b82f6':T.muted, cursor:'pointer', fontSize:13, fontWeight:tab===t.k?800:400 }}>{t.l}</button>
@@ -2545,7 +2592,7 @@ export default function StavbaPage() {
         )}
 
         {tab==='rozbor' && (
-          <div style={{ padding:'0 120px' }}>
+          <div className="rozbor-print" style={{ padding:'0 120px' }}>
             {/* HLAVIČKA */}
             <div style={{ background:'linear-gradient(135deg,rgba(37,99,235,0.12),rgba(74,158,255,0.05))', border:'1px solid rgba(74,158,255,0.25)', borderRadius:14, padding:'16px 20px', marginBottom:16 }}>
               <div style={{ display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:12 }}>
@@ -2733,7 +2780,7 @@ export default function StavbaPage() {
               )
             })()}
 
-            <div style={{ textAlign:'right', marginTop:16 }}>
+            <div className="no-print" style={{ textAlign:'right', marginTop:16 }}>
               <button onClick={()=>window.print()} style={{ padding:'10px 22px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
                 🖨️ Tisk / Export PDF
               </button>
