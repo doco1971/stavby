@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_10
+// Build: 20260317_11
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2669,16 +2669,37 @@ export default function StavbaPage() {
                 </div>
                 <div style={{ display:'flex', gap:24 }}>
                   {[
-                    { l:'Bázová cena', v:c.bazova, col:'#3b82f6', p:null },
-                    { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)), col:'#60a5fa', p:null },
-                    { l:'Zisk celkem', v:c.celkemZisk, col:c.celkemZisk>=0?'#10b981':'#ef4444', p:c.bazova>0?(c.celkemZisk/c.bazova*100).toFixed(1):null },
+                    { l:'Bázová cena',      v:c.bazova,                        col:'#3b82f6', p:null },
+                    { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)),    col:'#60a5fa', p:null },
                   ].map(({l,v,col,p})=>(
                     <div key={l} style={{ textAlign:'right' }}>
                       <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
                       <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}</div>
-                      {p && <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{p} %</div>}
                     </div>
                   ))}
+                  {(() => {
+                    const rb = s.rozbor || {}
+                    const VYPL_KEYS = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv','mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila','zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac','zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak','zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton','gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn','gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace','ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
+                    const vyplnene = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
+                    const kompletni = vyplnene.length === VYPL_KEYS.length
+                    const celkemVypl = vyplnene.reduce((a,k) => a + num(rb[k].vypl), 0)
+                    const ziskSP = c.bazova * (1 + num(s.prirazka))
+                    const zisk = vyplnene.length > 0 ? ziskSP - celkemVypl : null
+                    const ziskPct = zisk !== null && ziskSP > 0 ? (zisk/ziskSP*100).toFixed(1) : null
+                    const col = kompletni ? '#10b981' : '#059669'
+                    return (
+                      <div style={{ textAlign:'right' }}>
+                        <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
+                        {zisk !== null ? (<>
+                          <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(zisk)}</div>
+                          <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>
+                          <div style={{ color:col, fontSize:9 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná data'}</div>
+                        </>) : (
+                          <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
               </div>
               {c.bazova > 0 && (() => {
