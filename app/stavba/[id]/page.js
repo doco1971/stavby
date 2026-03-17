@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_01
+// Build: 20260317_02
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -786,7 +786,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:8 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(59,130,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #3b82f6' }} className='rozbor-mzdy-header'>
         <div style={{ padding:'8px 8px', color:'#3b82f6', fontWeight:800, fontSize:13 }}>👷 Mzdy montáže</div>
         <TH>Cena bez přirážky</TH>
         <TH>Přirážka</TH>
@@ -905,7 +905,7 @@ function RozborMech({ s, T, c, sRef, setS }) {
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #f59e0b' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(245,158,11,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #f59e0b' }} className='rozbor-mech-header'>
         <div style={{ padding:'8px 8px', color:'#f59e0b', fontWeight:800, fontSize:13 }}>🚜 Mechanizace</div>
         <TH>Cena bez přirážky</TH>
         <TH>Přirážka</TH>
@@ -1042,7 +1042,7 @@ function RozborZemni({ s, T, c, sRef, setS }) {
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #ef4444' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(239,68,68,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #ef4444' }} className='rozbor-zemni-header'>
         <div style={{ padding:'8px 8px', color:'#ef4444', fontWeight:800, fontSize:13 }}>⛏️ Zemní práce</div>
         <TH>Cena bez přirážky</TH>
         <TH>Přirážka</TH>
@@ -1155,7 +1155,7 @@ function RozborGN({ s, T, c, sRef, setS }) {
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #10b981' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(16,185,129,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #10b981' }} className='rozbor-gn-header'>
         <div style={{ padding:'8px 8px', color:'#10b981', fontWeight:800, fontSize:13 }}>📋 Globální náklady</div>
         <TH>Cena bez přirážky</TH>
         <TH>Přirážka</TH>
@@ -1273,7 +1273,7 @@ function RozborOstatni({ s, T, c, sRef, setS }) {
 
   return (
     <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'12px 14px', overflowX:'auto', marginBottom:16 }}>
-      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #8b5cf6' }}>
+      <div style={{ display:'grid', gridTemplateColumns:cols, background:'rgba(139,92,246,0.15)', borderRadius:'6px 6px 0 0', borderBottom:'2px solid #8b5cf6' }} className='rozbor-ost-header'>
         <div style={{ padding:'8px 8px', color:'#8b5cf6', fontWeight:800, fontSize:13 }}>🔧 Ostatní položky</div>
         <TH>Cena bez přirážky</TH>
         <TH>Přirážka</TH>
@@ -2417,18 +2417,24 @@ export default function StavbaPage() {
       <style>{`
         @media print {
           @page { size: A4 landscape; margin: 8mm 10mm; }
-          body { background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          /* Vynutit světlý motiv — přepíše tmavý motiv */
+          body { background: white !important; color: black !important; }
+          body * { background-color: transparent !important; color: black !important; border-color: #cccccc !important; }
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          /* Skryj header, záložky, tlačítka */
           .no-print { display: none !important; }
+          /* Rozbor přes celou šířku bez paddingu */
           .rozbor-print { padding: 0 !important; width: 100% !important; }
-          /* Tabulky přes celou šířku */
-          .rozbor-print > div { overflow: visible !important; }
-          [style*="overflowX: auto"], [style*="overflowX:'auto'"] { overflow: visible !important; }
-          /* Barvy pozadí */
-          * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-          /* Velikost textu pro tisk */
-          .rozbor-print { font-size: 10px !important; }
-          /* Nezalamuj řádky tabulek */
-          .rozbor-print [style*="display:'grid'"] { page-break-inside: avoid; }
+          /* Tabulky bez scrollbaru */
+          * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          /* Barevná pozadí sekcí */
+          .rozbor-mzdy-header   { background-color: #dbeafe !important; color: #1d4ed8 !important; }
+          .rozbor-mech-header   { background-color: #fef3c7 !important; color: #b45309 !important; }
+          .rozbor-zemni-header  { background-color: #fee2e2 !important; color: #b91c1c !important; }
+          .rozbor-gn-header     { background-color: #d1fae5 !important; color: #047857 !important; }
+          .rozbor-ost-header    { background-color: #ede9fe !important; color: #6d28d9 !important; }
+          .rozbor-celkem-header { background-color: #dbeafe !important; color: #1d4ed8 !important; }
         }
       `}</style>
       {/* HEADER */}
