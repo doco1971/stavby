@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_11
+// Build: 20260317_12
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -1326,31 +1326,86 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
   const pri = num(s.prirazka)
   const rb = rbProp || s.rozbor || {}
   const cols = '180px 120px 80px 120px 80px 110px 120px 120px 1fr'
+  const defaultIdx = num(s.default_index_rozbor ?? -15)
+  const getIdx = (k) => { const v = rb[k]?.idx; return v !== undefined && v !== '' ? num(v) : defaultIdx }
+  const vypl = (k) => rb[k]?.vypl
+  const hasVypl = (k) => vypl(k) !== undefined && vypl(k) !== ''
 
-  // Všechny klíče vyplaceno které se mají vyplnit
-  const VYPL_KEYS = [
-    'mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
-    'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila',
-    'zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac',
-    'zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak',
-    'zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton',
-    'gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn',
-    'gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace',
-    'ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs',
+  // Zisk řádku Mzdy (× 1.34)
+  const ziskMzdy = (rbKey, sP) => {
+    if (!hasVypl(rbKey)) return null
+    return sP - num(vypl(rbKey)) * 1.34
+  }
+  // Zisk řádku Mech/Zemní/GN/Ost (bez × 1.34)
+  const ziskRow = (rbKey, sP) => {
+    if (!hasVypl(rbKey)) return null
+    return sP - num(vypl(rbKey))
+  }
+
+  // --- MZDY ---
+  const hodMont = c.hodMont || 0
+  const hodZem  = c.hodZem  || 0
+  const hzsMont = num(s.hzs_mont)
+  const zmesMont= num(s.zmes_mont)
+  const zmesZem = num(s.zmes_zem)
+
+  const mzdyRows = [
+    { k:'mzdy_mont',    sP: (itemSum(s.mzdy['mont_vn']?.rows||[])+itemSum(s.mzdy['mont_nn']?.rows||[]))*hzsMont*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_zemni',   sP: num(rb['mzdy_zemni']?.bez||0)*(1+pri),  ziskFn: ziskMzdy },
+    { k:'mzdy_ppn',     sP: itemSum(s.gn['pripl_ppn']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_stimul',  sP: itemSum(s.dof['stimul_prirazka']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_fasady',  sP: itemSum(s.zemni['def_fasady']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_strechy', sP: itemSum(s.zemni['def_str']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_bruska',  sP: itemSum(s.zemni['uhlova_bruska']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_inz',     sP: itemSum(s.gn['inzenyrska']?.rows||[])*(1+pri), ziskFn: ziskMzdy },
+    { k:'mzdy_rezerv',  sP: num(rb['mzdy_rezerv']?.bez||0)*(1+pri), ziskFn: ziskMzdy },
   ]
 
-  // Kompletní = všechna pole Vyplaceno jsou vyplněna (včetně 0, ale ne prázdný string)
-  const kompletni = VYPL_KEYS.every(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
+  // --- MECH ---
+  const mechKeys = ['mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila']
+  const mechMap  = { mech_jerab:'jerab', mech_nakladni:'nakladni', mech_traktor:'traktor', mech_plosina:'plosina', mech_dodavka:'dodavka', mech_kango:'kango', mech_pila:'pila' }
+  const mechRows = mechKeys.map(k => ({ k, sP: itemSum(s.mech[mechMap[k]]?.rows||[])*(1+pri), ziskFn: ziskRow }))
 
-  // Celkem vyplaceno = součet pouze vyplněných hodnot
-  const vyplneneKeys = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
-  const celkemVypl = vyplneneKeys.reduce((a, k) => a + num(rb[k].vypl), 0)
+  // --- ZEMNÍ ---
+  const zemniMap = { zemni_rb_zemni_prace:'zemni_prace', zemni_rb_zadlazby:'zadlazby', zemni_rb_bagr:'bagr', zemni_rb_kompresor:'kompresor', zemni_rb_rezac:'rezac', zemni_rb_mot_pech:'mot_pech', zemni_rb_nalosute:'nalosute', zemni_rb_stav_prace:'stav_prace', zemni_rb_optotrubka:'optotrubka', zemni_rb_protlak:'protlak', zemni_rb_asfalt:'asfalt', zemni_rb_rezerv_zemni:'rezerv_zemni' }
+  const zemniLocked = ['zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton']
+  const zemniLockedMap = { zemni_rb_roura_pe:'roura_pe', zemni_rb_pisek:'pisek', zemni_rb_sterk:'sterk', zemni_rb_beton:'beton' }
+  const zemniRows = [
+    ...Object.entries(zemniMap).map(([k,zk]) => ({ k, sP: itemSum(s.zemni[zk]?.rows||[])*(1+pri), ziskFn: ziskRow })),
+    ...zemniLocked.map(k => ({ k, sP: itemSum(s.zemni[zemniLockedMap[k]]?.rows||[]), ziskFn: ziskRow })),
+  ]
 
-  // Zisk = Cena s přirážkou - celkem vyplaceno (jen z vyplněných řádků)
-  // Zobrazíme pokud je alespoň jedno pole vyplněno
+  // --- GN ---
+  const gnMap = { gn_rb_geodetika:'geodetika', gn_rb_te_evidence:'te_evidence', gn_rb_vychozi_revize:'vychozi_revize', gn_rb_ekolog_likv:'ekolog_likv', gn_rb_material_vyn:'material_vyn', gn_rb_doprava_mat:'doprava_mat', gn_rb_pripl_capex:'pripl_capex', gn_rb_kolaudace:'kolaudace' }
+  const gnRows = [
+    ...Object.entries(gnMap).map(([k,gk]) => ({ k, sP: itemSum(s.gn[gk]?.rows||[])*(1+pri), ziskFn: ziskRow })),
+    { k:'gn_rb_popl_ver', sP: itemSum(s.dof['popl_ver_prostranstvi']?.rows||[])*(1+pri), ziskFn: ziskRow },
+  ]
+
+  // --- OSTATNÍ ---
+  const ostRows = [
+    { k:'ost_rb_mat_zhot', sP: (c.matZhot||0),         ziskFn: ziskRow },
+    { k:'ost_rb_prisp',    sP: num(s.prispevek_sklad)*(1+pri), ziskFn: ziskRow },
+    { k:'ost_rb_gzs',      sP: itemSum(s.dof['gzs']?.rows||[])*(1+pri), ziskFn: ziskRow },
+  ]
+
+  const ALL_ROWS = [...mzdyRows, ...mechRows, ...zemniRows, ...gnRows, ...ostRows]
+  const VYPL_KEYS = ALL_ROWS.map(r => r.k)
+
+  // Kompletní = všechna pole vyplněna
+  const kompletni = VYPL_KEYS.every(k => hasVypl(k))
+
+  // Celkem vyplaceno
+  const celkemVypl = VYPL_KEYS.filter(k => hasVypl(k)).reduce((a,k) => a + num(vypl(k)), 0)
+
+  // Zisk = součet zisků z vyplněných řádků
+  const ziskCelkem = ALL_ROWS.reduce((a, r) => {
+    const z = r.ziskFn(r.k, r.sP)
+    return z !== null ? a + z : a
+  }, 0)
+  const hasAnyVypl = VYPL_KEYS.some(k => hasVypl(k))
   const ziskSP = c.bazova * (1 + pri)
-  const zisk = vyplneneKeys.length > 0 ? ziskSP - celkemVypl : null
-  const ziskPct = zisk !== null && ziskSP > 0 ? (zisk / ziskSP * 100).toFixed(1) : null
+  const ziskPct = hasAnyVypl && ziskSP > 0 ? (ziskCelkem / ziskSP * 100).toFixed(1) : null
   const ziskColor = kompletni ? '#10b981' : '#059669'
 
   return (
@@ -1364,13 +1419,13 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:12, color:'#64748b' }}>—</div>
         <div style={{ padding:'10px 6px', textAlign:'right', fontFamily:'monospace', fontSize:13, fontWeight:700, color:'#f59e0b' }}>{celkemVypl>0?fmt(celkemVypl):'—'}</div>
         <div style={{ padding:'6px 6px', textAlign:'right' }}>
-          {zisk !== null ? (
+          {hasAnyVypl ? (
             <div>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:8 }}>
-                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(zisk)}</span>
-                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:ziskColor }}>{ziskPct} %</span>
+                <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:900, color:ziskColor }}>{fmt(ziskCelkem)}</span>
+                {ziskPct && <span style={{ fontFamily:'monospace', fontSize:13, fontWeight:700, color:ziskColor }}>{ziskPct} %</span>}
               </div>
-              <div style={{ fontSize:10, color:kompletni?'#10b981':'#059669', marginTop:2 }}>
+              <div style={{ fontSize:10, color:ziskColor, marginTop:2 }}>
                 {kompletni ? '✓ kompletní data' : '⚠ neúplná data'}
               </div>
             </div>
@@ -2444,7 +2499,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_11 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_12 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2682,20 +2737,45 @@ export default function StavbaPage() {
                   ))}
                   {(() => {
                     const rb = s.rozbor || {}
+                    const pri2 = num(s.prirazka)
+                    const dIdx = num(s.default_index_rozbor ?? -15)
+                    const hv = (k) => rb[k]?.vypl !== undefined && rb[k]?.vypl !== ''
+                    const zR = (k, sP) => hv(k) ? sP - num(rb[k].vypl) : null
+                    const zM = (k, sP) => hv(k) ? sP - num(rb[k].vypl)*1.34 : null
+                    const mzdyRowsSP = [
+                      { k:'mzdy_mont', sP:(itemSum(s.mzdy['mont_vn']?.rows||[])+itemSum(s.mzdy['mont_nn']?.rows||[]))*num(s.hzs_mont)*(1+pri2), f:zM },
+                      { k:'mzdy_zemni', sP:num(rb['mzdy_zemni']?.bez||0)*(1+pri2), f:zM },
+                      { k:'mzdy_ppn', sP:itemSum(s.gn['pripl_ppn']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_stimul', sP:itemSum(s.dof['stimul_prirazka']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_fasady', sP:itemSum(s.zemni['def_fasady']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_strechy', sP:itemSum(s.zemni['def_str']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_bruska', sP:itemSum(s.zemni['uhlova_bruska']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_inz', sP:itemSum(s.gn['inzenyrska']?.rows||[])*(1+pri2), f:zM },
+                      { k:'mzdy_rezerv', sP:num(rb['mzdy_rezerv']?.bez||0)*(1+pri2), f:zM },
+                      { k:'mech_jerab', sP:itemSum(s.mech['jerab']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_nakladni', sP:itemSum(s.mech['nakladni']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_traktor', sP:itemSum(s.mech['traktor']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_plosina', sP:itemSum(s.mech['plosina']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_dodavka', sP:itemSum(s.mech['dodavka']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_kango', sP:itemSum(s.mech['kango']?.rows||[])*(1+pri2), f:zR },
+                      { k:'mech_pila', sP:itemSum(s.mech['pila']?.rows||[])*(1+pri2), f:zR },
+                      { k:'ost_rb_mat_zhot', sP:(c.matZhot||0), f:zR },
+                      { k:'ost_rb_prisp', sP:num(s.prispevek_sklad)*(1+pri2), f:zR },
+                      { k:'ost_rb_gzs', sP:itemSum(s.dof['gzs']?.rows||[])*(1+pri2), f:zR },
+                    ]
                     const VYPL_KEYS = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv','mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila','zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac','zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak','zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton','gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn','gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace','ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
-                    const vyplnene = VYPL_KEYS.filter(k => rb[k]?.vypl !== undefined && rb[k]?.vypl !== '')
-                    const kompletni = vyplnene.length === VYPL_KEYS.length
-                    const celkemVypl = vyplnene.reduce((a,k) => a + num(rb[k].vypl), 0)
-                    const ziskSP = c.bazova * (1 + num(s.prirazka))
-                    const zisk = vyplnene.length > 0 ? ziskSP - celkemVypl : null
-                    const ziskPct = zisk !== null && ziskSP > 0 ? (zisk/ziskSP*100).toFixed(1) : null
+                    const kompletni = VYPL_KEYS.every(k => hv(k))
+                    const hasAny = VYPL_KEYS.some(k => hv(k))
+                    const ziskCelkem = mzdyRowsSP.reduce((a,r) => { const z=r.f(r.k,r.sP); return z!==null?a+z:a }, 0)
+                    const ziskSP = c.bazova*(1+pri2)
+                    const ziskPct = hasAny && ziskSP>0 ? (ziskCelkem/ziskSP*100).toFixed(1) : null
                     const col = kompletni ? '#10b981' : '#059669'
                     return (
                       <div style={{ textAlign:'right' }}>
                         <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
-                        {zisk !== null ? (<>
-                          <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(zisk)}</div>
-                          <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>
+                        {hasAny ? (<>
+                          <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(ziskCelkem)}</div>
+                          {ziskPct && <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>}
                           <div style={{ color:col, fontSize:9 }}>{kompletni ? '✓ kompletní' : '⚠ neúplná data'}</div>
                         </>) : (
                           <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
