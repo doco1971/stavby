@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_04
+// Build: 20260317_05
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -2416,7 +2416,7 @@ export default function StavbaPage() {
       {/* PRINT STYLY */}
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 8mm 10mm; }
+          @page { size: A4 landscape; margin: 4mm; }
           .no-print { display: none !important; }
           .rozbor-print { padding: 0 !important; width: 100% !important; }
           * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2516,6 +2516,15 @@ export default function StavbaPage() {
                 <button onClick={() => setSazbyInfoOpen(true)}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   📋 Sazby
+                </button>
+              )}
+              {tab==='rozbor' && (
+                <button onClick={() => {
+                  document.documentElement.classList.add('printing')
+                  window.print()
+                  setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+                }} style={{ padding:'7px 16px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:7, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  🖨️ Tisk / Export PDF
                 </button>
               )}
               <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
@@ -2791,15 +2800,7 @@ export default function StavbaPage() {
               )
             })()}
 
-            <div className="no-print" style={{ textAlign:'right', marginTop:16 }}>
-              <button onClick={() => {
-                document.documentElement.classList.add('printing')
-                window.print()
-                setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-              }} style={{ padding:'10px 22px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                🖨️ Tisk / Export PDF
-              </button>
-            </div>
+
           </div>
         )}
       </div>
