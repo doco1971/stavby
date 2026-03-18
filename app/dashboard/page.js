@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_33
+// Build: 20260317_34
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260317_33 – Build sync
+// 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
 // 20260317_30 – Fix: tlačítko Nová stavba skryto pro roli user
 // 20260317_29 – fix import cest (supabase, layout)
 // 20260317_16 – build kódu vedle "Kalkulace stavby"; zvýraznění Nastavení + Odhlásit
@@ -143,8 +143,15 @@ export default function Dashboard() {
             <button onClick={() => dark && toggle()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
             <button onClick={() => !dark && toggle()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
           </div>
-          <div style={{ color: T.muted, fontSize: 12 }}>{user?.email}</div>
-          {profile?.role === 'admin' && <span style={{ fontSize: 10, padding: '2px 6px', background: 'rgba(245,158,11,0.15)', color: '#f59e0b', borderRadius: 4 }}>ADMIN</span>}
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ color:'#94a3b8', fontSize:12 }}>{profile?.name || user?.email}</span>
+            {profile?.name && <span style={{ color:'#64748b', fontSize:11 }}>{user?.email}</span>}
+            {profile?.role && (() => {
+              const rl = { admin:{label:'ADMIN',color:'#f59e0b',bg:'rgba(245,158,11,0.15)'}, 'user.editor':{label:'EDITOR',color:'#818cf8',bg:'rgba(99,102,241,0.15)'}, user:{label:'USER',color:'#64748b',bg:'rgba(100,116,139,0.1)'} }
+              const r = rl[profile.role] || rl.user
+              return <span style={{ fontSize:10, padding:'2px 6px', background:r.bg, color:r.color, borderRadius:4, fontWeight:700 }}>{r.label}</span>
+            })()}
+          </div>
           <button onClick={() => router.push('/nastaveni')}
             style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, padding: '5px 12px', color: '#818cf8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             ⚙️ Nastavení
