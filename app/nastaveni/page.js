@@ -1,4 +1,4 @@
-// Build: 20260317_31
+// Build: 20260317_32
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -84,10 +84,15 @@ export default function NastaveniPage() {
   const addUser = async () => {
     setUserErr('')
     if (!newEmail || !newPass) { setUserErr('Email a heslo jsou povinné'); return }
-    const { data, error } = await supabase.auth.admin.createUser({ email: newEmail, password: newPass, email_confirm: true })
-    if (error) { setUserErr(error.message); return }
-    await supabase.from('profiles').upsert({ id: data.user.id, email: newEmail, role: newRole, oblast: newOblast })
-    setUsers(prev => [...prev, { id: data.user.id, email: newEmail, role: newRole, oblast: newOblast }])
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/create-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast }),
+    })
+    const json = await res.json()
+    if (!res.ok) { setUserErr(json.error || 'Chyba při vytváření uživatele'); return }
+    setUsers(prev => [...prev, json.user])
     setNewEmail(''); setNewPass('')
     flash('✓ Uživatel přidán')
   }
