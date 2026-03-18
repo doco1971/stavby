@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260317_28 – fix import cest (supabase, layout)
+// 20260317_29 – fix import cest (supabase, layout)
 // 20260317_16 – build kódu vedle "Kalkulace stavby"; zvýraznění Nastavení + Odhlásit
 // 20260315_28 – přidáno vyhledávání + seskupení verzí
 // 20260315_24 – přepínač ☀️🌙 vedle sebe
@@ -27,7 +27,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260317_28'
+const BUILD = '20260317_29'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
