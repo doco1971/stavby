@@ -1,4 +1,4 @@
-// Build: 20260317_32
+// Build: 20260317_33
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -48,6 +48,7 @@ export default function NastaveniPage() {
   const [newEmail, setNewEmail]   = useState('')
   const [newPass,  setNewPass]    = useState('')
   const [newRole,  setNewRole]    = useState('user')
+  const [newName,   setNewName]   = useState('')
   const [newOblast, setNewOblast] = useState('Třebíč')
   const [userErr,  setUserErr]    = useState('')
 
@@ -58,7 +59,7 @@ export default function NastaveniPage() {
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setMe({ ...user, ...prof })
       if (prof?.role === 'admin') {
-        const { data: all } = await supabase.from('profiles').select('*').order('email')
+        const { data: all } = await supabase.from('profiles').select('*').order('name,email')
         setUsers(all || [])
       }
       const sazbyData = prof?.default_sazby
@@ -88,12 +89,12 @@ export default function NastaveniPage() {
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast }),
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, name: newName }),
     })
     const json = await res.json()
     if (!res.ok) { setUserErr(json.error || 'Chyba při vytváření uživatele'); return }
     setUsers(prev => [...prev, json.user])
-    setNewEmail(''); setNewPass('')
+    setNewEmail(''); setNewPass(''); setNewName('')
     flash('✓ Uživatel přidán')
   }
 
@@ -173,7 +174,8 @@ export default function NastaveniPage() {
                   {ROLE_LABELS[me?.role]?.icon || '👤'}
                 </div>
                 <div>
-                  <div style={{ color:T.text, fontSize:16, fontWeight:700 }}>{me?.email}</div>
+                  <div style={{ color:T.text, fontSize:16, fontWeight:700 }}>{me?.name || me?.email}</div>
+                  {me?.name && <div style={{ color:T.muted, fontSize:12 }}>{me.email}</div>}
                   <div style={{ display:'flex', gap:8, marginTop:4 }}>
                     <span style={{ padding:'2px 8px', borderRadius:5, fontSize:11, fontWeight:700, background: ROLE_LABELS[me?.role]?.bg || 'rgba(100,116,139,0.15)', color: ROLE_LABELS[me?.role]?.color || '#94a3b8' }}>
                       {ROLE_LABELS[me?.role]?.label || me?.role?.toUpperCase()}
@@ -184,6 +186,20 @@ export default function NastaveniPage() {
                       </span>
                     )}
                   </div>
+                </div>
+              </div>
+              <div style={{ marginBottom:8 }}>
+                <Lbl T={T}>Jméno</Lbl>
+                <div style={{ display:'flex', gap:8 }}>
+                  <input type="text" value={me?.name || ''} onChange={e => setMe(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Jan Novák"
+                    style={{ ...inputSx(T), flex:1 }} />
+                  <button onClick={async () => {
+                    await supabase.from('profiles').update({ name: me.name }).eq('id', me.id)
+                    flash('✓ Jméno uloženo')
+                  }} style={{ padding:'9px 18px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:7, color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
+                    Uložit
+                  </button>
                 </div>
               </div>
             </div>
@@ -254,7 +270,11 @@ export default function NastaveniPage() {
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:'20px 22px' }}>
               <SecHead color="#60a5fa">Přidat uživatele</SecHead>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 160px 160px', gap:12, marginBottom:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 160px 160px', gap:12, marginBottom:12 }}>
+                <div>
+                  <Lbl T={T}>Jméno</Lbl>
+                  <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Jan Novák" style={inputSx(T)} />
+                </div>
                 <div>
                   <Lbl T={T}>Email</Lbl>
                   <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="jan@firma.cz" style={inputSx(T)} />
@@ -297,10 +317,10 @@ export default function NastaveniPage() {
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ color:T.text, fontSize:13, fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
-                          {u.email}
+                          {u.name || u.email}
                           {isMe && <span style={{ fontSize:10, color:'#60a5fa', background:'rgba(59,130,246,0.15)', borderRadius:4, padding:'1px 6px', fontWeight:700 }}>JÁ</span>}
                         </div>
-                        <div style={{ color:T.muted, fontSize:11, marginTop:2 }}>ID: {u.id?.slice(0,8)}…</div>
+                        <div style={{ color:T.muted, fontSize:11, marginTop:2 }}>{u.name && <span>{u.email} · </span>}ID: {u.id?.slice(0,8)}…</div>
                       </div>
                       <select value={u.oblast || ''} onChange={e => changeOblast(u.id, e.target.value)}
                         disabled={isMe}
