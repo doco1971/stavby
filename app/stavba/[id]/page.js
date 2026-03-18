@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_30
+// Build: 20260317_31
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260317_31    – Nastavení: pořadí tabů (Uživatelé→Sazby→Profil), role user.editor
 // 20260317_30    – Fix: tlačítko Nová stavba skryto pro roli user v dashboardu
 // 20260317_29    – Skryt název stavby v záložce Vstupní hodnoty; práva: admin=vše, user.editor=edit+import, user=jen čtení
 // 20260317_27    – Dashboard: build aktualizován; sloupce vycentrovány; čísla odsazena vpravo
@@ -147,7 +148,7 @@
 // 20260314_02    – Kompletní přepis importu v2
 // 20260312_01    – EBC mont VN/NN/Opto, gnRowAll, SazbyDialog
 //
-// AKTUÁLNÍ STAV UI (build 20260317_30):
+// AKTUÁLNÍ STAV UI (build 20260317_31):
 // Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙 | A− | % | A+
 // Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat | A− | % | A+
 // Zoom: každá záložka vlastní (70–150%), střed = reset 100%
@@ -2513,7 +2514,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_30 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_31 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2562,7 +2563,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_30</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_31</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
