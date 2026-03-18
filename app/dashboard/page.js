@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_29
+// Build: 20260317_30
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260317_30 – Fix: tlačítko Nová stavba skryto pro roli user
 // 20260317_29 – fix import cest (supabase, layout)
 // 20260317_16 – build kódu vedle "Kalkulace stavby"; zvýraznění Nastavení + Odhlásit
 // 20260315_28 – přidáno vyhledávání + seskupení verzí
@@ -27,7 +28,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260317_29'
+const BUILD = '20260317_30'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -41,6 +42,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+  const canEdit = profile?.role === 'admin' || profile?.role === 'user.editor'
 
   useEffect(() => {
     const init = async () => {
@@ -155,7 +157,7 @@ export default function Dashboard() {
 
       <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px' }}>
         <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-          <button onClick={novaStavba} style={{ padding: '9px 18px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Nová stavba</button>
+          {canEdit && <button onClick={novaStavba} style={{ padding: '9px 18px', background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>+ Nová stavba</button>}
           {['vse', ...OBLASTI].map(o => (
             <button key={o} onClick={() => setFilter(o)}
               style={{ padding: '9px 14px', background: filter === o ? 'rgba(59,130,246,0.15)' : 'transparent', border: `1px solid ${filter === o ? T.accent : T.border}`, borderRadius: 8, color: filter === o ? T.accent : T.muted, fontSize: 13, cursor: 'pointer' }}>
