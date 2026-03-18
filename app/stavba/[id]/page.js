@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260317_27
+// Build: 20260317_30
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,6 +91,8 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260317_30    – Fix: tlačítko Nová stavba skryto pro roli user v dashboardu
+// 20260317_29    – Skryt název stavby v záložce Vstupní hodnoty; práva: admin=vše, user.editor=edit+import, user=jen čtení
 // 20260317_27    – Dashboard: build aktualizován; sloupce vycentrovány; čísla odsazena vpravo
 // 20260317_26    – CELKEM nadpisy fontSize:13; data fontSize:13/800; fix K vyplacení+Zisk v CZS
 // 20260317_25    – CELKEM data buňky fontSize:13, fontWeight:800
@@ -145,7 +147,7 @@
 // 20260314_02    – Kompletní přepis importu v2
 // 20260312_01    – EBC mont VN/NN/Opto, gnRowAll, SazbyDialog
 //
-// AKTUÁLNÍ STAV UI (build 20260317_27):
+// AKTUÁLNÍ STAV UI (build 20260317_30):
 // Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙 | A− | % | A+
 // Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat | A− | % | A+
 // Zoom: každá záložka vlastní (70–150%), střed = reset 100%
@@ -1796,6 +1798,12 @@ export default function StavbaPage() {
 
   if (!s) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', color:'#64748b' }}>Načítám…</div>
 
+
+  // Práva: admin = vše | user.editor = edit+import, bez mazání | user = jen prohlížení
+  const canEdit    = profile?.role === 'admin' || profile?.role === 'user.editor'
+  const canDelete  = profile?.role === 'admin'
+  const isReadOnly = !canEdit
+
   const c = compute(s)
   const mzdyH = makeH('mzdy'), mechH = makeH('mech'), zemniH = makeH('zemni'), gnH = makeH('gn'), dofH = makeH('dof'), dofegdH = makeH('dofegd')
 
@@ -2505,7 +2513,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_27 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260317_30 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2550,11 +2558,11 @@ export default function StavbaPage() {
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth: tab==='rozbor' ? '100%' : 1060, margin:'0 auto', padding: tab==='rozbor' ? '0 120px' : '0' }}>
-          {/* Název + import info — skryto v záložce Rozbor */}
-          {tab !== 'rozbor' && (
+          {/* Název + import info — skryto v záložce Rozbor a Vstupní hodnoty */}
+          {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_27</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_30</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2597,7 +2605,7 @@ export default function StavbaPage() {
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   📋 Sazby
                 </button>
-                {profile?.role === 'admin' && (
+                {canEdit && (
                   <button onClick={() => setRozpisDialog(true)}
                     style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                     🔍 Rozpis
@@ -2615,7 +2623,7 @@ export default function StavbaPage() {
                   <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
                 </div>
               </>) : (<>
-                {profile?.role === 'admin' && (
+                {canEdit && (
                   <button onClick={() => setRozpisDialog(true)}
                     style={{ padding:'6px 12px', background:'rgba(16,185,129,0.15)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                     🔍 Rozpis
@@ -2625,16 +2633,20 @@ export default function StavbaPage() {
                   <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
                   <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
                 </div>
-                {profile?.role === 'admin' && (
+                {canDelete && (
                   <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                     🗑️ Smazat
                   </button>
                 )}
-                <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
-                <button onClick={() => importFileRef.current?.click()}
-                  style={{ padding:'6px 14px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:6, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  📂 Importovat z Excelu
-                </button>
+                {canEdit && (
+                  <>
+                    <input ref={importFileRef} type="file" accept=".xlsx,.xls" style={{ display:'none' }} onChange={handleImportFile} />
+                    <button onClick={() => importFileRef.current?.click()}
+                      style={{ padding:'6px 14px', background:'rgba(99,102,241,0.15)', border:'1px solid rgba(99,102,241,0.4)', borderRadius:6, color:'#818cf8', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                      📂 Importovat z Excelu
+                    </button>
+                  </>
+                )}
               </>)}
               {/* Zoom — vždy viditelný */}
               <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
@@ -2674,8 +2686,9 @@ export default function StavbaPage() {
                     {!k ? null : <>
                     <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
                     {isSelect ? (
-                      <select value={s[k]||''} onChange={e=>setField(k,e.target.value)}
-                        style={{ width:'100%', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box' }}>
+                      <select value={s[k]||''} onChange={e=>!isReadOnly && setField(k,e.target.value)}
+                        disabled={isReadOnly}
+                        style={{ width:'100%', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color: isReadOnly ? T.muted : T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box' }}>
                         {['Jihlava','Třebíč','Znojmo'].map(o=><option key={o}>{o}</option>)}
                       </select>
                     ) : (
@@ -2684,7 +2697,8 @@ export default function StavbaPage() {
                         onChange={e=>setField(k, isPct ? e.target.value : e.target.value)}
                         onBlur={e=>{ if(isPct) setField(k, String(num(e.target.value)/100)) }}
                         onKeyDown={onEnterNext}
-                        style={{ width:'100%', background:'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace' }} />
+                        readOnly={isReadOnly}
+                        style={{ width:'100%', background: isReadOnly ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.05)', border:`1px solid ${T.border}`, borderRadius:6, color: isReadOnly ? T.muted : T.text, fontSize:13, padding:'7px 10px', outline:'none', boxSizing:'border-box', fontFamily:'monospace', cursor: isReadOnly ? 'default' : 'text' }} />
                     )}
                     </>}
                   </div>
