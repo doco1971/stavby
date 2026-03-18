@@ -1,7 +1,10 @@
-// Build: 20260317_33
+// Build: 20260317_34
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260317_34 – Fix: výchozí tab pro non-admina=sazby; jméno+role v dashboardu headeru;
+//               tlačítko zpět zvýrazněno; výchozí sazby načteny správně
+// 20260317_33 – pole Jméno; API route create-user
 // 20260317_31 – Pořadí tabů: Uživatelé → Výchozí sazby → Můj profil
 //               Přidána role user.editor (EDITOR)
 //               Odstraněna sekce Vzhled aplikace z Můj profil
@@ -35,7 +38,7 @@ export default function NastaveniPage() {
   const { dark, toggle: toggleTheme, T } = useTheme()
   const router = useRouter()
   const supabase = createClient()
-  const [tab, setTab]     = useState('uzivatele')
+  const [tab, setTab]     = useState('sazby')
   const [me, setMe]       = useState(null)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +61,7 @@ export default function NastaveniPage() {
       if (!user) { router.push('/login'); return }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setMe({ ...user, ...prof })
+      if (prof?.role === 'admin') setTab('uzivatele')
       if (prof?.role === 'admin') {
         const { data: all } = await supabase.from('profiles').select('*').order('name,email')
         setUsers(all || [])
@@ -137,10 +141,14 @@ export default function NastaveniPage() {
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 24px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:860, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 0 0' }}>
-            <button onClick={() => router.push('/dashboard')} style={{ background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, padding:'4px 10px', color:T.muted, fontSize:12, cursor:'pointer' }}>← zpět</button>
+            <button onClick={() => router.push('/dashboard')} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'5px 12px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer' }}>← zpět</button>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Nastavení</div>
-              <div style={{ fontSize:15, fontWeight:800, color:T.text }}>{me?.email}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <div style={{ fontSize:15, fontWeight:800, color:T.text }}>{me?.name || me?.email}</div>
+                <span style={{ fontSize:10, padding:'2px 6px', borderRadius:4, background: (ROLE_LABELS[me?.role]?.bg || 'rgba(100,116,139,0.15)'), color: (ROLE_LABELS[me?.role]?.color || '#94a3b8'), fontWeight:700 }}>{ROLE_LABELS[me?.role]?.label || me?.role?.toUpperCase()}</span>
+              </div>
+              {me?.name && <div style={{ fontSize:11, color:T.muted }}>{me.email}</div>}
             </div>
             {saved && <div style={{ color:'#10b981', fontSize:12, fontWeight:700, background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:6, padding:'4px 12px' }}>{saved}</div>}
             <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
