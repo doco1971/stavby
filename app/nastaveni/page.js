@@ -1,4 +1,4 @@
-// Build: 20260321_03
+// Build: 20260321_04
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -57,6 +57,9 @@ export default function NastaveniPage() {
   const [newOblast,  setNewOblast]  = useState('Třebíč')
   const [newOblasti, setNewOblasti] = useState(['Třebíč'])
   const [userErr,  setUserErr]    = useState('')
+  const [addingUser, setAddingUser] = useState(false)
+  const [savingSazby, setSavingSazby] = useState(false)
+  const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -98,7 +101,13 @@ export default function NastaveniPage() {
 
   const addUser = async () => {
     setUserErr('')
+    if (!newName.trim()) { setUserErr('Jméno je povinné'); return }
     if (!newEmail || !newPass) { setUserErr('Email a heslo jsou povinné'); return }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(newEmail)) { setUserErr('Zadejte platný email (např. jan@firma.cz)'); return }
+    if (newPass.length < 6) { setUserErr('Heslo musí mít alespoň 6 znaků'); return }
+    if (newOblasti.length === 0) { setUserErr('Vyberte alespoň jednu oblast'); return }
+    setAddingUser(true)
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/create-user', {
       method: 'POST',
@@ -106,6 +115,7 @@ export default function NastaveniPage() {
       body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, name: newName }),
     })
     const json = await res.json()
+    setAddingUser(false)
     if (!res.ok) { setUserErr(json.error || 'Chyba při vytváření uživatele'); return }
     setUsers(prev => [...prev, json.user])
     setNewEmail(''); setNewPass(''); setNewName(''); setNewOblasti(['Třebíč'])
@@ -158,7 +168,9 @@ export default function NastaveniPage() {
   }
 
   const saveSazby = async () => {
+    setSavingSazby(true)
     await supabase.from('profiles').update({ default_sazby: sazby }).eq('id', me.id)
+    setSavingSazby(false)
     flash('✓ Sazby uloženy')
   }
 
@@ -241,10 +253,13 @@ export default function NastaveniPage() {
                     placeholder="Jan Novák"
                     style={{ ...inputSx(T), flex:1 }} />
                   <button onClick={async () => {
+                    setSavingName(true)
                     await supabase.from('profiles').update({ name: me.name }).eq('id', me.id)
+                    setSavingName(false)
                     flash('✓ Jméno uloženo')
-                  }} style={{ padding:'9px 18px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:7, color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap' }}>
-                    Uložit
+                  }} disabled={savingName}
+                  style={{ padding:'9px 18px', background: savingName ? '#374151' : 'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:7, color:'#fff', fontSize:12, fontWeight:600, cursor: savingName ? 'default' : 'pointer', whiteSpace:'nowrap', opacity: savingName ? 0.7 : 1 }}>
+                    {savingName ? '⏳' : 'Uložit'}
                   </button>
                 </div>
               </div>
@@ -304,8 +319,9 @@ export default function NastaveniPage() {
                     placeholder="-15" style={{ ...inputSx(T), fontFamily:'monospace' }} />
                 </div>
               </div>
-              <button onClick={saveSazby} style={{ marginTop:20, padding:'9px 22px', background:'linear-gradient(135deg,#d97706,#b45309)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                Uložit sazby
+              <button onClick={saveSazby} disabled={savingSazby}
+                style={{ marginTop:20, padding:'9px 22px', background: savingSazby ? '#374151' : 'linear-gradient(135deg,#d97706,#b45309)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor: savingSazby ? 'default' : 'pointer', opacity: savingSazby ? 0.7 : 1 }}>
+                {savingSazby ? '⏳ Ukládám…' : 'Uložit sazby'}
               </button>
             </div>
           </div>
@@ -356,8 +372,9 @@ export default function NastaveniPage() {
                 </div>
               </div>
               {userErr && <div style={{ color:'#f87171', fontSize:12, marginBottom:10, padding:'7px 12px', background:'rgba(239,68,68,0.1)', borderRadius:7 }}>⚠️ {userErr}</div>}
-              <button onClick={addUser} style={{ padding:'9px 20px', background:'linear-gradient(135deg,#16a34a,#15803d)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                + Přidat uživatele
+              <button onClick={addUser} disabled={addingUser}
+                style={{ padding:'9px 20px', background: addingUser ? '#374151' : 'linear-gradient(135deg,#16a34a,#15803d)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor: addingUser ? 'default' : 'pointer', opacity: addingUser ? 0.7 : 1 }}>
+                {addingUser ? '⏳ Přidávám…' : '+ Přidat uživatele'}
               </button>
             </div>
 
