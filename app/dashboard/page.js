@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260317_34
+// Build: 20260321_01
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260321_01 – Build sync; pravidla vývoje přidána
 // 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
 // 20260317_30 – Fix: tlačítko Nová stavba skryto pro roli user
 // 20260317_29 – fix import cest (supabase, layout)
@@ -29,7 +30,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260317_33'
+const BUILD = '20260321_01'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
