@@ -1,4 +1,4 @@
-// Build: 20260321_04
+// Build: 20260321_05
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -56,6 +56,7 @@ export default function NastaveniPage() {
   const [newName,    setNewName]    = useState('')
   const [newOblast,  setNewOblast]  = useState('Třebíč')
   const [newOblasti, setNewOblasti] = useState(['Třebíč'])
+  const [newOblastiRead, setNewOblastiRead] = useState([])
   const [userErr,  setUserErr]    = useState('')
   const [addingUser, setAddingUser] = useState(false)
   const [savingSazby, setSavingSazby] = useState(false)
@@ -112,13 +113,13 @@ export default function NastaveniPage() {
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, name: newName }),
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newOblasti, oblasti_read: newOblastiRead, name: newName }),
     })
     const json = await res.json()
     setAddingUser(false)
     if (!res.ok) { setUserErr(json.error || 'Chyba při vytváření uživatele'); return }
     setUsers(prev => [...prev, json.user])
-    setNewEmail(''); setNewPass(''); setNewName(''); setNewOblasti(['Třebíč'])
+    setNewEmail(''); setNewPass(''); setNewName(''); setNewOblasti(['Třebíč']); setNewOblastiRead([])
     flash('✓ Uživatel přidán')
   }
 
@@ -154,17 +155,29 @@ export default function NastaveniPage() {
     setUsers(prev => prev.map(u => u.id === id ? { ...u, oblast } : u))
   }
 
-  const changeOblasti = async (id, oblast, currentOblasti) => {
+  const changeOblastiEdit = async (id, oblast, current) => {
     const { data: { session } } = await supabase.auth.getSession()
-    const nove = currentOblasti.includes(oblast)
-      ? currentOblasti.filter(o => o !== oblast)
-      : [...currentOblasti, oblast]
+    const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
+    // Pokud je oblast v edit, odeber ji z read
+    const user = users.find(u => u.id === id)
+    const noveRead = (user?.oblasti_read || []).filter(o => o !== oblast)
     const res = await fetch('/api/update-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ id, oblasti: nove }),
+      body: JSON.stringify({ id, oblasti_edit: nove, oblasti_read: noveRead }),
     })
-    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti: nove } : u))
+    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_edit: nove, oblasti_read: noveRead } : u))
+  }
+
+  const changeOblastiRead = async (id, oblast, current) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
+    const res = await fetch('/api/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ id, oblasti_read: nove }),
+    })
+    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_read: nove } : u))
   }
 
   const saveSazby = async () => {
@@ -353,21 +366,44 @@ export default function NastaveniPage() {
                     <option value="admin">Admin</option>
                   </select>
                 </div>
-                <div>
-                  <Lbl T={T}>Oblasti</Lbl>
-                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingTop:4 }}>
-                    {OBLASTI.map(o => {
-                      const ma = newOblasti.includes(o)
-                      return (
-                        <button key={o} type="button" onClick={() => setNewOblasti(prev => ma ? prev.filter(x=>x!==o) : [...prev, o])}
-                          style={{ padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer',
-                            background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
-                            border: `1px solid ${ma ? '#3b82f6' : T.border}`,
-                            color: ma ? '#60a5fa' : T.muted }}>
-                          {o}
-                        </button>
-                      )
-                    })}
+                <div style={{ gridColumn:'span 2' }}>
+                  <Lbl T={T}>Oblasti přístupu</Lbl>
+                  <div style={{ display:'flex', flexDirection:'column', gap:6, paddingTop:4 }}>
+                    <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                      <span style={{ color:'#3b82f6', fontSize:10, fontWeight:700, width:32 }}>EDIT</span>
+                      {OBLASTI.map(o => {
+                        const ma = newOblasti.includes(o)
+                        return (
+                          <button key={o} type="button" onClick={() => {
+                            setNewOblasti(prev => ma ? prev.filter(x=>x!==o) : [...prev, o])
+                            if (!ma) setNewOblastiRead(prev => prev.filter(x=>x!==o))
+                          }}
+                            style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer',
+                              background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
+                              border: `1px solid ${ma ? '#3b82f6' : T.border}`,
+                              color: ma ? '#60a5fa' : T.muted }}>
+                            {o}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+                      <span style={{ color:'#94a3b8', fontSize:10, fontWeight:700, width:32 }}>READ</span>
+                      {OBLASTI.map(o => {
+                        const maEdit = newOblasti.includes(o)
+                        const ma = newOblastiRead.includes(o)
+                        return (
+                          <button key={o} type="button" disabled={maEdit} onClick={() => !maEdit && setNewOblastiRead(prev => ma ? prev.filter(x=>x!==o) : [...prev, o])}
+                            style={{ padding:'5px 12px', borderRadius:6, fontSize:12, fontWeight:700,
+                              cursor: maEdit ? 'default' : 'pointer',
+                              background: maEdit ? 'rgba(59,130,246,0.1)' : ma ? 'rgba(148,163,184,0.2)' : 'transparent',
+                              border: `1px solid ${maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.border}`,
+                              color: maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.muted }}>
+                            {o}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -396,20 +432,41 @@ export default function NastaveniPage() {
                         </div>
                         <div style={{ color:T.muted, fontSize:11, marginTop:2 }}>{u.name && <span>{u.email} · </span>}ID: {u.id?.slice(0,8)}…</div>
                       </div>
-                      <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                        {OBLASTI.map(o => {
-                          const ma = (u.oblasti || []).includes(o)
-                          return (
-                            <button key={o} disabled={isMe} onClick={() => !isMe && changeOblasti(u.id, o, u.oblasti || [])}
-                              style={{ padding:'3px 8px', borderRadius:4, fontSize:11, fontWeight:700, cursor: isMe ? 'default' : 'pointer',
-                                background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
-                                border: `1px solid ${ma ? '#3b82f6' : T.border}`,
-                                color: ma ? '#60a5fa' : T.muted,
-                                opacity: isMe ? 0.5 : 1 }}>
-                              {o}
-                            </button>
-                          )
-                        })}
+                      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                        <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+                          <span style={{ color:'#3b82f6', fontSize:9, fontWeight:700, width:28 }}>EDIT</span>
+                          {OBLASTI.map(o => {
+                            const ma = (u.oblasti_edit || []).includes(o)
+                            return (
+                              <button key={o} disabled={isMe} onClick={() => !isMe && changeOblastiEdit(u.id, o, u.oblasti_edit || [])}
+                                style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700, cursor: isMe ? 'default' : 'pointer',
+                                  background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
+                                  border: `1px solid ${ma ? '#3b82f6' : T.border}`,
+                                  color: ma ? '#60a5fa' : T.muted,
+                                  opacity: isMe ? 0.5 : 1 }}>
+                                {o}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+                          <span style={{ color:'#94a3b8', fontSize:9, fontWeight:700, width:28 }}>READ</span>
+                          {OBLASTI.map(o => {
+                            const maEdit = (u.oblasti_edit || []).includes(o)
+                            const ma = (u.oblasti_read || []).includes(o)
+                            return (
+                              <button key={o} disabled={isMe || maEdit} onClick={() => !isMe && !maEdit && changeOblastiRead(u.id, o, u.oblasti_read || [])}
+                                style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700,
+                                  cursor: isMe || maEdit ? 'default' : 'pointer',
+                                  background: maEdit ? 'rgba(59,130,246,0.1)' : ma ? 'rgba(148,163,184,0.2)' : 'transparent',
+                                  border: `1px solid ${maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.border}`,
+                                  color: maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.muted,
+                                  opacity: isMe ? 0.5 : 1 }}>
+                                {o}
+                              </button>
+                            )
+                          })}
+                        </div>
                       </div>
                       {isMe ? (
                         <span style={{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:rl.bg, color:rl.color }}>{rl.label}</span>

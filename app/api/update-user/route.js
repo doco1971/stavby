@@ -26,12 +26,14 @@ export async function POST(request) {
     const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', caller.id).single()
     if (callerProfile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { id, oblasti, role, oblast } = await request.json()
+    const { id, oblasti, oblasti_edit, oblasti_read, role, oblast } = await request.json()
     if (!id) return NextResponse.json({ error: 'Chybí ID uživatele' }, { status: 400 })
 
     // Sestav update objekt jen z poskytnutých polí
     const update = {}
     if (oblasti !== undefined) update.oblasti = oblasti
+    if (oblasti_edit !== undefined) update.oblasti_edit = oblasti_edit
+    if (oblasti_read !== undefined) update.oblasti_read = oblasti_read
     if (role !== undefined) update.role = role
     if (oblast !== undefined) update.oblast = oblast
 

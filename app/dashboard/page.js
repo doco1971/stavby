@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260321_04
+// Build: 20260321_05
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260321_04 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
+// 20260321_05 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
 // 20260321_02 – Filtrování staveb podle povolených oblastí uživatele
 // 20260321_01 – Build sync; pravidla vývoje přidána
 // 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
@@ -32,7 +32,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260321_04'
+const BUILD = '20260321_05'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -66,7 +66,7 @@ export default function Dashboard() {
           // Admin vidí vše
         } else if (prof?.role === 'user.editor') {
           // Editor vidí stavby ze svých povolených oblastí
-          const povOblasti = prof?.oblasti || [prof?.oblast].filter(Boolean)
+          const povOblasti = prof?.oblasti_edit || prof?.oblasti || [prof?.oblast].filter(Boolean)
           if (povOblasti.length > 0) q = q.in('oblast', povOblasti)
           else q = q.eq('user_id', user.id)
         } else {

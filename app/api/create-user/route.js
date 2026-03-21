@@ -29,7 +29,7 @@ export async function POST(request) {
     if (callerProfile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Načti data nového uživatele
-    const { email, password, role, oblast, oblasti, name } = await request.json()
+    const { email, password, role, oblast, oblasti, oblasti_edit, oblasti_read, name } = await request.json()
     if (!email || !password) return NextResponse.json({ error: 'Email a heslo jsou povinné' }, { status: 400 })
 
     // Vytvoř uživatele
@@ -47,10 +47,12 @@ export async function POST(request) {
       role: role || 'user',
       oblast: oblast || 'Třebíč',
       oblasti: oblasti || [oblast || 'Třebíč'],
+      oblasti_edit: oblasti_edit || oblasti || [oblast || 'Třebíč'],
+      oblasti_read: oblasti_read || [],
       name: name || null,
     })
 
-    return NextResponse.json({ user: { id: data.user.id, email, role, oblast, oblasti: oblasti || [oblast || 'Třebíč'], name: name || null } })
+    return NextResponse.json({ user: { id: data.user.id, email, role, oblast, oblasti: oblasti || [oblast || 'Třebíč'], oblasti_edit: oblasti_edit || oblasti || [oblast || 'Třebíč'], oblasti_read: oblasti_read || [], name: name || null } })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
