@@ -1,7 +1,9 @@
-// Build: 20260317_34
+// Build: 20260321_01
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260321_01 – Seznam uživatelů načítán přes API route /api/get-users (fix RLS rekurze)
+// 20260317_35 – Build sync
 // 20260317_34 – Fix: výchozí tab pro non-admina=sazby; jméno+role v dashboardu headeru;
 //               tlačítko zpět zvýrazněno; výchozí sazby načteny správně
 // 20260317_33 – pole Jméno; API route create-user
@@ -61,10 +63,17 @@ export default function NastaveniPage() {
       if (!user) { router.push('/login'); return }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setMe({ ...user, ...prof })
-      if (prof?.role === 'admin') setTab('uzivatele')
       if (prof?.role === 'admin') {
-        const { data: all } = await supabase.from('profiles').select('*').order('name,email')
-        setUsers(all || [])
+        setTab('uzivatele')
+        // Načti uživatele přes API route (service role key, bez RLS problémů)
+        const { data: { session } } = await supabase.auth.getSession()
+        const res = await fetch('/api/get-users', {
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setUsers(json.users || [])
+        }
       }
       const sazbyData = prof?.default_sazby
       if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
