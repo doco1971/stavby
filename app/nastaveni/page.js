@@ -1,4 +1,4 @@
-// Build: 20260321_06
+// Build: 20260321_07
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -64,26 +64,21 @@ export default function NastaveniPage() {
 
   useEffect(() => {
     const load = async () => {
+      // Nejdřív načti session — zaručí že token je dostupný
+      const { data: { session } } = await supabase.auth.getSession()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/login'); return }
+      if (!user || !session) { router.push('/login'); return }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setMe({ ...user, ...prof })
       if (prof?.role === 'admin') {
         setTab('uzivatele')
         // Načti uživatele přes API route (service role key, bez RLS problémů)
-        let { data: { session } } = await supabase.auth.getSession()
-        if (!session) {
-          const { data: refreshed } = await supabase.auth.refreshSession()
-          session = refreshed.session
-        }
-        if (session?.access_token) {
-          const res = await fetch('/api/get-users', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          })
-          if (res.ok) {
-            const json = await res.json()
-            setUsers(json.users || [])
-          }
+        const res = await fetch('/api/get-users', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setUsers(json.users || [])
         }
       }
       const sazbyData = prof?.default_sazby
