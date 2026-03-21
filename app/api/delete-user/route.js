@@ -1,12 +1,12 @@
-// app/api/get-users/route.js
-// Server-side API route pro načtení všech profilů uživatelů
+// app/api/delete-user/route.js
+// Server-side API route pro smazání uživatele ze Supabase Auth + profiles
 // Používá SUPABASE_SERVICE_ROLE_KEY — pouze pro adminy
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(request) {
+export async function POST(request) {
   try {
     const authHeader = request.headers.get('authorization')
     if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -26,11 +26,17 @@ export async function GET(request) {
     const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', caller.id).single()
     if (callerProfile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    // Načti všechny profily
-    const { data, error } = await supabaseAdmin.from('profiles').select('*').order('name,email')
+    const { id } = await request.json()
+    if (!id) return NextResponse.json({ error: 'Chybí ID uživatele' }, { status: 400 })
+
+    // Nejdřív smaž profil
+    await supabaseAdmin.from('profiles').delete().eq('id', id)
+
+    // Pak smaž ze Supabase Auth
+    const { error } = await supabaseAdmin.auth.admin.deleteUser(id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json({ users: data || [] })
+    return NextResponse.json({ ok: true })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

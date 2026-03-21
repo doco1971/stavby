@@ -1,4 +1,4 @@
-// Build: 20260321_02
+// Build: 20260321_03
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -53,8 +53,9 @@ export default function NastaveniPage() {
   const [newEmail, setNewEmail]   = useState('')
   const [newPass,  setNewPass]    = useState('')
   const [newRole,  setNewRole]    = useState('user')
-  const [newName,   setNewName]   = useState('')
-  const [newOblast, setNewOblast] = useState('Třebíč')
+  const [newName,    setNewName]    = useState('')
+  const [newOblast,  setNewOblast]  = useState('Třebíč')
+  const [newOblasti, setNewOblasti] = useState(['Třebíč'])
   const [userErr,  setUserErr]    = useState('')
 
   useEffect(() => {
@@ -102,20 +103,30 @@ export default function NastaveniPage() {
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, name: newName }),
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, name: newName }),
     })
     const json = await res.json()
     if (!res.ok) { setUserErr(json.error || 'Chyba při vytváření uživatele'); return }
     setUsers(prev => [...prev, json.user])
-    setNewEmail(''); setNewPass(''); setNewName('')
+    setNewEmail(''); setNewPass(''); setNewName(''); setNewOblasti(['Třebíč'])
     flash('✓ Uživatel přidán')
   }
 
   const removeUser = async (id) => {
-    if (!confirm('Opravdu smazat tohoto uživatele?')) return
-    await supabase.from('profiles').delete().eq('id', id)
-    setUsers(prev => prev.filter(u => u.id !== id))
-    flash('Uživatel smazán')
+    if (!confirm('Opravdu smazat tohoto uživatele? Akce je nevratná.')) return
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/delete-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ id }),
+    })
+    if (res.ok) {
+      setUsers(prev => prev.filter(u => u.id !== id))
+      flash('✓ Uživatel smazán')
+    } else {
+      const json = await res.json()
+      flash('⚠ Chyba: ' + (json.error || 'Nepodařilo se smazat uživatele'))
+    }
   }
 
   const changeRole = async (id, role) => {
@@ -327,10 +338,21 @@ export default function NastaveniPage() {
                   </select>
                 </div>
                 <div>
-                  <Lbl T={T}>Oblast</Lbl>
-                  <select value={newOblast} onChange={e => setNewOblast(e.target.value)} style={{ ...inputSx(T), cursor:'pointer' }}>
-                    {OBLASTI.map(o => <option key={o}>{o}</option>)}
-                  </select>
+                  <Lbl T={T}>Oblasti</Lbl>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap', paddingTop:4 }}>
+                    {OBLASTI.map(o => {
+                      const ma = newOblasti.includes(o)
+                      return (
+                        <button key={o} type="button" onClick={() => setNewOblasti(prev => ma ? prev.filter(x=>x!==o) : [...prev, o])}
+                          style={{ padding:'6px 12px', borderRadius:6, fontSize:12, fontWeight:700, cursor:'pointer',
+                            background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
+                            border: `1px solid ${ma ? '#3b82f6' : T.border}`,
+                            color: ma ? '#60a5fa' : T.muted }}>
+                          {o}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
               {userErr && <div style={{ color:'#f87171', fontSize:12, marginBottom:10, padding:'7px 12px', background:'rgba(239,68,68,0.1)', borderRadius:7 }}>⚠️ {userErr}</div>}

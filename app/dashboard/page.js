@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260321_02
+// Build: 20260321_03
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260321_03 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
 // 20260321_02 – Filtrování staveb podle povolených oblastí uživatele
 // 20260321_01 – Build sync; pravidla vývoje přidána
 // 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
@@ -31,7 +32,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260321_02'
+const BUILD = '20260321_03'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -45,8 +46,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [logoutConfirm, setLogoutConfirm] = useState(false)
-  const canEdit = profile?.role === 'admin' || profile?.role === 'user.editor'
-
   useEffect(() => {
     const init = async () => {
       try {
@@ -56,11 +55,12 @@ export default function Dashboard() {
         let { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
         if (!prof) {
           const { data: newProf } = await supabase.from('profiles')
-            .insert({ id: user.id, email: user.email, role: 'admin', oblast: 'Třebíč' })
+            .insert({ id: user.id, email: user.email, role: 'user', oblast: 'Třebíč' })
             .select().maybeSingle()
           prof = newProf
         }
         setProfile(prof)
+        // canEdit je computed z profilu — viz render
         let q = supabase.from('stavby').select('*').order('updated_at', { ascending: false })
         if (prof?.role === 'admin') {
           // Admin vidí vše
@@ -140,6 +140,8 @@ export default function Dashboard() {
       </div>
     ))
   }
+
+  const canEdit = profile?.role === 'admin' || profile?.role === 'user.editor'
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg }}>
