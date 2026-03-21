@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260321_01
+// Build: 20260321_02
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260321_02 – Filtrování staveb podle povolených oblastí uživatele
 // 20260321_01 – Build sync; pravidla vývoje přidána
 // 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
 // 20260317_30 – Fix: tlačítko Nová stavba skryto pro roli user
@@ -30,7 +31,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260321_01'
+const BUILD = '20260321_02'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -61,7 +62,17 @@ export default function Dashboard() {
         }
         setProfile(prof)
         let q = supabase.from('stavby').select('*').order('updated_at', { ascending: false })
-        if (prof?.role !== 'admin') q = q.eq('user_id', user.id)
+        if (prof?.role === 'admin') {
+          // Admin vidí vše
+        } else if (prof?.role === 'user.editor') {
+          // Editor vidí stavby ze svých povolených oblastí
+          const povOblasti = prof?.oblasti || [prof?.oblast].filter(Boolean)
+          if (povOblasti.length > 0) q = q.in('oblast', povOblasti)
+          else q = q.eq('user_id', user.id)
+        } else {
+          // User vidí jen své stavby
+          q = q.eq('user_id', user.id)
+        }
         const { data, error } = await q
         if (error) setErr(error.message)
         setStavby(data || [])

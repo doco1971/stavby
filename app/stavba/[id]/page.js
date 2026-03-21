@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260321_01
+// Build: 20260321_02
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260321_02    – Kontrola přístupu podle oblastí; whitelist oblastí
 // 20260321_01    – Přidána pravidla vývoje #0-#4 do poznámek; build sync
 // 20260317_34    – Nastavení: API route pro přidání uživatelů, odstranění Vzhled aplikace
 // 20260317_31    – Nastavení: pořadí tabů (Uživatelé→Sazby→Profil), role user.editor
@@ -150,7 +151,7 @@
 // 20260314_02    – Kompletní přepis importu v2
 // 20260312_01    – EBC mont VN/NN/Opto, gnRowAll, SazbyDialog
 //
-// AKTUÁLNÍ STAV UI (build 20260321_01):
+// AKTUÁLNÍ STAV UI (build 20260321_02):
 // Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙 | A− | % | A+
 // Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat | A− | % | A+
 // Zoom: každá záložka vlastní (70–150%), střed = reset 100%
@@ -1774,6 +1775,14 @@ export default function StavbaPage() {
       if (user) {
         const { data: prof } = await supabase.from('profiles').select('role, default_sazby').eq('id', user.id).single()
         setProfile(prof)
+        // Kontrola přístupu podle oblastí — user.editor smí editovat jen povolené oblasti
+        if (prof?.role === 'user.editor' && data?.oblast) {
+          const povOblasti = prof?.oblasti || [prof?.oblast].filter(Boolean)
+          if (povOblasti.length > 0 && !povOblasti.includes(data.oblast)) {
+            // Oblast není povolena — přepnout do read-only režimu
+            setProfile({ ...prof, role: 'user' })
+          }
+        }
         // Ulož výchozí index rozboru do stavby state pro RozborMzdy
         if (prof?.default_sazby?.index_rozbor !== undefined) {
           setS(prev => prev ? { ...prev, default_index_rozbor: prof.default_sazby.index_rozbor } : prev)
@@ -2554,7 +2563,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260321_01 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260321_02 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2603,7 +2612,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260321_01</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260321_02</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>

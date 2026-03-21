@@ -1,4 +1,4 @@
-// Build: 20260321_01
+// Build: 20260321_02
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -119,13 +119,31 @@ export default function NastaveniPage() {
   }
 
   const changeRole = async (id, role) => {
-    await supabase.from('profiles').update({ role }).eq('id', id)
-    setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch('/api/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ id, role }),
+    })
+    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
   }
 
   const changeOblast = async (id, oblast) => {
     await supabase.from('profiles').update({ oblast }).eq('id', id)
     setUsers(prev => prev.map(u => u.id === id ? { ...u, oblast } : u))
+  }
+
+  const changeOblasti = async (id, oblast, currentOblasti) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const nove = currentOblasti.includes(oblast)
+      ? currentOblasti.filter(o => o !== oblast)
+      : [...currentOblasti, oblast]
+    const res = await fetch('/api/update-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ id, oblasti: nove }),
+    })
+    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti: nove } : u))
   }
 
   const saveSazby = async () => {
@@ -339,12 +357,21 @@ export default function NastaveniPage() {
                         </div>
                         <div style={{ color:T.muted, fontSize:11, marginTop:2 }}>{u.name && <span>{u.email} · </span>}ID: {u.id?.slice(0,8)}…</div>
                       </div>
-                      <select value={u.oblast || ''} onChange={e => changeOblast(u.id, e.target.value)}
-                        disabled={isMe}
-                        style={{ padding:'4px 8px', background:T.card, border:`1px solid ${T.border}`, borderRadius:6, color:T.text, fontSize:12, cursor: isMe ? 'default' : 'pointer', opacity: isMe ? 0.5 : 1 }}>
-                        <option value="">– oblast –</option>
-                        {OBLASTI.map(o => <option key={o}>{o}</option>)}
-                      </select>
+                      <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+                        {OBLASTI.map(o => {
+                          const ma = (u.oblasti || []).includes(o)
+                          return (
+                            <button key={o} disabled={isMe} onClick={() => !isMe && changeOblasti(u.id, o, u.oblasti || [])}
+                              style={{ padding:'3px 8px', borderRadius:4, fontSize:11, fontWeight:700, cursor: isMe ? 'default' : 'pointer',
+                                background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
+                                border: `1px solid ${ma ? '#3b82f6' : T.border}`,
+                                color: ma ? '#60a5fa' : T.muted,
+                                opacity: isMe ? 0.5 : 1 }}>
+                              {o}
+                            </button>
+                          )
+                        })}
+                      </div>
                       {isMe ? (
                         <span style={{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:rl.bg, color:rl.color }}>{rl.label}</span>
                       ) : (
