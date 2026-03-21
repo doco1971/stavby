@@ -1,7 +1,7 @@
 'use client'
 // ============================================================
 // Build: 20260317_34
-// Kalkulace stavby – hlavní editor stavby
+// Kalkulace stavby – hlavní editor stavby 
 // ============================================================
 // POPIS APLIKACE:
 // React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
