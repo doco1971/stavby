@@ -1,4 +1,4 @@
-// Build: 20260321_07
+// Build: 20260321_08
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -143,11 +143,13 @@ export default function NastaveniPage() {
 
   const changeRole = async (id, role) => {
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, role }),
     })
+    // Zachovat všechna ostatní pole v lokálním stavu — pouze role se mění
     if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
   }
 
@@ -158,13 +160,13 @@ export default function NastaveniPage() {
 
   const changeOblastiEdit = async (id, oblast, current) => {
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
-    // Pokud je oblast v edit, odeber ji z read
     const user = users.find(u => u.id === id)
     const noveRead = (user?.oblasti_read || []).filter(o => o !== oblast)
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, oblasti_edit: nove, oblasti_read: noveRead }),
     })
     if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_edit: nove, oblasti_read: noveRead } : u))
@@ -172,10 +174,11 @@ export default function NastaveniPage() {
 
   const changeOblastiRead = async (id, oblast, current) => {
     const { data: { session } } = await supabase.auth.getSession()
+    if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, oblasti_read: nove }),
     })
     if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_read: nove } : u))
