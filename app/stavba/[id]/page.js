@@ -1,7 +1,7 @@
 'use client'
 // ============================================================
-// Build: 20260317_34
-// Kalkulace stavby – hlavní editor stavby 
+// Build: 20260321_01
+// Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
 // React/Next.js kalkulačka stavebních nákladů pro EG.D (EBC import)
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260321_01    – Přidána pravidla vývoje #0-#4 do poznámek; build sync
 // 20260317_34    – Nastavení: API route pro přidání uživatelů, odstranění Vzhled aplikace
 // 20260317_31    – Nastavení: pořadí tabů (Uživatelé→Sazby→Profil), role user.editor
 // 20260317_30    – Fix: tlačítko Nová stavba skryto pro roli user v dashboardu
@@ -149,7 +150,7 @@
 // 20260314_02    – Kompletní přepis importu v2
 // 20260312_01    – EBC mont VN/NN/Opto, gnRowAll, SazbyDialog
 //
-// AKTUÁLNÍ STAV UI (build 20260317_34):
+// AKTUÁLNÍ STAV UI (build 20260321_01):
 // Rozbor: ← zpět (modrý) | Sazby | Rozpis | Tisk | ☀️🌙 | A− | % | A+
 // Vstupní hodnoty: Rozpis | ☀️🌙 | Smazat | Importovat | A− | % | A+
 // Zoom: každá záložka vlastní (70–150%), střed = reset 100%
@@ -167,6 +168,44 @@
 // CELKEM ZA STAVBU: Zisk jen z vyplněných řádků
 //   Kompletní = všechna Vyplaceno vyplněna → jasná zelená + ✓ kompletní data
 //   Neúplné = tmavší zelená + ⚠ neúplná data
+//
+// ============================================================
+// PRAVIDLA VÝVOJE (Claude AI assistant)
+// ============================================================
+// PRAVIDLO #0 — PŘED KAŽDÝM NOVÝM ROZŠÍŘENÍM FUNKCIONALITY:
+//   Nejprve důkladně prohledat internet, nabídnout min. 3-5 možností
+//   s vysvětlením výhod/nevýhod, teprve pak implementovat zvolenou.
+//   NESPOUŠTĚT implementaci bez průzkumu a výběru uživatelem!
+//
+// PRAVIDLO #1 — POKUD NĚCO NEFUNGUJE:
+//   Nejprve důkladně zkontrolovat kód (logika, stavy, podmínky)
+//   než se začne cokoliv jiného měnit nebo navrhovat.
+//   NEHÁDEJ — ZKONTROLUJ KÓD!
+//   Příklad: build číslo "natvrdo" → nekontrolovat = špatné řešení
+//            zkontrolovat kód = najít natvrdo → správné řešení = const BUILD
+//
+// PRAVIDLO #1b — KDYŽ OPRAVA NEFUNGUJE PO 2-3 POKUSECH:
+//   Zastavit se, přehodnotit architekturu, navrhnout správné řešení.
+//   NE pokračovat v záplatování!
+//
+// PRAVIDLO #2 — TEXTY V TABULKÁCH:
+//   Nikdy nepoužívat textOverflow:ellipsis tam kde je dost místa.
+//   Text celý (wordBreak:break-word) bez horizontálního scrollbaru.
+//   Raději se zeptat na požadovanou šířku než dělat 4 buildy!
+//
+// PRAVIDLO #3 — VŽDY OVĚŘIT VÝSLEDEK:
+//   Po každé změně ověřit grep/search že změna je v souboru.
+//   Nelhat! Pokud replace selhal, říct to a opravit znovu.
+//
+// PRAVIDLO #4 — PŘI KAŽDÉM NOVÉM BUILDU POVINNĚ AKTUALIZOVAT:
+//   a) Hlavička souboru:  // Build: XXXXXXXX_XX
+//   b) Changelog v hlavičce
+//   c) AKTUÁLNÍ STAV UI komentář
+//   d) import_build string
+//   e) UI badge (📦 XXXXXXXX_XX) v JSX
+//   Pro dashboard navíc: const BUILD = 'XXXXXXXX_XX'
+//   VŽDY vytvořit changelog_XXXXXXXX_XX.txt
+// ============================================================
 // ============================================================
 // 20260314_7     – fix mat_vlastni přidán zpět
 // 20260314_6     – fix gzs+stimul_prirazka fallback
@@ -2515,7 +2554,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260317_34 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260321_01 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2564,7 +2603,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260317_34</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260321_01</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
