@@ -1,4 +1,4 @@
-// Build: 20260321_09
+// Build: 20260321_10
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -63,28 +63,40 @@ export default function NastaveniPage() {
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
+    let loaded = false
+
+    const loadUser = async (session) => {
+      if (loaded) return
+      if (!session) { router.push('/login'); return }
+      const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+      if (!prof) { router.push('/login'); return }
+      setMe({ ...session.user, ...prof })
+      if (prof?.role === 'admin') {
+        setTab('uzivatele')
+        const res = await fetch('/api/get-users', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        })
+        if (res.ok) {
+          const json = await res.json()
+          setUsers(json.users || [])
+        }
+      }
+      const sazbyData = prof?.default_sazby
+      if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
+      setLoading(false)
+      loaded = true
+    }
+
+    // Okamžité načtení při mountu
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      loadUser(session)
+    })
+
+    // Záloha přes onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_OUT') { router.push('/login'); return }
-        if (!session) { router.push('/login'); return }
-        // Spustit jen jednou — pokud ještě nemáme data uživatele
-        if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
-        const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
-        if (!prof) { router.push('/login'); return }
-        setMe({ ...session.user, ...prof })
-        if (prof?.role === 'admin') {
-          setTab('uzivatele')
-          const res = await fetch('/api/get-users', {
-            headers: { 'Authorization': `Bearer ${session.access_token}` }
-          })
-          if (res.ok) {
-            const json = await res.json()
-            setUsers(json.users || [])
-          }
-        }
-        const sazbyData = prof?.default_sazby
-        if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
-        setLoading(false)
+        if (event === 'SIGNED_IN') loadUser(session)
       }
     )
     return () => subscription.unsubscribe()
