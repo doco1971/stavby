@@ -1,4 +1,4 @@
-// Build: 20260321_15
+// Build: 20260321_16
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -64,10 +64,7 @@ export default function NastaveniPage() {
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
-    let loaded = false
-
     const loadUser = async (session) => {
-      if (loaded) return
       if (!session) { router.push('/login'); return }
       sessionRef.current = session
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
@@ -81,15 +78,12 @@ export default function NastaveniPage() {
         if (res.ok) {
           const json = await res.json()
           setUsers(json.users || [])
-          // DEBUG - zobraz data prvniho ne-admin uzivatele
-          const kovarik = json.users?.find(u => u.email?.includes('kovarik'))
-          if (kovarik) alert('Kovářík z DB: role=' + kovarik.role + ', oblasti_edit=' + JSON.stringify(kovarik.oblasti_edit))
+
         }
       }
       const sazbyData = prof?.default_sazby
       if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
       setLoading(false)
-      loaded = true
     }
 
     // onAuthStateChange — volá se okamžitě s aktuální session (INITIAL_SESSION)
