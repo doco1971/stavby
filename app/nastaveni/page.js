@@ -1,7 +1,8 @@
-// Build: 20260322_08
+// Build: 20260322_09
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
 // 20260322_07 – fix: EDIT/READ tlačítka disabled pro roli user
 // 20260322_06 – Varianta D: API routes přes cookies (SSR Auth), odstraněn Bearer token
@@ -491,11 +492,11 @@ export default function NastaveniPage() {
                             return (
                               <button key={o} disabled={isMe || maEdit || isUser} onClick={() => !isMe && !maEdit && !isUser && changeOblastiRead(u.id, o, u.oblasti_read || [])}
                                 style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700,
-                                  cursor: isMe || maEdit ? 'default' : 'pointer',
+                                  cursor: isMe || maEdit || isUser ? 'default' : 'pointer',
                                   background: maEdit ? 'rgba(59,130,246,0.1)' : ma ? 'rgba(148,163,184,0.2)' : 'transparent',
                                   border: `1px solid ${maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.border}`,
                                   color: maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.muted,
-                                  opacity: isMe ? 0.5 : 1 }}>
+                                  opacity: isMe || isUser ? 0.4 : 1 }}>
                                 {o}
                               </button>
                             )

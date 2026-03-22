@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260322_08
+// Build: 20260322_09
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260322_09 – editor vidí stavby z edit+read oblastí; fix fallback
 // 20260322_08 – fix editor nevidí stavby; odstraněn duplicitní oblast badge
 // 20260322_05 – aktualizace BUILD konstanty
 // 20260321_21 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
@@ -34,7 +35,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260322_08'
+const BUILD = '20260322_09'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -67,14 +68,17 @@ export default function Dashboard() {
         if (prof?.role === 'admin') {
           // Admin vidí vše
         } else if (prof?.role === 'user.editor') {
-          // Editor vidí stavby ze svých povolených oblastí
-          // Pozor: oblasti_edit může být [] (prázdné pole) — nelze použít ||
-          const povOblasti = Array.isArray(prof?.oblasti_edit) && prof.oblasti_edit.length > 0
-            ? prof.oblasti_edit
+          // Editor vidí stavby ze svých povolených oblastí (edit + read)
+          const editOblasti = Array.isArray(prof?.oblasti_edit) && prof.oblasti_edit.length > 0 ? prof.oblasti_edit : []
+          const readOblasti = Array.isArray(prof?.oblasti_read) && prof.oblasti_read.length > 0 ? prof.oblasti_read : []
+          const povOblasti = [...new Set([...editOblasti, ...readOblasti])]
+          // Fallback: oblasti nebo oblast
+          const finalOblasti = povOblasti.length > 0
+            ? povOblasti
             : Array.isArray(prof?.oblasti) && prof.oblasti.length > 0
             ? prof.oblasti
             : [prof?.oblast].filter(Boolean)
-          if (povOblasti.length > 0) q = q.in('oblast', povOblasti)
+          if (finalOblasti.length > 0) q = q.in('oblast', finalOblasti)
           else q = q.eq('user_id', user.id)
         } else {
           // User vidí jen své stavby
