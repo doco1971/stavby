@@ -1,4 +1,4 @@
-// Build: 20260321_12
+// Build: 20260321_13
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
