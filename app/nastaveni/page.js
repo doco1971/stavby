@@ -1,4 +1,4 @@
-// Build: 20260321_13
+// Build: 20260321_14
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -14,7 +14,7 @@
 // 20260316_13 – původní verze
 // ============================================================
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
@@ -59,6 +59,7 @@ export default function NastaveniPage() {
   const [newOblastiRead, setNewOblastiRead] = useState([])
   const [userErr,  setUserErr]    = useState('')
   const [addingUser, setAddingUser] = useState(false)
+  const sessionRef = useRef(null)
   const [savingSazby, setSavingSazby] = useState(false)
   const [savingName, setSavingName] = useState(false)
 
@@ -68,6 +69,7 @@ export default function NastaveniPage() {
     const loadUser = async (session) => {
       if (loaded) return
       if (!session) { router.push('/login'); return }
+      sessionRef.current = session
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
@@ -121,7 +123,7 @@ export default function NastaveniPage() {
     if (newPass.length < 6) { setUserErr('Heslo musí mít alespoň 6 znaků'); return }
     if (newOblasti.length === 0) { setUserErr('Vyberte alespoň jednu oblast'); return }
     setAddingUser(true)
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = sessionRef.current
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
@@ -137,7 +139,7 @@ export default function NastaveniPage() {
 
   const removeUser = async (id) => {
     if (!confirm('Opravdu smazat tohoto uživatele? Akce je nevratná.')) return
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = sessionRef.current
     const res = await fetch('/api/delete-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
@@ -153,7 +155,7 @@ export default function NastaveniPage() {
   }
 
   const changeRole = async (id, role) => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = sessionRef.current
     if (!session) return
     const res = await fetch('/api/update-user', {
       method: 'POST',
@@ -174,7 +176,7 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiEdit = async (id, oblast, current) => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = sessionRef.current
     if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const user = users.find(u => u.id === id)
@@ -192,7 +194,7 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiRead = async (id, oblast, current) => {
-    const { data: { session } } = await supabase.auth.getSession()
+    const session = sessionRef.current
     if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const res = await fetch('/api/update-user', {
