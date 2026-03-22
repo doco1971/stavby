@@ -1,4 +1,4 @@
-// Build: 20260321_08
+// Build: 20260321_09
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -63,29 +63,31 @@ export default function NastaveniPage() {
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
-    const load = async () => {
-      // Nejdřív načti session — zaručí že token je dostupný
-      const { data: { session } } = await supabase.auth.getSession()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user || !session) { router.push('/login'); return }
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single()
-      setMe({ ...user, ...prof })
-      if (prof?.role === 'admin') {
-        setTab('uzivatele')
-        // Načti uživatele přes API route (service role key, bez RLS problémů)
-        const res = await fetch('/api/get-users', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        })
-        if (res.ok) {
-          const json = await res.json()
-          setUsers(json.users || [])
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT') { router.push('/login'); return }
+        if (!session) { router.push('/login'); return }
+        // Spustit jen jednou — pokud ještě nemáme data uživatele
+        if (event !== 'INITIAL_SESSION' && event !== 'SIGNED_IN') return
+        const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
+        if (!prof) { router.push('/login'); return }
+        setMe({ ...session.user, ...prof })
+        if (prof?.role === 'admin') {
+          setTab('uzivatele')
+          const res = await fetch('/api/get-users', {
+            headers: { 'Authorization': `Bearer ${session.access_token}` }
+          })
+          if (res.ok) {
+            const json = await res.json()
+            setUsers(json.users || [])
+          }
         }
+        const sazbyData = prof?.default_sazby
+        if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
+        setLoading(false)
       }
-      const sazbyData = prof?.default_sazby
-      if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
-      setLoading(false)
-    }
-    load()
+    )
+    return () => subscription.unsubscribe()
   }, [])
 
   const flash = (msg) => { setSaved(msg); setTimeout(() => setSaved(''), 2500) }
@@ -149,8 +151,12 @@ export default function NastaveniPage() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, role }),
     })
-    // Zachovat všechna ostatní pole v lokálním stavu — pouze role se mění
-    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+    if (res.ok) {
+      const json = await res.json()
+      // Použít data vrácená z DB — zaručuje synchronizaci se serverem
+      if (json.user) setUsers(prev => prev.map(u => u.id === id ? { ...u, ...json.user } : u))
+      else setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+    }
   }
 
   const changeOblast = async (id, oblast) => {
@@ -169,7 +175,11 @@ export default function NastaveniPage() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, oblasti_edit: nove, oblasti_read: noveRead }),
     })
-    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_edit: nove, oblasti_read: noveRead } : u))
+    if (res.ok) {
+      const json = await res.json()
+      if (json.user) setUsers(prev => prev.map(u => u.id === id ? { ...u, ...json.user } : u))
+      else setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_edit: nove, oblasti_read: noveRead } : u))
+    }
   }
 
   const changeOblastiRead = async (id, oblast, current) => {
@@ -181,7 +191,11 @@ export default function NastaveniPage() {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ id, oblasti_read: nove }),
     })
-    if (res.ok) setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_read: nove } : u))
+    if (res.ok) {
+      const json = await res.json()
+      if (json.user) setUsers(prev => prev.map(u => u.id === id ? { ...u, ...json.user } : u))
+      else setUsers(prev => prev.map(u => u.id === id ? { ...u, oblasti_read: nove } : u))
+    }
   }
 
   const saveSazby = async () => {

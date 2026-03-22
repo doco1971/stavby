@@ -37,10 +37,10 @@ export async function POST(request) {
     if (role !== undefined) update.role = role
     if (oblast !== undefined) update.oblast = oblast
 
-    const { error } = await supabaseAdmin.from('profiles').update(update).eq('id', id)
+    const { data: updated, error } = await supabaseAdmin.from('profiles').update(update).eq('id', id).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, user: updated })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
