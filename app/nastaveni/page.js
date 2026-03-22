@@ -1,7 +1,8 @@
-// Build: 20260322_01
+// Build: 20260322_02
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_02 – fix addUser: oblasti_edit/read prázdné pro roli user (frontend)
 // 20260322_01 – fix oblasti: sessionRef → useState token; getUser() místo getSession()
 // 20260321_21 – getToken() helper s fallback getSession()
 // 20260321_01 – Seznam uživatelů načítán přes API route /api/get-users (fix RLS rekurze)
@@ -129,7 +130,7 @@ export default function NastaveniPage() {
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
-      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newOblasti, oblasti_read: newOblastiRead, name: newName }),
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newRole === 'user' ? [] : newOblasti, oblasti_read: newRole === 'user' ? [] : newOblastiRead, name: newName }),
     })
     const json = await res.json()
     setAddingUser(false)
