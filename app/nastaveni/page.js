@@ -1,4 +1,4 @@
-// Build: 20260321_12
+// Build: 20260321_11
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -67,14 +67,19 @@ export default function NastaveniPage() {
 
     const loadUser = async (session) => {
       if (loaded) return
-      if (!session) { router.push('/login'); return }
+      if (!session) {
+        // Zkus refresh
+        const { data: refreshed } = await supabase.auth.refreshSession()
+        if (!refreshed.session) { router.push('/login'); return }
+        session = refreshed.session
+      }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
       if (prof?.role === 'admin') {
         setTab('uzivatele')
         const res = await fetch('/api/get-users', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
+          credentials: 'include'
         })
         if (res.ok) {
           const json = await res.json()
@@ -87,13 +92,16 @@ export default function NastaveniPage() {
       loaded = true
     }
 
-    // onAuthStateChange — volá se okamžitě s aktuální session (INITIAL_SESSION)
-    // i při každé změně (SIGNED_IN, TOKEN_REFRESHED)
+    // Okamžité načtení při mountu
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      loadUser(session)
+    })
+
+    // Záloha přes onAuthStateChange
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_OUT') { router.push('/login'); return }
-        // Volat pro INITIAL_SESSION (první načtení) i TOKEN_REFRESHED
-        if (session) loadUser(session)
+        if (event === 'SIGNED_IN') loadUser(session)
       }
     )
     return () => subscription.unsubscribe()
