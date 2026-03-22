@@ -1,6 +1,7 @@
 // app/api/get-users/route.js
-// Build: 20260322_03
+// Build: 20260322_06
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -14,36 +15,24 @@ export async function GET(request) {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Ověř přes Bearer token NEBO přes cookie
-    let callerId = null
-    const authHeader = request.headers.get('authorization')
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '')
-      const { data: { user } } = await supabaseAdmin.auth.getUser(token)
-      callerId = user?.id
-    }
-
-    // Fallback - zkus cookie
-    if (!callerId) {
-      const cookieStore = cookies()
-      const allCookies = cookieStore.getAll()
-      const sbCookie = allCookies.find(c => c.name.includes('auth-token'))
-      if (sbCookie) {
-        try {
-          const val = JSON.parse(sbCookie.value)
-          const token = val?.access_token || val?.[0]?.access_token
-          if (token) {
-            const { data: { user } } = await supabaseAdmin.auth.getUser(token)
-            callerId = user?.id
-          }
-        } catch {}
+    // Ověř volajícího přes cookies (SSR Auth)
+    const cookieStore = cookies()
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          get(name) { return cookieStore.get(name)?.value },
+          set() {},
+          remove() {},
+        },
       }
-    }
-
-    if (!callerId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    )
+    const { data: { user: caller }, error: authErr } = await supabaseAuth.auth.getUser()
+    if (authErr || !caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Ověř že volající je admin
-    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', callerId).single()
+    const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', caller.id).single()
     if (callerProfile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Načti všechny profily

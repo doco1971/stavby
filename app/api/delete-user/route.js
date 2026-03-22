@@ -1,26 +1,39 @@
 // app/api/delete-user/route.js
+// Build: 20260322_06
 // Server-side API route pro smazání uživatele ze Supabase Auth + profiles
 // Používá SUPABASE_SERVICE_ROLE_KEY — pouze pro adminy
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    // Ověř volajícího přes cookies (SSR Auth)
+    const cookieStore = cookies()
+    const supabaseAuth = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      {
+        cookies: {
+          get(name) { return cookieStore.get(name)?.value },
+          set() {},
+          remove() {},
+        },
+      }
+    )
+    const { data: { user: caller }, error: authErr } = await supabaseAuth.auth.getUser()
+    if (authErr || !caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+    // Admin klient se service role key
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL,
       process.env.SUPABASE_SERVICE_ROLE_KEY,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Ověř token volajícího
-    const token = authHeader.replace('Bearer ', '')
-    const { data: { user: caller }, error: authErr } = await supabaseAdmin.auth.getUser(token)
-    if (authErr || !caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     // Ověř že volající je admin
     const { data: callerProfile } = await supabaseAdmin.from('profiles').select('role').eq('id', caller.id).single()

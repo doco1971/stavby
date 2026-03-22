@@ -1,7 +1,8 @@
-// Build: 20260322_05
+// Build: 20260322_06
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_06 – Varianta D: API routes přes cookies (SSR Auth), odstraněn Bearer token
 // 20260322_05 – debug: flash chyby při selhání changeRole; ověření session
 // 20260322_04 – fix changeRole: při změně na user promazat oblasti_edit/read (frontend + route)
 // 20260322_03 – fix get-users: .order('name,email') → .order('email') — neexistující sloupec způsoboval chybu
@@ -65,22 +66,18 @@ export default function NastaveniPage() {
   const [newOblastiRead, setNewOblastiRead] = useState([])
   const [userErr,  setUserErr]    = useState('')
   const [addingUser, setAddingUser] = useState(false)
-  const [token, setToken] = useState(null)
   const [savingSazby, setSavingSazby] = useState(false)
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
     const loadUser = async (session) => {
       if (!session) { router.push('/login'); return }
-      setToken(session.access_token)
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
       if (prof?.role === 'admin') {
         setTab('uzivatele')
-        const res = await fetch('/api/get-users', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        })
+        const res = await fetch('/api/get-users')
         if (res.ok) {
           const json = await res.json()
           setUsers(json.users || [])
@@ -129,10 +126,9 @@ export default function NastaveniPage() {
     if (newPass.length < 6) { setUserErr('Heslo musí mít alespoň 6 znaků'); return }
     if (newOblasti.length === 0) { setUserErr('Vyberte alespoň jednu oblast'); return }
     setAddingUser(true)
-    const session = await getToken()
     const res = await fetch('/api/create-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newRole === 'user' ? [] : newOblasti, oblasti_read: newRole === 'user' ? [] : newOblastiRead, name: newName }),
     })
     const json = await res.json()
@@ -145,10 +141,9 @@ export default function NastaveniPage() {
 
   const removeUser = async (id) => {
     if (!confirm('Opravdu smazat tohoto uživatele? Akce je nevratná.')) return
-    const session = await getToken()
     const res = await fetch('/api/delete-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     })
     if (res.ok) {
@@ -160,29 +155,11 @@ export default function NastaveniPage() {
     }
   }
 
-  const getToken = async () => {
-    if (token) return token
-    // getSession() vrací null po client-side navigaci — getUser() jde vždy na server
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.access_token) {
-      setToken(session.access_token)
-      return session.access_token
-    }
-    // Poslední záchrana: refreshnout session
-    const { data: refreshData } = await supabase.auth.refreshSession()
-    if (refreshData?.session?.access_token) {
-      setToken(refreshData.session.access_token)
-      return refreshData.session.access_token
-    }
-    return null
-  }
 
   const changeRole = async (id, role) => {
-    const session = await getToken()
-    if (!session) { flash('⚠ Chyba: session vypršela, obnovte stránku'); return }
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, role, ...(role === 'user' ? { oblasti_edit: [], oblasti_read: [] } : {}) }),
     })
     if (res.ok) {
@@ -201,14 +178,12 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiEdit = async (id, oblast, current) => {
-    const session = await getToken()
-    if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const user = users.find(u => u.id === id)
     const noveRead = (user?.oblasti_read || []).filter(o => o !== oblast)
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, oblasti_edit: nove, oblasti_read: noveRead }),
     })
     if (res.ok) {
@@ -219,12 +194,10 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiRead = async (id, oblast, current) => {
-    const session = await getToken()
-    if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, oblasti_read: nove }),
     })
     if (res.ok) {
