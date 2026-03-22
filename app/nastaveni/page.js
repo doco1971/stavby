@@ -1,7 +1,8 @@
-// Build: 20260322_03
+// Build: 20260322_04
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_04 – fix changeRole: při změně na user promazat oblasti_edit/read (frontend + route)
 // 20260322_03 – fix get-users: .order('name,email') → .order('email') — neexistující sloupec způsoboval chybu
 // 20260322_02 – fix addUser: oblasti_edit/read prázdné pro roli user (frontend)
 // 20260322_01 – fix oblasti: sessionRef → useState token; getUser() místo getSession()
@@ -181,7 +182,7 @@ export default function NastaveniPage() {
     const res = await fetch('/api/update-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
-      body: JSON.stringify({ id, role }),
+      body: JSON.stringify({ id, role, ...(role === 'user' ? { oblasti_edit: [], oblasti_read: [] } : {}) }),
     })
     if (res.ok) {
       const json = await res.json()
