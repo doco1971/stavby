@@ -1,7 +1,8 @@
-// Build: 20260322_06
+// Build: 20260322_07
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_07 – fix: EDIT/READ tlačítka disabled pro roli user
 // 20260322_06 – Varianta D: API routes přes cookies (SSR Auth), odstraněn Bearer token
 // 20260322_05 – debug: flash chyby při selhání changeRole; ověření session
 // 20260322_04 – fix changeRole: při změně na user promazat oblasti_edit/read (frontend + route)
@@ -460,17 +461,18 @@ export default function NastaveniPage() {
                         <div style={{ color:T.muted, fontSize:11, marginTop:2 }}>{u.name && <span>{u.email} · </span>}ID: {u.id?.slice(0,8)}…</div>
                       </div>
                       <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                        {(() => { const isUser = u.role === 'user'; return (<>
                         <div style={{ display:'flex', gap:3, alignItems:'center' }}>
                           <span style={{ color:'#3b82f6', fontSize:9, fontWeight:700, width:28 }}>EDIT</span>
                           {OBLASTI.map(o => {
                             const ma = (u.oblasti_edit || []).includes(o)
                             return (
-                              <button key={o} disabled={isMe} onClick={() => !isMe && changeOblastiEdit(u.id, o, u.oblasti_edit || [])}
-                                style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700, cursor: isMe ? 'default' : 'pointer',
+                              <button key={o} disabled={isMe || isUser} onClick={() => !isMe && !isUser && changeOblastiEdit(u.id, o, u.oblasti_edit || [])}
+                                style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700, cursor: isMe || isUser ? 'default' : 'pointer',
                                   background: ma ? 'rgba(59,130,246,0.2)' : 'transparent',
                                   border: `1px solid ${ma ? '#3b82f6' : T.border}`,
                                   color: ma ? '#60a5fa' : T.muted,
-                                  opacity: isMe ? 0.5 : 1 }}>
+                                  opacity: isMe || isUser ? 0.4 : 1 }}>
                                 {o}
                               </button>
                             )
@@ -482,7 +484,7 @@ export default function NastaveniPage() {
                             const maEdit = (u.oblasti_edit || []).includes(o)
                             const ma = (u.oblasti_read || []).includes(o)
                             return (
-                              <button key={o} disabled={isMe || maEdit} onClick={() => !isMe && !maEdit && changeOblastiRead(u.id, o, u.oblasti_read || [])}
+                              <button key={o} disabled={isMe || maEdit || isUser} onClick={() => !isMe && !maEdit && !isUser && changeOblastiRead(u.id, o, u.oblasti_read || [])}
                                 style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700,
                                   cursor: isMe || maEdit ? 'default' : 'pointer',
                                   background: maEdit ? 'rgba(59,130,246,0.1)' : ma ? 'rgba(148,163,184,0.2)' : 'transparent',
@@ -494,6 +496,7 @@ export default function NastaveniPage() {
                             )
                           })}
                         </div>
+                        </>)})()}
                       </div>
                       {isMe ? (
                         <span style={{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:700, background:rl.bg, color:rl.color }}>{rl.label}</span>
