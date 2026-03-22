@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260322_05
+// Build: 20260322_08
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260322_08 – fix editor nevidí stavby; odstraněn duplicitní oblast badge
 // 20260322_05 – aktualizace BUILD konstanty
 // 20260321_21 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
 // 20260321_02 – Filtrování staveb podle povolených oblastí uživatele
@@ -33,7 +34,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260322_05'
+const BUILD = '20260322_08'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -67,7 +68,12 @@ export default function Dashboard() {
           // Admin vidí vše
         } else if (prof?.role === 'user.editor') {
           // Editor vidí stavby ze svých povolených oblastí
-          const povOblasti = prof?.oblasti_edit || prof?.oblasti || [prof?.oblast].filter(Boolean)
+          // Pozor: oblasti_edit může být [] (prázdné pole) — nelze použít ||
+          const povOblasti = Array.isArray(prof?.oblasti_edit) && prof.oblasti_edit.length > 0
+            ? prof.oblasti_edit
+            : Array.isArray(prof?.oblasti) && prof.oblasti.length > 0
+            ? prof.oblasti
+            : [prof?.oblast].filter(Boolean)
           if (povOblasti.length > 0) q = q.in('oblast', povOblasti)
           else q = q.eq('user_id', user.id)
         } else {
@@ -118,9 +124,7 @@ export default function Dashboard() {
           <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
         </div>
       </div>
-      <div style={{ marginTop: 8, display: 'flex', gap: 6 }}>
-        <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: 'rgba(59,130,246,0.12)', color: T.accent }}>{s.oblast}</span>
-      </div>
+
     </div>
   )
 

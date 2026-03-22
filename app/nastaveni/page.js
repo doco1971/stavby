@@ -1,7 +1,8 @@
-// Build: 20260322_07
+// Build: 20260322_08
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
 // 20260322_07 – fix: EDIT/READ tlačítka disabled pro roli user
 // 20260322_06 – Varianta D: API routes přes cookies (SSR Auth), odstraněn Bearer token
 // 20260322_05 – debug: flash chyby při selhání changeRole; ověření session
@@ -81,7 +82,11 @@ export default function NastaveniPage() {
         const res = await fetch('/api/get-users')
         if (res.ok) {
           const json = await res.json()
-          setUsers(json.users || [])
+          // Normalizovat: user role nemá oblasti_edit ani oblasti_read
+          const normalized = (json.users || []).map(u =>
+            u.role === 'user' ? { ...u, oblasti_edit: [], oblasti_read: [] } : u
+          )
+          setUsers(normalized)
 
         }
       }
