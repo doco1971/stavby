@@ -1,4 +1,4 @@
-// Build: 20260321_16
+// Build: 20260321_17
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -86,13 +86,16 @@ export default function NastaveniPage() {
       setLoading(false)
     }
 
-    // onAuthStateChange — volá se okamžitě s aktuální session (INITIAL_SESSION)
-    // i při každé změně (SIGNED_IN, TOKEN_REFRESHED)
+    // 1. Okamžité načtení při mountu — řeší návrat na stránku přes "zpět"
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) loadUser(session)
+      else setLoading(false)
+    })
+
+    // 2. Pojistka pro budoucí změny — logout v jiném tabu
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (event === 'SIGNED_OUT') { router.push('/login'); return }
-        // Volat pro INITIAL_SESSION (první načtení) i TOKEN_REFRESHED
-        if (session) loadUser(session)
       }
     )
     return () => subscription.unsubscribe()
