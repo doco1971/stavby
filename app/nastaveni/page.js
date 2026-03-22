@@ -1,7 +1,8 @@
-// Build: 20260322_04
+// Build: 20260322_05
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_05 – debug: flash chyby při selhání changeRole; ověření session
 // 20260322_04 – fix changeRole: při změně na user promazat oblasti_edit/read (frontend + route)
 // 20260322_03 – fix get-users: .order('name,email') → .order('email') — neexistující sloupec způsoboval chybu
 // 20260322_02 – fix addUser: oblasti_edit/read prázdné pro roli user (frontend)
@@ -178,7 +179,7 @@ export default function NastaveniPage() {
 
   const changeRole = async (id, role) => {
     const session = await getToken()
-    if (!session) return
+    if (!session) { flash('⚠ Chyba: session vypršela, obnovte stránku'); return }
     const res = await fetch('/api/update-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
@@ -186,9 +187,11 @@ export default function NastaveniPage() {
     })
     if (res.ok) {
       const json = await res.json()
-      // Použít data vrácená z DB — zaručuje synchronizaci se serverem
       if (json.user) setUsers(prev => prev.map(u => u.id === id ? { ...u, ...json.user } : u))
       else setUsers(prev => prev.map(u => u.id === id ? { ...u, role } : u))
+    } else {
+      const json = await res.json().catch(() => ({}))
+      flash('⚠ Chyba uložení: ' + (json.error || res.status))
     }
   }
 
