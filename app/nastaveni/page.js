@@ -1,7 +1,8 @@
-// Build: 20260322_02
+// Build: 20260322_03
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_03 – fix get-users: .order('name,email') → .order('email') — neexistující sloupec způsoboval chybu
 // 20260322_02 – fix addUser: oblasti_edit/read prázdné pro roli user (frontend)
 // 20260322_01 – fix oblasti: sessionRef → useState token; getUser() místo getSession()
 // 20260321_21 – getToken() helper s fallback getSession()
