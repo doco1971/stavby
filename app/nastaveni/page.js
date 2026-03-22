@@ -1,4 +1,4 @@
-// Build: 20260321_14
+// Build: 20260321_15
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -81,6 +81,9 @@ export default function NastaveniPage() {
         if (res.ok) {
           const json = await res.json()
           setUsers(json.users || [])
+          // DEBUG - zobraz data prvniho ne-admin uzivatele
+          const kovarik = json.users?.find(u => u.email?.includes('kovarik'))
+          if (kovarik) alert('Kovářík z DB: role=' + kovarik.role + ', oblasti_edit=' + JSON.stringify(kovarik.oblasti_edit))
         }
       }
       const sazbyData = prof?.default_sazby
