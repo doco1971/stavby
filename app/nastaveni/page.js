@@ -1,7 +1,9 @@
-// Build: 20260321_21
+// Build: 20260322_01
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_01 – fix oblasti: sessionRef → useState token; getUser() místo getSession()
+// 20260321_21 – getToken() helper s fallback getSession()
 // 20260321_01 – Seznam uživatelů načítán přes API route /api/get-users (fix RLS rekurze)
 // 20260317_35 – Build sync
 // 20260317_34 – Fix: výchozí tab pro non-admina=sazby; jméno+role v dashboardu headeru;
@@ -14,7 +16,7 @@
 // 20260316_13 – původní verze
 // ============================================================
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
@@ -59,14 +61,14 @@ export default function NastaveniPage() {
   const [newOblastiRead, setNewOblastiRead] = useState([])
   const [userErr,  setUserErr]    = useState('')
   const [addingUser, setAddingUser] = useState(false)
-  const sessionRef = useRef(null)
+  const [token, setToken] = useState(null)
   const [savingSazby, setSavingSazby] = useState(false)
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
     const loadUser = async (session) => {
       if (!session) { router.push('/login'); return }
-      sessionRef.current = session
+      setToken(session.access_token)
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
@@ -126,7 +128,7 @@ export default function NastaveniPage() {
     const session = await getToken()
     const res = await fetch('/api/create-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
       body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newOblasti, oblasti_read: newOblastiRead, name: newName }),
     })
     const json = await res.json()
@@ -142,7 +144,7 @@ export default function NastaveniPage() {
     const session = await getToken()
     const res = await fetch('/api/delete-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
       body: JSON.stringify({ id }),
     })
     if (res.ok) {
@@ -155,10 +157,20 @@ export default function NastaveniPage() {
   }
 
   const getToken = async () => {
-    if (sessionRef.current) return sessionRef.current
+    if (token) return token
+    // getSession() vrací null po client-side navigaci — getUser() jde vždy na server
     const { data: { session } } = await supabase.auth.getSession()
-    if (session) sessionRef.current = session
-    return session
+    if (session?.access_token) {
+      setToken(session.access_token)
+      return session.access_token
+    }
+    // Poslední záchrana: refreshnout session
+    const { data: refreshData } = await supabase.auth.refreshSession()
+    if (refreshData?.session?.access_token) {
+      setToken(refreshData.session.access_token)
+      return refreshData.session.access_token
+    }
+    return null
   }
 
   const changeRole = async (id, role) => {
@@ -166,7 +178,7 @@ export default function NastaveniPage() {
     if (!session) return
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
       body: JSON.stringify({ id, role }),
     })
     if (res.ok) {
@@ -190,7 +202,7 @@ export default function NastaveniPage() {
     const noveRead = (user?.oblasti_read || []).filter(o => o !== oblast)
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
       body: JSON.stringify({ id, oblasti_edit: nove, oblasti_read: noveRead }),
     })
     if (res.ok) {
@@ -206,7 +218,7 @@ export default function NastaveniPage() {
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const res = await fetch('/api/update-user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session}` },
       body: JSON.stringify({ id, oblasti_read: nove }),
     })
     if (res.ok) {
