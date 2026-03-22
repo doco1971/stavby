@@ -1,5 +1,5 @@
 // app/api/update-user/route.js
-// Build: 20260322_06
+// Build: 20260322_10
 // Server-side API route pro aktualizaci profilu uživatele
 // Používá SUPABASE_SERVICE_ROLE_KEY — pouze pro adminy
 import { createClient } from '@supabase/supabase-js'
@@ -50,10 +50,9 @@ export async function POST(request) {
     if (role !== undefined) update.role = role
     if (oblast !== undefined) update.oblast = oblast
 
-    // Pro roli user vždy promazat oblasti_edit a oblasti_read
+    // Pro roli user promazat pouze oblasti_edit (oblasti_read může mít)
     if (role === 'user') {
       update.oblasti_edit = []
-      update.oblasti_read = []
     }
 
     const { data: updated, error } = await supabaseAdmin.from('profiles').update(update).eq('id', id).select().single()

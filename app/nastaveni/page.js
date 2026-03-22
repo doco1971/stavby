@@ -1,7 +1,8 @@
-// Build: 20260322_09
+// Build: 20260322_10
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_10 – user může mít oblasti_read; READ tlačítka aktivní pro všechny role
 // 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
 // 20260322_07 – fix: EDIT/READ tlačítka disabled pro roli user
@@ -83,9 +84,9 @@ export default function NastaveniPage() {
         const res = await fetch('/api/get-users')
         if (res.ok) {
           const json = await res.json()
-          // Normalizovat: user role nemá oblasti_edit ani oblasti_read
+          // Normalizovat: user nemá oblasti_edit, ale může mít oblasti_read
           const normalized = (json.users || []).map(u =>
-            u.role === 'user' ? { ...u, oblasti_edit: [], oblasti_read: [] } : u
+            u.role === 'user' ? { ...u, oblasti_edit: [] } : u
           )
           setUsers(normalized)
 
@@ -136,7 +137,7 @@ export default function NastaveniPage() {
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newRole === 'user' ? [] : newOblasti, oblasti_read: newRole === 'user' ? [] : newOblastiRead, name: newName }),
+      body: JSON.stringify({ email: newEmail, password: newPass, role: newRole, oblast: newOblast, oblasti: newOblasti, oblasti_edit: newRole === 'user' ? [] : newOblasti, oblasti_read: newOblastiRead, name: newName }),
     })
     const json = await res.json()
     setAddingUser(false)
@@ -167,7 +168,7 @@ export default function NastaveniPage() {
     const res = await fetch('/api/update-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, role, ...(role === 'user' ? { oblasti_edit: [], oblasti_read: [] } : {}) }),
+      body: JSON.stringify({ id, role, ...(role === 'user' ? { oblasti_edit: [] } : {}) }),
     })
     if (res.ok) {
       const json = await res.json()
@@ -490,13 +491,13 @@ export default function NastaveniPage() {
                             const maEdit = (u.oblasti_edit || []).includes(o)
                             const ma = (u.oblasti_read || []).includes(o)
                             return (
-                              <button key={o} disabled={isMe || maEdit || isUser} onClick={() => !isMe && !maEdit && !isUser && changeOblastiRead(u.id, o, u.oblasti_read || [])}
+                              <button key={o} disabled={isMe || maEdit} onClick={() => !isMe && !maEdit && changeOblastiRead(u.id, o, u.oblasti_read || [])}
                                 style={{ padding:'2px 7px', borderRadius:4, fontSize:11, fontWeight:700,
-                                  cursor: isMe || maEdit || isUser ? 'default' : 'pointer',
+                                  cursor: isMe || maEdit ? 'default' : 'pointer',
                                   background: maEdit ? 'rgba(59,130,246,0.1)' : ma ? 'rgba(148,163,184,0.2)' : 'transparent',
                                   border: `1px solid ${maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.border}`,
                                   color: maEdit ? '#3b82f640' : ma ? '#94a3b8' : T.muted,
-                                  opacity: isMe || isUser ? 0.4 : 1 }}>
+                                  opacity: isMe ? 0.5 : 1 }}>
                                 {o}
                               </button>
                             )

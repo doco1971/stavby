@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260322_09
+// Build: 20260322_10
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260322_10 – user vidí stavby dle oblasti_read
 // 20260322_09 – editor vidí stavby z edit+read oblastí; fix fallback
 // 20260322_08 – fix editor nevidí stavby; odstraněn duplicitní oblast badge
 // 20260322_05 – aktualizace BUILD konstanty
@@ -35,7 +36,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260322_09'
+const BUILD = '20260322_10'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -81,8 +82,10 @@ export default function Dashboard() {
           if (finalOblasti.length > 0) q = q.in('oblast', finalOblasti)
           else q = q.eq('user_id', user.id)
         } else {
-          // User vidí jen své stavby
-          q = q.eq('user_id', user.id)
+          // User vidí stavby ze svých read oblastí (pokud má), jinak jen své
+          const readOblasti = Array.isArray(prof?.oblasti_read) && prof.oblasti_read.length > 0 ? prof.oblasti_read : []
+          if (readOblasti.length > 0) q = q.in('oblast', readOblasti)
+          else q = q.eq('user_id', user.id)
         }
         const { data, error } = await q
         if (error) setErr(error.message)
