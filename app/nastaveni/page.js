@@ -1,4 +1,4 @@
-// Build: 20260321_20
+// Build: 20260321_21
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -123,7 +123,7 @@ export default function NastaveniPage() {
     if (newPass.length < 6) { setUserErr('Heslo musí mít alespoň 6 znaků'); return }
     if (newOblasti.length === 0) { setUserErr('Vyberte alespoň jednu oblast'); return }
     setAddingUser(true)
-    const session = sessionRef.current
+    const session = await getToken()
     const res = await fetch('/api/create-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
@@ -139,7 +139,7 @@ export default function NastaveniPage() {
 
   const removeUser = async (id) => {
     if (!confirm('Opravdu smazat tohoto uživatele? Akce je nevratná.')) return
-    const session = sessionRef.current
+    const session = await getToken()
     const res = await fetch('/api/delete-user', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
@@ -154,8 +154,15 @@ export default function NastaveniPage() {
     }
   }
 
+  const getToken = async () => {
+    if (sessionRef.current) return sessionRef.current
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session) sessionRef.current = session
+    return session
+  }
+
   const changeRole = async (id, role) => {
-    const session = sessionRef.current
+    const session = await getToken()
     if (!session) return
     const res = await fetch('/api/update-user', {
       method: 'POST',
@@ -176,7 +183,7 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiEdit = async (id, oblast, current) => {
-    const session = sessionRef.current
+    const session = await getToken()
     if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const user = users.find(u => u.id === id)
@@ -194,7 +201,7 @@ export default function NastaveniPage() {
   }
 
   const changeOblastiRead = async (id, oblast, current) => {
-    const session = sessionRef.current
+    const session = await getToken()
     if (!session) return
     const nove = current.includes(oblast) ? current.filter(o => o !== oblast) : [...current, oblast]
     const res = await fetch('/api/update-user', {
