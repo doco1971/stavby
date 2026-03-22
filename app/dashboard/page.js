@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260321_17
+// Build: 20260321_18
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260321_17 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
+// 20260321_18 – Fix: nový uživatel dostane roli 'user' (ne admin); fix canEdit před načtením profilu
 // 20260321_02 – Filtrování staveb podle povolených oblastí uživatele
 // 20260321_01 – Build sync; pravidla vývoje přidána
 // 20260317_34 – Jméno+role uživatele v headeru (světlejší, vedle role)
@@ -32,7 +32,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260321_17'
+const BUILD = '20260321_18'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -166,7 +166,7 @@ export default function Dashboard() {
               return <span style={{ fontSize:10, padding:'2px 6px', background:r.bg, color:r.color, borderRadius:4, fontWeight:700 }}>{r.label}</span>
             })()}
           </div>
-          <button onClick={() => router.push('/nastaveni')}
+          <button onClick={() => { router.refresh(); router.push('/nastaveni') }}
             style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.4)', borderRadius: 6, padding: '5px 12px', color: '#818cf8', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             ⚙️ Nastavení
           </button>

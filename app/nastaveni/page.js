@@ -1,4 +1,4 @@
-// Build: 20260321_17
+// Build: 20260321_18
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -233,7 +233,7 @@ export default function NastaveniPage() {
       <div style={{ background:T.header, borderBottom:`1px solid ${T.border}`, padding:'0 24px', position:'sticky', top:0, zIndex:100 }}>
         <div style={{ maxWidth:860, margin:'0 auto' }}>
           <div style={{ display:'flex', alignItems:'center', gap:12, padding:'13px 0 0' }}>
-            <button onClick={() => router.push('/dashboard')} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'5px 12px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer' }}>← zpět</button>
+            <button onClick={() => { router.refresh(); router.push('/dashboard') }} style={{ background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, padding:'5px 12px', color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer' }}>← zpět</button>
             <div style={{ flex:1 }}>
               <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase' }}>Nastavení</div>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
