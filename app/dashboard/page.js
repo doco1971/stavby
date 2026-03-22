@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260322_10
+// Build: 20260322_11
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260322_11 – autor stavby pod oblastí v dashboardu
 // 20260322_10 – user vidí stavby dle oblasti_read
 // 20260322_09 – editor vidí stavby z edit+read oblastí; fix fallback
 // 20260322_08 – fix editor nevidí stavby; odstraněn duplicitní oblast badge
@@ -36,7 +37,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260322_10'
+const BUILD = '20260322_11'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -65,7 +66,7 @@ export default function Dashboard() {
         }
         setProfile(prof)
         // canEdit je computed z profilu — viz render
-        let q = supabase.from('stavby').select('*').order('updated_at', { ascending: false })
+        let q = supabase.from('stavby').select('*, profiles(name, email)').order('updated_at', { ascending: false })
         if (prof?.role === 'admin') {
           // Admin vidí vše
         } else if (prof?.role === 'user.editor') {
@@ -129,6 +130,7 @@ export default function Dashboard() {
         <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
           <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
           <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
+          <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>👤 {s.profiles?.name || s.profiles?.email || '—'}</div>
         </div>
       </div>
 

@@ -1,7 +1,8 @@
-// Build: 20260322_10
+// Build: 20260322_11
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
+// 20260322_11 – BUILD sync
 // 20260322_10 – user může mít oblasti_read; READ tlačítka aktivní pro všechny role
 // 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
