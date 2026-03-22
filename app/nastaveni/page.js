@@ -1,4 +1,4 @@
-// Build: 20260321_10
+// Build: 20260321_11
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
@@ -67,14 +67,19 @@ export default function NastaveniPage() {
 
     const loadUser = async (session) => {
       if (loaded) return
-      if (!session) { router.push('/login'); return }
+      if (!session) {
+        // Zkus refresh
+        const { data: refreshed } = await supabase.auth.refreshSession()
+        if (!refreshed.session) { router.push('/login'); return }
+        session = refreshed.session
+      }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
       if (prof?.role === 'admin') {
         setTab('uzivatele')
         const res = await fetch('/api/get-users', {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
+          credentials: 'include'
         })
         if (res.ok) {
           const json = await res.json()
