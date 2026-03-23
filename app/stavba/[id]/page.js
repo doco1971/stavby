@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260323_07
+// Build: 20260323_08
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
 // 20260323_05    – fix save: user_id se nepřepisuje při importu editorem
@@ -420,28 +421,45 @@ function compute(s) {
 // ── Dialog: Sazby stavby (plovoucí, přetahovatelný) ────
 function DeleteSmazatModal({ T, nazev, onConfirm, onCancel }) {
   const [input, setInput] = useState('')
+  const target = 'SMAZAT'
+  const hotovo = input.toUpperCase() === target
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
       <div style={{ background:T.card, border:'1px solid rgba(239,68,68,0.4)', borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
         <div style={{ fontSize:18, fontWeight:800, color:'#ef4444', marginBottom:12 }}>⚠️ Poslední potvrzení</div>
-        <div style={{ color:T.text, fontSize:13, lineHeight:1.6, marginBottom:16 }}>
-          Pro smazání stavby <strong>„{nazev}"</strong> zadejte slovo <strong style={{ color:'#ef4444' }}>SMAZAT</strong>:
+        <div style={{ color:T.text, fontSize:13, lineHeight:1.6, marginBottom:20 }}>
+          Pro smazání stavby <strong>„{nazev}"</strong> opište níže zobrazené slovo:
+        </div>
+        <div style={{ display:'flex', justifyContent:'center', gap:6, marginBottom:20 }}>
+          {target.split('').map((letter, i) => {
+            const typed = (input.toUpperCase())[i]
+            const active = typed === letter
+            return (
+              <div key={i} style={{
+                width: 38, height: 44, display:'flex', alignItems:'center', justifyContent:'center',
+                borderRadius: 6, border: `2px solid ${active ? '#ef4444' : 'rgba(239,68,68,0.25)'}`,
+                fontSize: 18, fontWeight: 800, fontFamily: 'monospace', letterSpacing: 0,
+                color: active ? '#ef4444' : 'rgba(239,68,68,0.25)',
+                transition: 'color 0.15s, border-color 0.15s'
+              }}>{letter}</div>
+            )
+          })}
         </div>
         <input
           autoFocus
           value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && input === 'SMAZAT' && onConfirm()}
-          placeholder="Zadejte SMAZAT"
-          style={{ width:'100%', padding:'9px 12px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:8, color:T.text, fontSize:14, outline:'none', boxSizing:'border-box', marginBottom:20 }}
+          onChange={e => setInput(e.target.value.toUpperCase().slice(0, 6))}
+          onKeyDown={e => e.key === 'Enter' && hotovo && onConfirm()}
+          placeholder="Pište sem…"
+          style={{ width:'100%', padding:'9px 12px', background:'rgba(239,68,68,0.06)', border:`1px solid ${hotovo ? '#ef4444' : 'rgba(239,68,68,0.3)'}`, borderRadius:8, color:T.text, fontSize:15, fontFamily:'monospace', fontWeight:700, letterSpacing:4, outline:'none', boxSizing:'border-box', marginBottom:20, textAlign:'center' }}
         />
         <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
           <button onClick={onCancel}
             style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>
             Zrušit
           </button>
-          <button onClick={onConfirm} disabled={input !== 'SMAZAT'}
-            style={{ padding:'9px 20px', background: input === 'SMAZAT' ? '#ef4444' : 'rgba(239,68,68,0.2)', border:'none', borderRadius:8, color:'#fff', cursor: input === 'SMAZAT' ? 'pointer' : 'not-allowed', fontSize:13, fontWeight:700, opacity: input === 'SMAZAT' ? 1 : 0.5 }}>
+          <button onClick={onConfirm} disabled={!hotovo}
+            style={{ padding:'9px 20px', background: hotovo ? '#ef4444' : 'rgba(239,68,68,0.2)', border:'none', borderRadius:8, color:'#fff', cursor: hotovo ? 'pointer' : 'not-allowed', fontSize:13, fontWeight:700, opacity: hotovo ? 1 : 0.5, transition:'background 0.2s, opacity 0.2s' }}>
             Smazat trvale
           </button>
         </div>
@@ -2597,7 +2615,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260323_07 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260323_08 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2646,7 +2664,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_07</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_08</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
