@@ -1,8 +1,8 @@
-// Build: 20260323_01
+// Build: 20260323_02
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
-// 20260323_01 – záložka Výchozí sazby jen pro admina
+// 20260323_02 – záložka Aplikace (sazby + info o app); login stránka přepracována
 // 20260322_10 – user může mít oblasti_read; READ tlačítka aktivní pro všechny role
 // 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
@@ -52,7 +52,7 @@ export default function NastaveniPage() {
   const { dark, toggle: toggleTheme, T } = useTheme()
   const router = useRouter()
   const supabase = createClient()
-  const [tab, setTab]     = useState('sazby')
+  const [tab, setTab]     = useState('aplikace')
   const [me, setMe]       = useState(null)
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -72,6 +72,8 @@ export default function NastaveniPage() {
   const [userErr,  setUserErr]    = useState('')
   const [addingUser, setAddingUser] = useState(false)
   const [savingSazby, setSavingSazby] = useState(false)
+  const [appInfo, setAppInfo] = useState({ verze: '', datum: '', autor: 'M. Dočekal' })
+  const [savingAppInfo, setSavingAppInfo] = useState(false)
   const [savingName, setSavingName] = useState(false)
 
   useEffect(() => {
@@ -95,6 +97,7 @@ export default function NastaveniPage() {
         }
       }
       const sazbyData = prof?.default_sazby
+      if (prof?.app_info) setAppInfo(prev => ({ ...prev, ...prof.app_info }))
       if (sazbyData) setSazby(prev => ({ ...prev, ...sazbyData, index_rozbor: sazbyData.index_rozbor ?? '-15' }))
       setLoading(false)
     }
@@ -224,6 +227,13 @@ export default function NastaveniPage() {
     flash('✓ Sazby uloženy')
   }
 
+  const saveAppInfo = async () => {
+    setSavingAppInfo(true)
+    await supabase.from('profiles').update({ app_info: appInfo }).eq('id', me.id)
+    setSavingAppInfo(false)
+    flash('✓ Info uloženo')
+  }
+
   const logout = async () => { await supabase.auth.signOut(); router.push('/login') }
 
   if (loading) return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', color:'#64748b', background:T.bg }}>Načítám…</div>
@@ -231,7 +241,7 @@ export default function NastaveniPage() {
   const isAdmin = me?.role === 'admin'
   const TABS = [
     ...(isAdmin ? [{ k:'uzivatele', l:'👥 Uživatelé' }] : []),
-    ...(isAdmin ? [{ k:'sazby', l:'💰 Výchozí sazby' }] : []),
+    ...(isAdmin ? [{ k:'aplikace', l:'⚙️ Aplikace' }] : []),
     { k:'profil', l:'👤 Můj profil' },
   ]
 
@@ -336,7 +346,7 @@ export default function NastaveniPage() {
         )}
 
         {/* ── SAZBY ── */}
-        {tab === 'sazby' && (
+        {tab === 'aplikace' && (
           <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
             <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:'20px 22px' }}>
               <SecHead color="#f59e0b">Výchozí sazby pro import EBC</SecHead>
@@ -372,6 +382,35 @@ export default function NastaveniPage() {
               <button onClick={saveSazby} disabled={savingSazby}
                 style={{ marginTop:20, padding:'9px 22px', background: savingSazby ? '#374151' : 'linear-gradient(135deg,#d97706,#b45309)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor: savingSazby ? 'default' : 'pointer', opacity: savingSazby ? 0.7 : 1 }}>
                 {savingSazby ? '⏳ Ukládám…' : 'Uložit sazby'}
+              </button>
+            </div>
+
+            {/* INFO O APLIKACI */}
+            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:12, padding:'20px 22px' }}>
+              <SecHead color="#10b981">Info o aplikaci</SecHead>
+              <div style={{ color:T.muted, fontSize:12, marginBottom:16 }}>
+                Zobrazí se na přihlašovací obrazovce pod tlačítkem Přihlásit se.
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, marginBottom:16 }}>
+                <div>
+                  <Lbl T={T}>Verze</Lbl>
+                  <input type="text" value={appInfo.verze || ''} onChange={e => setAppInfo(v => ({ ...v, verze: e.target.value }))}
+                    placeholder="v1.0" style={{ ...inputSx(T), fontFamily:'monospace' }} />
+                </div>
+                <div>
+                  <Lbl T={T}>Datum</Lbl>
+                  <input type="text" value={appInfo.datum || ''} onChange={e => setAppInfo(v => ({ ...v, datum: e.target.value }))}
+                    placeholder="03/2026" style={{ ...inputSx(T), fontFamily:'monospace' }} />
+                </div>
+                <div>
+                  <Lbl T={T}>Autor © </Lbl>
+                  <input type="text" value={appInfo.autor || ''} onChange={e => setAppInfo(v => ({ ...v, autor: e.target.value }))}
+                    placeholder="M. Dočekal" style={inputSx(T)} />
+                </div>
+              </div>
+              <button onClick={saveAppInfo} disabled={savingAppInfo}
+                style={{ padding:'9px 22px', background: savingAppInfo ? '#374151' : 'linear-gradient(135deg,#059669,#047857)', border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:600, cursor: savingAppInfo ? 'default' : 'pointer', opacity: savingAppInfo ? 0.7 : 1 }}>
+                {savingAppInfo ? '⏳ Ukládám…' : 'Uložit info'}
               </button>
             </div>
           </div>

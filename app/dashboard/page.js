@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260323_01
+// Build: 20260323_02
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -37,7 +37,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260323_01'
+const BUILD = '20260323_02'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()

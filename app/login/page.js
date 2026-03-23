@@ -1,15 +1,23 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase'
+
+const ADMIN_UUID = 'c905118b-e578-497d-ab4e-077477f445ae'
 
 export default function LoginPage() {
   const [email, setEmail]   = useState('')
   const [pass, setPass]     = useState('')
   const [err, setErr]       = useState('')
   const [loading, setLoading] = useState(false)
+  const [appInfo, setAppInfo] = useState({ verze: '', datum: '', autor: 'M. Dočekal' })
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    supabase.from('profiles').select('app_info').eq('id', ADMIN_UUID).single()
+      .then(({ data }) => { if (data?.app_info) setAppInfo(prev => ({ ...prev, ...data.app_info })) })
+  }, [])
 
   const handle = async () => {
     if (!email || !pass) { setErr('Vyplňte email a heslo'); return }
@@ -45,22 +53,26 @@ export default function LoginPage() {
       }}>
         {/* LOGO */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <svg width="72" height="72" viewBox="0 0 80 80" fill="none" style={{ display: 'block', margin: '0 auto 14px' }}>
+          <svg width="72" height="72" viewBox="0 0 80 80" fill="none" style={{ display: 'block', margin: '0 auto 16px' }}>
             <defs>
               <radialGradient id="lgbg" cx="50%" cy="35%" r="70%">
-                <stop offset="0%" stopColor="#2563eb" />
+                <stop offset="0%" stopColor="#1d4ed8" />
                 <stop offset="100%" stopColor="#0f172a" />
               </radialGradient>
             </defs>
-            <circle cx="40" cy="40" r="38" fill="url(#lgbg)" stroke="#2563eb" strokeWidth="1.5" strokeOpacity="0.5" />
-            <polygon points="47,10 30,42 40,42 33,68 52,36 42,36" fill="#facc15" />
-            <circle cx="18" cy="24" r="2.2" fill="#facc15" opacity="0.55" />
-            <circle cx="62" cy="22" r="1.8" fill="#facc15" opacity="0.45" />
-            <circle cx="65" cy="56" r="2"   fill="#facc15" opacity="0.4"  />
-            <circle cx="15" cy="58" r="1.6" fill="#facc15" opacity="0.5"  />
+            <circle cx="40" cy="40" r="38" fill="url(#lgbg)" stroke="#2563eb" strokeWidth="1.5" strokeOpacity="0.6" />
+            {/* Stylizované "R" ze sloupců rozboru */}
+            <rect x="22" y="16" width="7" height="48" rx="2" fill="#facc15" opacity="0.9" />
+            <rect x="22" y="16" width="26" height="7" rx="2" fill="#facc15" opacity="0.9" />
+            <rect x="22" y="33" width="22" height="7" rx="2" fill="#facc15" opacity="0.9" />
+            <rect x="38" y="40" width="7" height="24" rx="2" fill="#facc15" opacity="0.75" transform="rotate(30 38 40)" />
+            {/* Sloupce grafu vpravo */}
+            <rect x="56" y="44" width="6" height="20" rx="1.5" fill="#3b82f6" opacity="0.6" />
+            <rect x="64" y="34" width="6" height="30" rx="1.5" fill="#3b82f6" opacity="0.4" />
           </svg>
-          <h1 style={{ color: '#fff', fontSize: 26, fontWeight: 800, margin: 0 }}>Kalkulace staveb</h1>
-          <p style={{ color: 'rgba(255,255,255,0.4)', margin: '6px 0 0', fontSize: 13, letterSpacing: 2, textTransform: 'uppercase' }}>EG.D · Třebíč</p>
+          <h1 style={{ color: '#fff', fontSize: 28, fontWeight: 900, margin: '0 0 6px', letterSpacing: -0.5 }}>Rozbor staveb</h1>
+          <p style={{ color: '#facc15', margin: '0 0 4px', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}>ZMES s.r.o.</p>
+          <p style={{ color: 'rgba(255,255,255,0.35)', margin: 0, fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Jihlava · Třebíč · Znojmo</p>
         </div>
 
         {/* FORM */}
@@ -99,6 +111,14 @@ export default function LoginPage() {
         }}>
           {loading ? 'Přihlašuji…' : 'Přihlásit se →'}
         </button>
+
+        {/* VERZE + AUTOR */}
+        <div style={{ marginTop: 24, textAlign: 'center', borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: 16 }}>
+          <div style={{ color: 'rgba(255,255,255,0.25)', fontSize: 11, letterSpacing: 0.5 }}>
+            {appInfo.verze && <span>{appInfo.verze}{appInfo.datum ? ` · ${appInfo.datum}` : ''} · </span>}
+            © {appInfo.autor || 'M. Dočekal'}
+          </div>
+        </div>
       </div>
     </div>
   )
