@@ -1,9 +1,10 @@
+// Build: 20260323_04
+// Login – přihlašovací obrazovka
 'use client'
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '../../lib/supabase'
 
-const ADMIN_UUID = 'c905118b-e578-497d-ab4e-077477f445ae'
 
 export default function LoginPage() {
   const [email, setEmail]   = useState('')
@@ -15,7 +16,7 @@ export default function LoginPage() {
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('profiles').select('app_info').eq('id', ADMIN_UUID).single()
+    supabase.from('app_settings').select('app_info').single()
       .then(({ data }) => { if (data?.app_info) setAppInfo(prev => ({ ...prev, ...data.app_info })) })
   }, [])
 
