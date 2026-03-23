@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260323_01
+// Build: 20260323_03
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -9,7 +9,7 @@
 // GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
 // Supabase: https://khvnaiokxvnbdogaphlw.supabase.co
 // Anon key: sb_publishable_WSrjfJhMNxxzfwRCPYBfYA_0LcCoNXq
-// Admin: docekal@zmes.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
+// Admin: doco@seznam.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
 //
 // SEKCE KALKULAČKY:
 // MZDY:    mont_vn, mont_nn, mont_opto, rezerv_mont
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260323_01    – Globální sazby: při importu načíst z admin profilu
+// 20260323_03    – fix save: user_id se nepřepisuje při importu editorem
 // 20260321_21    – Kontrola přístupu podle oblastí; whitelist oblastí
 // 20260321_01    – Přidána pravidla vývoje #0-#4 do poznámek; build sync
 // 20260317_34    – Nastavení: API route pro přidání uživatelů, odstranění Vzhled aplikace
@@ -1797,7 +1797,7 @@ export default function StavbaPage() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     const { error } = await supabase.from('stavby')
-      .update({ ...data, user_id: user?.id || data.user_id, updated_at: new Date().toISOString() })
+      .update({ ...data, user_id: data.user_id, updated_at: new Date().toISOString() })
       .eq('id', params.id)
     if (error) {
       console.error('Save error:', error)
@@ -2401,9 +2401,7 @@ export default function StavbaPage() {
       }
 
       // Načti výchozí sazby z profiles
-      // Globální sazby — vždy z admin profilu
-      const ADMIN_UUID = 'c905118b-e578-497d-ab4e-077477f445ae'
-      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', ADMIN_UUID).single()
+      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', (await supabase.auth.getUser()).data.user?.id).single()
       const defaultSazby = profData?.default_sazby || {}
       setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc, defaultSazby })
       setImportDialog(null)
@@ -2566,7 +2564,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260321_21 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260323_03 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2615,7 +2613,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260321_21</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_03</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>

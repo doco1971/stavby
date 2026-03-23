@@ -1,8 +1,8 @@
-// Build: 20260323_02
+// Build: 20260323_03
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
-// 20260323_02 – záložka Aplikace (sazby + info o app); login stránka přepracována
+// 20260323_03 – záložka Aplikace (sazby + info o app); login stránka přepracována
 // 20260322_10 – user může mít oblasti_read; READ tlačítka aktivní pro všechny role
 // 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
