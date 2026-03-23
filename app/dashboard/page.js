@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260323_06
+// Build: 20260323_07
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260323_07 – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06 – mazání stavby z dashboardu: menu ⋮ (Otevřít/Smazat) + dvojité potvrzení (confirm + SMAZAT)
 // 20260322_11 – autor stavby pod oblastí v dashboardu
 // 20260322_10 – user vidí stavby dle oblasti_read
@@ -38,7 +39,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260323_06'
+const BUILD = '20260323_07'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
