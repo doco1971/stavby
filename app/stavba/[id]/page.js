@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260321_21
+// Build: 20260323_01
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -9,7 +9,7 @@
 // GitHub: doco1971/stavby | URL: https://kalkulace-stavby.vercel.app
 // Supabase: https://khvnaiokxvnbdogaphlw.supabase.co
 // Anon key: sb_publishable_WSrjfJhMNxxzfwRCPYBfYA_0LcCoNXq
-// Admin: doco@seznam.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
+// Admin: docekal@zmes.cz | UUID: c905118b-e578-497d-ab4e-077477f445ae
 //
 // SEKCE KALKULAČKY:
 // MZDY:    mont_vn, mont_nn, mont_opto, rezerv_mont
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260323_01    – Globální sazby: při importu načíst z admin profilu
 // 20260321_21    – Kontrola přístupu podle oblastí; whitelist oblastí
 // 20260321_01    – Přidána pravidla vývoje #0-#4 do poznámek; build sync
 // 20260317_34    – Nastavení: API route pro přidání uživatelů, odstranění Vzhled aplikace
@@ -2400,7 +2401,9 @@ export default function StavbaPage() {
       }
 
       // Načti výchozí sazby z profiles
-      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', (await supabase.auth.getUser()).data.user?.id).single()
+      // Globální sazby — vždy z admin profilu
+      const ADMIN_UUID = 'c905118b-e578-497d-ab4e-077477f445ae'
+      const { data: profData } = await supabase.from('profiles').select('default_sazby').eq('id', ADMIN_UUID).single()
       const defaultSazby = profData?.default_sazby || {}
       setSazbyDialog({ parsedEBC, noveMzdy, noveMech, noveZemni, noveGn, noveDof, noveDofegd, prispevekSklad, hMont, zemniPraceKc, defaultSazby })
       setImportDialog(null)

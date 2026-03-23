@@ -1,8 +1,8 @@
-// Build: 20260322_11
+// Build: 20260323_01
 // Nastavení – profil, výchozí sazby, správa uživatelů
 // ============================================================
 // CHANGELOG:
-// 20260322_11 – BUILD sync
+// 20260323_01 – záložka Výchozí sazby jen pro admina
 // 20260322_10 – user může mít oblasti_read; READ tlačítka aktivní pro všechny role
 // 20260322_09 – fix READ tlačítka opacity pro user roli
 // 20260322_08 – normalizace oblastí pro user roli při načtení; fix dashboard oblasti_edit
@@ -80,6 +80,7 @@ export default function NastaveniPage() {
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', session.user.id).single()
       if (!prof) { router.push('/login'); return }
       setMe({ ...session.user, ...prof })
+      if (prof?.role !== 'admin') setTab('profil')
       if (prof?.role === 'admin') {
         setTab('uzivatele')
         const res = await fetch('/api/get-users')
@@ -230,7 +231,7 @@ export default function NastaveniPage() {
   const isAdmin = me?.role === 'admin'
   const TABS = [
     ...(isAdmin ? [{ k:'uzivatele', l:'👥 Uživatelé' }] : []),
-    { k:'sazby',  l:'💰 Výchozí sazby' },
+    ...(isAdmin ? [{ k:'sazby', l:'💰 Výchozí sazby' }] : []),
     { k:'profil', l:'👤 Můj profil' },
   ]
 
