@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260323_05
+// Build: 20260323_06
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260323_06 – mazání stavby z dashboardu: menu ⋮ (Otevřít/Smazat) + dvojité potvrzení (confirm + SMAZAT)
 // 20260322_11 – autor stavby pod oblastí v dashboardu
 // 20260322_10 – user vidí stavby dle oblasti_read
 // 20260322_09 – editor vidí stavby z edit+read oblastí; fix fallback
@@ -37,7 +38,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260323_05'
+const BUILD = '20260323_06'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -51,6 +52,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [logoutConfirm, setLogoutConfirm] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(null) // id stavby
+  const [deleteConfirm1, setDeleteConfirm1] = useState(null) // { id, nazev }
+  const [deleteConfirm2, setDeleteConfirm2] = useState(null) // { id, nazev }
+  const [deleteInput, setDeleteInput] = useState('')
   useEffect(() => {
     const init = async () => {
       try {
@@ -102,6 +107,11 @@ export default function Dashboard() {
 
   const logout = async () => { await supabase.auth.signOut(); router.push('/login') }
 
+  const handleDeleteStavba = async (id) => {
+    await supabase.from('stavby').delete().eq('id', id)
+    setStavby(prev => prev.filter(s => s.id !== id))
+  }
+
   const novaStavba = async () => {
     const { data } = await supabase.from('stavby').insert({
       user_id: user.id, oblast: profile?.oblast || 'Třebíč',
@@ -117,23 +127,50 @@ export default function Dashboard() {
     .filter(s => search === '' || baseNazev(s.nazev).toLowerCase().includes(search.toLowerCase()))
 
   const renderStavba = (s) => (
-    <div key={s.id} onClick={() => router.push(`/stavba/${s.id}`)}
-      style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '16px 18px', cursor: 'pointer', marginBottom: 8 }}
-      onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
-      onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.nazev}</div>
-          <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{s.cislo && `č. ${s.cislo} · `}{s.oblast}</div>
-          <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>🕐 Záloha: {new Date(s.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-          <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
-          <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
-          <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>👤 {s.profiles?.name || s.profiles?.email || '—'}</div>
+    <div key={s.id} style={{ position: 'relative' }}>
+      <div onClick={() => router.push(`/stavba/${s.id}`)}
+        style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, padding: '16px 18px', cursor: 'pointer', marginBottom: 8 }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = T.accent}
+        onMouseLeave={e => e.currentTarget.style.borderColor = T.border}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 15, color: T.text }}>{s.nazev}</div>
+            <div style={{ color: T.muted, fontSize: 12, marginTop: 3 }}>{s.cislo && `č. ${s.cislo} · `}{s.oblast}</div>
+            <div style={{ color: '#10b981', fontSize: 11, marginTop: 2 }}>🕐 Záloha: {new Date(s.updated_at).toLocaleString('cs-CZ', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' })}</div>
+          </div>
+          <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+            <div>
+              <div style={{ fontSize: 10, color: T.muted, textTransform: 'uppercase' }}>Oblast</div>
+              <div style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: T.accent }}>{s.oblast}</div>
+              <div style={{ fontSize: 11, color: T.muted, marginTop: 2 }}>👤 {s.profiles?.name || s.profiles?.email || '—'}</div>
+            </div>
+            {profile?.role === 'admin' && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={e => { e.stopPropagation(); setMenuOpen(menuOpen === s.id ? null : s.id) }}
+                  style={{ background: 'transparent', border: `1px solid ${T.border}`, borderRadius: 6, color: T.muted, cursor: 'pointer', fontSize: 16, padding: '2px 8px', lineHeight: 1.4 }}>
+                  ⋮
+                </button>
+                {menuOpen === s.id && (
+                  <div style={{ position: 'absolute', right: 0, top: '110%', background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, minWidth: 140, zIndex: 100, boxShadow: '0 8px 24px rgba(0,0,0,0.3)' }}>
+                    <button
+                      onClick={e => { e.stopPropagation(); setMenuOpen(null); router.push(`/stavba/${s.id}`) }}
+                      style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', color: T.text, fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+                      ✏️ Otevřít
+                    </button>
+                    <div style={{ height: 1, background: T.border, margin: '2px 0' }} />
+                    <button
+                      onClick={e => { e.stopPropagation(); setMenuOpen(null); setDeleteConfirm1({ id: s.id, nazev: s.nazev }) }}
+                      style={{ display: 'block', width: '100%', padding: '10px 16px', background: 'transparent', border: 'none', color: '#ef4444', fontSize: 13, textAlign: 'left', cursor: 'pointer' }}>
+                      🗑️ Smazat
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-
     </div>
   )
 
@@ -156,6 +193,14 @@ export default function Dashboard() {
   }
 
   const canEdit = profile?.role === 'admin' || profile?.role === 'user.editor'
+
+  // Zavřít menu klikem mimo
+  useEffect(() => {
+    if (!menuOpen) return
+    const close = () => setMenuOpen(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [menuOpen])
 
   return (
     <div style={{ minHeight: '100vh', background: T.bg }}>
@@ -235,6 +280,54 @@ export default function Dashboard() {
                 style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
               <button onClick={logout}
                 style={{ padding:'9px 20px', background:'linear-gradient(135deg,#2563eb,#1d4ed8)', border:'none', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:13, fontWeight:700 }}>Odhlásit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Krok 1: confirm dialog mazání */}
+      {deleteConfirm1 && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:'1px solid rgba(239,68,68,0.4)', borderRadius:14, padding:28, maxWidth:400, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:16, fontWeight:800, color:'#ef4444', marginBottom:12 }}>⚠️ Smazat stavbu</div>
+            <div style={{ color:T.text, fontSize:13, lineHeight:1.6, marginBottom:24 }}>
+              Opravdu smazat stavbu <strong>„{deleteConfirm1.nazev}"</strong>? Tato akce je nevratná.
+            </div>
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setDeleteConfirm1(null)}
+                style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+              <button onClick={() => { setDeleteConfirm2(deleteConfirm1); setDeleteConfirm1(null); setDeleteInput('') }}
+                style={{ padding:'9px 20px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:8, color:'#ef4444', cursor:'pointer', fontSize:13, fontWeight:700 }}>Pokračovat</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Krok 2: zadání slova SMAZAT */}
+      {deleteConfirm2 && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:'1px solid rgba(239,68,68,0.4)', borderRadius:14, padding:28, maxWidth:420, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:16, fontWeight:800, color:'#ef4444', marginBottom:12 }}>⚠️ Poslední potvrzení</div>
+            <div style={{ color:T.text, fontSize:13, lineHeight:1.6, marginBottom:16 }}>
+              Pro smazání stavby <strong>„{deleteConfirm2.nazev}"</strong> zadejte slovo <strong style={{ color:'#ef4444' }}>SMAZAT</strong>:
+            </div>
+            <input
+              autoFocus
+              value={deleteInput}
+              onChange={e => setDeleteInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && deleteInput === 'SMAZAT') { handleDeleteStavba(deleteConfirm2.id); setDeleteConfirm2(null); setDeleteInput('') } }}
+              placeholder="Zadejte SMAZAT"
+              style={{ width:'100%', padding:'9px 12px', background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:8, color:T.text, fontSize:14, outline:'none', boxSizing:'border-box', marginBottom:20 }}
+            />
+            <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => { setDeleteConfirm2(null); setDeleteInput('') }}
+                style={{ padding:'9px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+              <button
+                onClick={() => { if (deleteInput === 'SMAZAT') { handleDeleteStavba(deleteConfirm2.id); setDeleteConfirm2(null); setDeleteInput('') } }}
+                disabled={deleteInput !== 'SMAZAT'}
+                style={{ padding:'9px 20px', background: deleteInput === 'SMAZAT' ? '#ef4444' : 'rgba(239,68,68,0.2)', border:'none', borderRadius:8, color:'#fff', cursor: deleteInput === 'SMAZAT' ? 'pointer' : 'not-allowed', fontSize:13, fontWeight:700, opacity: deleteInput === 'SMAZAT' ? 1 : 0.5 }}>
+                Smazat trvale
+              </button>
             </div>
           </div>
         </div>
