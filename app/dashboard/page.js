@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260323_08
+// Build: 20260323_09
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,6 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
+// 20260323_09 – filtr staveb podle autora (dropdown, dynamický ze staveb)
 // 20260323_08 – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07 – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06 – mazání stavby z dashboardu: menu ⋮ (Otevřít/Smazat) + dvojité potvrzení (confirm + SMAZAT)
@@ -40,7 +41,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260323_08'
+const BUILD = '20260323_09'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -49,8 +50,9 @@ export default function Dashboard() {
   const [user, setUser]       = useState(null)
   const [profile, setProfile] = useState(null)
   const [stavby, setStavby]   = useState([])
-  const [filter, setFilter]   = useState('vse')
-  const [search, setSearch]   = useState('')
+  const [filter, setFilter]       = useState('vse')
+  const [filterAutor, setFilterAutor] = useState('vse')
+  const [search, setSearch]       = useState('')
   const [loading, setLoading] = useState(true)
   const [err, setErr]         = useState('')
   const [logoutConfirm, setLogoutConfirm] = useState(false)
@@ -124,8 +126,18 @@ export default function Dashboard() {
 
   const baseNazev = (nazev) => String(nazev || '').replace(/\s*-\s*\(\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}\)\s*$/, '').trim()
 
+  const autori = [...new Map(
+    stavby
+      .filter(s => s.profiles?.name || s.profiles?.email)
+      .map(s => {
+        const id = s.profiles?.name || s.profiles?.email
+        return [id, { id, label: s.profiles?.name || s.profiles?.email }]
+      })
+  ).values()]
+
   const filtered = stavby
     .filter(s => filter === 'vse' || s.oblast === filter)
+    .filter(s => filterAutor === 'vse' || (s.profiles?.name || s.profiles?.email) === filterAutor)
     .filter(s => search === '' || baseNazev(s.nazev).toLowerCase().includes(search.toLowerCase()))
 
   const renderStavba = (s) => (
@@ -247,6 +259,13 @@ export default function Dashboard() {
               {o === 'vse' ? 'Vše' : o}
             </button>
           ))}
+          {autori.length > 1 && (
+            <select value={filterAutor} onChange={e => setFilterAutor(e.target.value)}
+              style={{ padding: '9px 12px', background: filterAutor !== 'vse' ? 'rgba(99,102,241,0.1)' : T.card, border: `1px solid ${filterAutor !== 'vse' ? '#818cf8' : T.border}`, borderRadius: 8, color: filterAutor !== 'vse' ? '#818cf8' : T.muted, fontSize: 13, cursor: 'pointer', outline: 'none' }}>
+              <option value="vse">👤 Autor: všichni</option>
+              {autori.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+            </select>
+          )}
           <div style={{ marginLeft: 'auto', color: T.muted, fontSize: 12, alignSelf: 'center' }}>{filtered.length} staveb</div>
         </div>
 
