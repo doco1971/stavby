@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_08
+// Build: 20260324_09
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_08    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_09    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1943,7 +1943,7 @@ export default function StavbaPage() {
 
     // Hlavička sekce
     const th = (label, barva) => `<tr style="background:${barva}22">
-      <td colspan="8" style="padding:5px 8px;font-weight:800;color:${barva};font-size:10px;border-bottom:2px solid ${barva}44;text-transform:uppercase;letter-spacing:0.5px">${label}</td>
+      <td colspan="8" style="padding:5px 8px;font-weight:800;color:${barva};font-size:10px;border-bottom:2px solid ${barva}44;text-transform:uppercase;letter-spacing:0.5px;text-align:left">${label}</td>
     </tr>`
 
     // MZDY
@@ -2066,10 +2066,13 @@ export default function StavbaPage() {
       .meta h2{font-size:12px;font-weight:700;margin-bottom:2px}
       .meta p{color:#64748b;font-size:8px}
       .meta .baz{color:#1d4ed8;font-weight:700;font-size:10px;margin-top:3px}
-      table{width:100%;border-collapse:collapse;font-size:8.5px}
-      th{background:#1e293b;color:white;padding:5px 6px;text-align:right;font-size:8px;white-space:nowrap}
-      th:first-child{text-align:left;width:22%}
-      td{text-align:right}
+      table{width:100%;border-collapse:collapse;font-size:8.5px;table-layout:fixed}
+      th{background:#1e293b;color:white;padding:4px 4px;text-align:right;font-size:8px;white-space:nowrap;overflow:hidden}
+      th:first-child{text-align:left;width:26%}
+      th:nth-child(2){width:11%}th:nth-child(3){width:8%}th:nth-child(4){width:11%}
+      th:nth-child(5){width:11%}th:nth-child(6){width:10%}th:nth-child(7){width:10%}th:nth-child(8){width:13%}
+      td{text-align:right;padding:3px 4px!important;overflow:hidden;white-space:nowrap}
+      td:first-child{text-align:left}
       .foot{margin-top:10px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:7.5px;color:#94a3b8;display:flex;justify-content:space-between}
     </style></head><body>
       <div class="top"><h1>Rozbor staveb \u2014 ZMES s.r.o.</h1><small>${s.import_build||'manual'}</small></div>
@@ -2880,7 +2883,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_08 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_09 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2929,7 +2932,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_08</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_09</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
