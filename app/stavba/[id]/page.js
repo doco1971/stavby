@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260323_10
+// Build: 20260324_02
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260323_10    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_02    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1754,6 +1754,7 @@ export default function StavbaPage() {
   const [katalog, setKatalog] = useState([])
   const [katalogDialog, setKatalogDialog] = useState(null)
   const [deleteConfirm2, setDeleteConfirm2] = useState(null) // { nazev, onConfirm }
+  const [printOrientDialog, setPrintOrientDialog] = useState(false)
   const [importDialog, setImportDialog] = useState(null)
   const [profile, setProfile] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
@@ -1913,6 +1914,21 @@ export default function StavbaPage() {
   // Protlaky hodnota pro rozbor (kladná)
   const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
 
+  // ── Tisk s volbou orientace ────────────────────────────
+  const handleTisk = (orient) => {
+    setPrintOrientDialog(false)
+    let styleEl = document.getElementById('print-orient-style')
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'print-orient-style'
+      document.head.appendChild(styleEl)
+    }
+    styleEl.textContent = '@media print { @page { size: A4 ' + orient + '; margin: 4mm; } }'
+    document.documentElement.classList.add('printing')
+    window.print()
+    setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+  }
+
   // ── Export do Excelu ──────────────────────────────────────
   const exportExcel = async () => {
     if (!window.XLSX) {
@@ -1991,97 +2007,6 @@ export default function StavbaPage() {
     XL.writeFile(wb, nazevSouboru)
   }
 
-  // ── Export do PDF ──────────────────────────────────────
-  const exportPDF = async () => {
-    if (!window.jspdf) {
-      await new Promise((res, rej) => {
-        const script = document.createElement('script')
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
-        script.onload = res; script.onerror = rej
-        document.head.appendChild(script)
-      })
-    }
-    if (!window.jspdf?.jsPDF) { alert('Nepodařilo se načíst knihovnu jsPDF.'); return }
-    const { jsPDF } = window.jspdf
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
-    const pri = num(s.prirazka)
-    const fmtK = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kc'
-    const W = 277, ml = 12, lh = 7
-
-    // Hlavička
-    doc.setFillColor(37, 99, 235)
-    doc.rect(0, 0, W + 20, 18, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFontSize(13); doc.setFont('helvetica', 'bold')
-    doc.text('ROZBOR STAVEB', ml, 11)
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal')
-    doc.text('Build: ' + (s.import_build || 'manual'), W - 20, 11)
-
-    // Info o stavbě
-    doc.setTextColor(30, 30, 30)
-    doc.setFontSize(14); doc.setFont('helvetica', 'bold')
-    doc.text(s.nazev || 'Bez nazvu', ml, 28)
-    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80)
-    const info = [s.cislo && ('c. ' + s.cislo), s.oblast, s.datum].filter(Boolean).join('   |   ')
-    doc.text(info, ml, 34)
-    doc.setDrawColor(200, 200, 200); doc.line(ml, 37, W, 37)
-
-    // Tabulka přehledu
-    let y = 44
-    const cols = [ml, 80, 140, 200]
-    const hlavicka = ['Sekce', 'Bez prirazky', 'Se prirazkou', 'Vyplaceno']
-    doc.setFillColor(240, 245, 255); doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F')
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30)
-    hlavicka.forEach((h, i) => doc.text(h, cols[i], y))
-    y += lh
-
-    const radky = [
-      ['Mzdy', c.mzdySumBez, c.mzdySumHzs, num(s.vypl_mzdy)],
-      ['Mechanizace', c.mechSumBez, c.mechSumS, num(s.vypl_mech)],
-      ['Zemni prace', c.zemniSumBez, c.zemniSumS, num(s.vypl_zemni)],
-      ['Globalni naklady', c.gnSumBez, c.gnSumS, num(s.vypl_gn)],
-      ['DOF', c.dofBez, c.dofSumS, 0],
-      ['Material zhotovitele', c.matZhot, c.matZhot, 0],
-      ['Prispevek na sklad', c.prispSklad, c.prispSklad * (1 + pri), 0],
-    ]
-
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
-    radky.forEach((r, i) => {
-      if (i % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F') }
-      doc.setTextColor(30, 30, 30); doc.text(String(r[0]), cols[0], y)
-      doc.setTextColor(80, 80, 80)
-      doc.text(fmtK(r[1]), cols[1], y)
-      doc.text(fmtK(r[2]), cols[2], y)
-      if (r[3]) doc.text(fmtK(r[3]), cols[3], y)
-      y += lh
-    })
-
-    // Celkem
-    doc.setFillColor(37, 99, 235)
-    doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F')
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold')
-    doc.text('BAZOVA CENA CELKEM', cols[0], y)
-    doc.text(fmtK(c.bazova), cols[2], y)
-    const vyplCelkem = num(s.vypl_mzdy) + num(s.vypl_mech) + num(s.vypl_zemni) + num(s.vypl_gn)
-    if (vyplCelkem) doc.text(fmtK(vyplCelkem), cols[3], y)
-    y += lh + 4
-
-    // Zisk
-    if (c.celkemZisk) {
-      const ziskPct = c.bazova > 0 ? (c.celkemZisk / c.bazova * 100).toFixed(1) : '0'
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
-      const ziskBarva = c.celkemZisk >= 0 ? [4, 120, 87] : [185, 28, 28]
-      doc.setTextColor(...ziskBarva)
-      doc.text('Zisk: ' + fmtK(c.celkemZisk) + '   (' + ziskPct + ' %)', ml, y)
-    }
-
-    // Zápatí
-    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(150, 150, 150)
-    doc.text('Rozbor staveb · ZMES s.r.o. · ' + new Date().toLocaleString('cs-CZ'), ml, 200)
-
-    const nazevSouboru = (s.cislo ? s.cislo + '_' : '') + (s.nazev || 'stavba').replace(/[/\\?*[\]]/g, '_') + '.pdf'
-    doc.save(nazevSouboru)
-  }
 
   // ── Import z Excelu ──────────────────────────────────────
   const handleImportFile = async (e) => {
@@ -2786,7 +2711,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260323_10 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_02 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2835,7 +2760,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_10</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_02</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2884,16 +2809,9 @@ export default function StavbaPage() {
                     🔍 Rozpis
                   </button>
                 )}
-                <button onClick={() => {
-                  document.documentElement.classList.add('printing')
-                  window.print()
-                  setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-                }} style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                <button onClick={() => setPrintOrientDialog(true)}
+                  style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🖨️ Tisk
-                </button>
-                <button onClick={exportPDF}
-                  style={{ padding:'6px 12px', background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  📄 PDF
                 </button>
                 <button onClick={exportExcel}
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
@@ -3320,6 +3238,34 @@ export default function StavbaPage() {
       {rozpisDialog && <RozpisDialog T={T} c={c} s={s} fmt={fmt} itemSum={itemSum} mkRows={mkRows} onClose={() => setRozpisDialog(false)} />}
 
       {sazbyDialog && <SazbyDialog T={T} nazev={sazbyDialog.parsedEBC.nazev} defaultSazby={sazbyDialog.defaultSazby} onConfirm={applySazby} onCancel={() => setSazbyDialog(null)} />}
+
+      {/* Modal: volba orientace tisku */}
+      {printOrientDialog && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+          <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:360, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
+            <div style={{ fontSize:16, fontWeight:800, color:T.text, marginBottom:8 }}>🖨️ Tisk</div>
+            <div style={{ color:T.muted, fontSize:13, marginBottom:24 }}>Zvolte orientaci stránky:</div>
+            <div style={{ display:'flex', gap:12, marginBottom:20 }}>
+              <button onClick={() => handleTisk('portrait')}
+                style={{ flex:1, padding:'18px 12px', background:'rgba(37,99,235,0.08)', border:'2px solid rgba(37,99,235,0.3)', borderRadius:10, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+                <div style={{ width:32, height:44, border:'2px solid #3b82f6', borderRadius:3, background:'rgba(59,130,246,0.08)' }} />
+                <span style={{ fontSize:13, fontWeight:700, color:'#60a5fa' }}>Na výšku</span>
+                <span style={{ fontSize:11, color:T.muted }}>A4 portrait</span>
+              </button>
+              <button onClick={() => handleTisk('landscape')}
+                style={{ flex:1, padding:'18px 12px', background:'rgba(37,99,235,0.08)', border:'2px solid rgba(37,99,235,0.3)', borderRadius:10, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
+                <div style={{ width:44, height:32, border:'2px solid #3b82f6', borderRadius:3, background:'rgba(59,130,246,0.08)' }} />
+                <span style={{ fontSize:13, fontWeight:700, color:'#60a5fa' }}>Na šířku</span>
+                <span style={{ fontSize:11, color:T.muted }}>A4 landscape</span>
+              </button>
+            </div>
+            <div style={{ display:'flex', justifyContent:'flex-end' }}>
+              <button onClick={() => setPrintOrientDialog(false)}
+                style={{ padding:'8px 20px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:8, color:T.muted, cursor:'pointer', fontSize:13 }}>Zrušit</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal: zadání slova SMAZAT — krok 2 mazání */}
       {deleteConfirm2 && (
