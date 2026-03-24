@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260323_08
+// Build: 20260323_10
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,6 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
+// 20260323_10    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1912,6 +1913,176 @@ export default function StavbaPage() {
   // Protlaky hodnota pro rozbor (kladná)
   const protlakVal = Math.abs(itemSum(s.zemni['protlak']?.rows || mkRows()))
 
+  // ── Export do Excelu ──────────────────────────────────────
+  const exportExcel = async () => {
+    if (!window.XLSX) {
+      await new Promise((res, rej) => {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+        script.onload = res; script.onerror = rej
+        document.head.appendChild(script)
+      })
+    }
+    const XL = window.XLSX
+    const wb = XL.utils.book_new()
+    const pri = num(s.prirazka)
+    const fmtN = n => Math.round(Number(n) * 100) / 100
+
+    // List 1: Přehled stavby
+    const prehled = [
+      ['Rozbor staveb — Export'],
+      ['Název stavby', s.nazev || ''],
+      ['Číslo stavby', s.cislo || ''],
+      ['Oblast', s.oblast || ''],
+      ['Datum', s.datum || ''],
+      ['Přirážka (%)', fmtN(pri * 100)],
+      [],
+      ['SEKCE', 'Bez přirážky (Kč)', 'Se přirážkou (Kč)'],
+      ['Mzdy', fmtN(c.mzdySumBez), fmtN(c.mzdySumHzs)],
+      ['Mechanizace', fmtN(c.mechSumBez), fmtN(c.mechSumS)],
+      ['Zemní práce', fmtN(c.zemniSumBez), fmtN(c.zemniSumS)],
+      ['Globální náklady', fmtN(c.gnSumBez), fmtN(c.gnSumS)],
+      ['Doloženo fakturou (DOF)', fmtN(c.dofBez), fmtN(c.dofSumS)],
+      ['Materiál zhotovitele', fmtN(c.matZhot), fmtN(c.matZhot)],
+      ['Příspěvek na sklad', fmtN(c.prispSklad), fmtN(c.prispSklad * (1 + pri))],
+      [],
+      ['BÁZOVÁ CENA CELKEM', '', fmtN(c.bazova)],
+    ]
+    const wsPrehled = XL.utils.aoa_to_sheet(prehled)
+    wsPrehled['!cols'] = [{ wch: 30 }, { wch: 22 }, { wch: 22 }]
+    XL.utils.book_append_sheet(wb, wsPrehled, 'Přehled')
+
+    // List 2: Rozbor — vyplaceno a zisk
+    const rozbor = [
+      ['ROZBOR STAVBY — Vyplaceno a zisk'],
+      ['Sekce', 'Bázová cena (Kč)', 'K vyplacení (Kč)', 'Vyplaceno (Kč)', 'Zisk (Kč)'],
+      ['Mzdy', fmtN(c.mzdySumHzs), fmtN(c.mzdySumBez * 0.66), fmtN(num(s.vypl_mzdy)), fmtN(c.mzdyZisk)],
+      ['Mechanizace', fmtN(c.mechSumS), fmtN(c.mechSumBez * 0.8), fmtN(num(s.vypl_mech)), fmtN(c.mechZisk)],
+      ['Zemní práce', fmtN(c.zemniSumS), fmtN(c.zemniSumBez * 0.8), fmtN(num(s.vypl_zemni)), fmtN(c.zemniZisk)],
+      ['Globální náklady', fmtN(c.gnSumS), fmtN(c.gnSumBez * 0.8), fmtN(num(s.vypl_gn)), fmtN(c.gnZisk)],
+      [],
+      ['CELKEM', fmtN(c.bazova), '', fmtN(num(s.vypl_mzdy)+num(s.vypl_mech)+num(s.vypl_zemni)+num(s.vypl_gn)), fmtN(c.celkemZisk)],
+    ]
+    const wsRozbor = XL.utils.aoa_to_sheet(rozbor)
+    wsRozbor['!cols'] = [{ wch: 24 }, { wch: 22 }, { wch: 22 }, { wch: 22 }, { wch: 18 }]
+    XL.utils.book_append_sheet(wb, wsRozbor, 'Rozbor')
+
+    // List 3: Vstupní hodnoty — všechny položky
+    const vstupRows = [['VSTUPNÍ HODNOTY'], ['Sekce', 'Položka', 'Částka (Kč)']]
+    const addSekce = (nazev, sekceObj, items) => {
+      items.forEach(it => {
+        const rows = sekceObj[it.key]?.rows || []
+        rows.forEach(r => {
+          if (r.popis || num(r.castka)) vstupRows.push([nazev, r.popis || it.label, fmtN(num(r.castka))])
+        })
+      })
+    }
+    addSekce('Mzdy', s.mzdy, MZDY)
+    addSekce('Mechanizace', s.mech, MECH)
+    addSekce('Zemní práce', s.zemni, ZEMNI)
+    addSekce('Globální náklady', s.gn, GN)
+    addSekce('DOF', s.dof, DOF)
+    addSekce('DOFEGD', s.dofegd, DOFEGD)
+    const wsVstup = XL.utils.aoa_to_sheet(vstupRows)
+    wsVstup['!cols'] = [{ wch: 22 }, { wch: 36 }, { wch: 18 }]
+    XL.utils.book_append_sheet(wb, wsVstup, 'Vstupní hodnoty')
+
+    const nazevSouboru = `${s.cislo ? s.cislo + '_' : ''}${(s.nazev || 'stavba').replace(/[/\\?*[\]]/g, '_')}.xlsx`
+    XL.writeFile(wb, nazevSouboru)
+  }
+
+  // ── Export do PDF ──────────────────────────────────────
+  const exportPDF = async () => {
+    if (!window.jspdf) {
+      await new Promise((res, rej) => {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js'
+        script.onload = res; script.onerror = rej
+        document.head.appendChild(script)
+      })
+    }
+    if (!window.jspdf?.jsPDF) { alert('Nepodařilo se načíst knihovnu jsPDF.'); return }
+    const { jsPDF } = window.jspdf
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
+    const pri = num(s.prirazka)
+    const fmtK = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Kc'
+    const W = 277, ml = 12, lh = 7
+
+    // Hlavička
+    doc.setFillColor(37, 99, 235)
+    doc.rect(0, 0, W + 20, 18, 'F')
+    doc.setTextColor(255, 255, 255)
+    doc.setFontSize(13); doc.setFont('helvetica', 'bold')
+    doc.text('ROZBOR STAVEB', ml, 11)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal')
+    doc.text('Build: ' + (s.import_build || 'manual'), W - 20, 11)
+
+    // Info o stavbě
+    doc.setTextColor(30, 30, 30)
+    doc.setFontSize(14); doc.setFont('helvetica', 'bold')
+    doc.text(s.nazev || 'Bez nazvu', ml, 28)
+    doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(80, 80, 80)
+    const info = [s.cislo && ('c. ' + s.cislo), s.oblast, s.datum].filter(Boolean).join('   |   ')
+    doc.text(info, ml, 34)
+    doc.setDrawColor(200, 200, 200); doc.line(ml, 37, W, 37)
+
+    // Tabulka přehledu
+    let y = 44
+    const cols = [ml, 80, 140, 200]
+    const hlavicka = ['Sekce', 'Bez prirazky', 'Se prirazkou', 'Vyplaceno']
+    doc.setFillColor(240, 245, 255); doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F')
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(30, 30, 30)
+    hlavicka.forEach((h, i) => doc.text(h, cols[i], y))
+    y += lh
+
+    const radky = [
+      ['Mzdy', c.mzdySumBez, c.mzdySumHzs, num(s.vypl_mzdy)],
+      ['Mechanizace', c.mechSumBez, c.mechSumS, num(s.vypl_mech)],
+      ['Zemni prace', c.zemniSumBez, c.zemniSumS, num(s.vypl_zemni)],
+      ['Globalni naklady', c.gnSumBez, c.gnSumS, num(s.vypl_gn)],
+      ['DOF', c.dofBez, c.dofSumS, 0],
+      ['Material zhotovitele', c.matZhot, c.matZhot, 0],
+      ['Prispevek na sklad', c.prispSklad, c.prispSklad * (1 + pri), 0],
+    ]
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+    radky.forEach((r, i) => {
+      if (i % 2 === 0) { doc.setFillColor(248, 250, 252); doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F') }
+      doc.setTextColor(30, 30, 30); doc.text(String(r[0]), cols[0], y)
+      doc.setTextColor(80, 80, 80)
+      doc.text(fmtK(r[1]), cols[1], y)
+      doc.text(fmtK(r[2]), cols[2], y)
+      if (r[3]) doc.text(fmtK(r[3]), cols[3], y)
+      y += lh
+    })
+
+    // Celkem
+    doc.setFillColor(37, 99, 235)
+    doc.rect(ml - 2, y - 5, W - ml + 2, lh, 'F')
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold')
+    doc.text('BAZOVA CENA CELKEM', cols[0], y)
+    doc.text(fmtK(c.bazova), cols[2], y)
+    const vyplCelkem = num(s.vypl_mzdy) + num(s.vypl_mech) + num(s.vypl_zemni) + num(s.vypl_gn)
+    if (vyplCelkem) doc.text(fmtK(vyplCelkem), cols[3], y)
+    y += lh + 4
+
+    // Zisk
+    if (c.celkemZisk) {
+      const ziskPct = c.bazova > 0 ? (c.celkemZisk / c.bazova * 100).toFixed(1) : '0'
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
+      const ziskBarva = c.celkemZisk >= 0 ? [4, 120, 87] : [185, 28, 28]
+      doc.setTextColor(...ziskBarva)
+      doc.text('Zisk: ' + fmtK(c.celkemZisk) + '   (' + ziskPct + ' %)', ml, y)
+    }
+
+    // Zápatí
+    doc.setFontSize(8); doc.setFont('helvetica', 'normal'); doc.setTextColor(150, 150, 150)
+    doc.text('Rozbor staveb · ZMES s.r.o. · ' + new Date().toLocaleString('cs-CZ'), ml, 200)
+
+    const nazevSouboru = (s.cislo ? s.cislo + '_' : '') + (s.nazev || 'stavba').replace(/[/\\?*[\]]/g, '_') + '.pdf'
+    doc.save(nazevSouboru)
+  }
+
   // ── Import z Excelu ──────────────────────────────────────
   const handleImportFile = async (e) => {
     const file = e.target.files[0]
@@ -2615,7 +2786,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260323_08 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260323_10 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2664,7 +2835,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_08</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Kalkulace stavby · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260323_10</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2719,6 +2890,14 @@ export default function StavbaPage() {
                   setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
                 }} style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🖨️ Tisk
+                </button>
+                <button onClick={exportPDF}
+                  style={{ padding:'6px 12px', background:'rgba(239,68,68,0.12)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  📄 PDF
+                </button>
+                <button onClick={exportExcel}
+                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  📊 Excel
                 </button>
                 <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
                   <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
