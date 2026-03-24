@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_02
+// Build: 20260324_03
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_02    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_03    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1923,10 +1923,12 @@ export default function StavbaPage() {
       styleEl.id = 'print-orient-style'
       document.head.appendChild(styleEl)
     }
-    styleEl.textContent = '@media print { @page { size: A4 ' + orient + '; margin: 4mm; } }'
+    styleEl.textContent = '@page { size: A4 ' + orient + '; margin: 10mm 4mm 4mm 4mm; }'
     document.documentElement.classList.add('printing')
-    window.print()
-    setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+    setTimeout(() => {
+      window.print()
+      setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+    }, 100)
   }
 
   // ── Export do Excelu ──────────────────────────────────────
@@ -2711,7 +2713,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_02 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_03 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2727,7 +2729,7 @@ export default function StavbaPage() {
       {/* PRINT STYLY */}
       <style>{`
         @media print {
-          @page { size: A4 landscape; margin: 4mm; }
+          @page { margin: 4mm; }
           .no-print { display: none !important; }
           .rozbor-print { padding: 0 !important; width: 100% !important; }
           * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -2760,7 +2762,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_02</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_03</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -3241,7 +3243,7 @@ export default function StavbaPage() {
 
       {/* Modal: volba orientace tisku */}
       {printOrientDialog && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
+        <div className="no-print" style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000 }}>
           <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:14, padding:28, maxWidth:360, width:'90%', boxShadow:'0 20px 60px rgba(0,0,0,0.5)' }}>
             <div style={{ fontSize:16, fontWeight:800, color:T.text, marginBottom:8 }}>🖨️ Tisk</div>
             <div style={{ color:T.muted, fontSize:13, marginBottom:24 }}>Zvolte orientaci stránky:</div>
