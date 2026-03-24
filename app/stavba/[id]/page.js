@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_12
+// Build: 20260324_13
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_12    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_13    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -2924,7 +2924,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_12 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_13 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2973,7 +2973,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_12</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_13</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -3156,7 +3156,7 @@ export default function StavbaPage() {
                   <div style={{ color:T.muted, fontSize:10, letterSpacing:1, textTransform:'uppercase' }}>Číslo a název stavby</div>
                   <div style={{ color:T.text, fontWeight:800, fontSize:15 }}>{s.nazev}</div>
                   <div style={{ color:T.muted, fontSize:12 }}>č. {s.cislo} · {s.oblast} · {s.datum}</div>
-                  {s.import_build && <div style={{ color:'#64748b', fontSize:10, fontFamily:'monospace', marginTop:2 }}>📦 {s.import_build}</div>}
+                  {s.import_build && <div style={{ color:'#94a3b8', fontSize:12, fontFamily:'monospace', marginTop:3 }}>📦 {s.import_build}</div>}
                 </div>
                 <div style={{ display:'flex', gap:24 }}>
                   {[
@@ -3164,7 +3164,7 @@ export default function StavbaPage() {
                     { l:'Cena s přirážkou', v:c.bazova*(1+num(s.prirazka)),    col:'#60a5fa', p:null },
                   ].map(({l,v,col,p})=>(
                     <div key={l} style={{ textAlign:'right' }}>
-                      <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
+                      <div style={{ color:'#94a3b8', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>{l}</div>
                       <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(v)}</div>
                     </div>
                   ))}
@@ -3234,7 +3234,7 @@ export default function StavbaPage() {
                     return (<>
                       {/* Zisk celkem — číslo */}
                       <div style={{ textAlign:'right' }}>
-                        <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
+                        <div style={{ color:'#94a3b8', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem</div>
                         {hasAny ? (<>
                           <div style={{ color:col, fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{fmt(ziskCelkem)}</div>
                           <div style={{ color:col, fontSize:9, marginTop:2 }}>{status}</div>
@@ -3244,10 +3244,11 @@ export default function StavbaPage() {
                       </div>
                       {/* Zisk celkem % */}
                       <div style={{ textAlign:'right' }}>
-                        <div style={{ color:T.muted, fontSize:9, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem %</div>
+                        <div style={{ color:'#94a3b8', fontSize:11, textTransform:'uppercase', letterSpacing:0.5 }}>Zisk celkem %</div>
                         {hasAny && ziskPct ? (<>
+                          <div style={{ color:col, fontFamily:'monospace', fontSize:13, fontWeight:800, whiteSpace:'nowrap' }}>{fmt(ziskCelkem)}</div>
                           <div style={{ color:'#f59e0b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>{ziskPct} %</div>
-                          <div style={{ color:'#f59e0b', fontSize:9, marginTop:2 }}>{status}</div>
+                          <div style={{ color:'#f59e0b', fontSize:10, marginTop:2 }}>{status}</div>
                         </>) : (
                           <div style={{ color:'#64748b', fontFamily:'monospace', fontSize:16, fontWeight:900 }}>—</div>
                         )}
