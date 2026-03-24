@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_03
+// Build: 20260324_04
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_03    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_04    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1917,18 +1917,86 @@ export default function StavbaPage() {
   // ── Tisk s volbou orientace ────────────────────────────
   const handleTisk = (orient) => {
     setPrintOrientDialog(false)
-    let styleEl = document.getElementById('print-orient-style')
-    if (!styleEl) {
-      styleEl = document.createElement('style')
-      styleEl.id = 'print-orient-style'
-      document.head.appendChild(styleEl)
-    }
-    styleEl.textContent = '@page { size: A4 ' + orient + '; margin: 10mm 4mm 4mm 4mm; }'
-    document.documentElement.classList.add('printing')
-    setTimeout(() => {
-      window.print()
-      setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-    }, 100)
+    const pri = num(s.prirazka)
+    const fmtK = n => Number(n).toLocaleString('cs-CZ', { minimumFractionDigits:2, maximumFractionDigits:2 })
+    const vyplCelkem = num(s.vypl_mzdy) + num(s.vypl_mech) + num(s.vypl_zemni) + num(s.vypl_gn)
+    const ziskPct = c.bazova > 0 ? (c.celkemZisk / c.bazova * 100).toFixed(1) : '0'
+    const ziskBarva = c.celkemZisk >= 0 ? '#047857' : '#b91c1c'
+    const radky = [
+      { label:'Mzdy', bez: c.mzdySumBez, sP: c.mzdySumHzs, kVypl: c.mzdySumBez*0.66, vypl: num(s.vypl_mzdy), zisk: c.mzdyZisk },
+      { label:'Mechanizace', bez: c.mechSumBez, sP: c.mechSumS, kVypl: c.mechSumBez*0.8, vypl: num(s.vypl_mech), zisk: c.mechZisk },
+      { label:'Zemn\u00ed pr\u00e1ce', bez: c.zemniSumBez, sP: c.zemniSumS, kVypl: c.zemniSumBez*0.8, vypl: num(s.vypl_zemni), zisk: c.zemniZisk },
+      { label:'Glob\u00e1ln\u00ed n\u00e1klady', bez: c.gnSumBez, sP: c.gnSumS, kVypl: c.gnSumBez*0.8, vypl: num(s.vypl_gn), zisk: c.gnZisk },
+      { label:'Dolo\u017eeno fakturou (DOF)', bez: c.dofBez, sP: c.dofSumS, kVypl: c.dofSumS, vypl: 0, zisk: 0 },
+      { label:'Materi\u00e1l zhotovitele', bez: c.matZhot, sP: c.matZhot, kVypl: c.matZhot*0.8, vypl: 0, zisk: 0 },
+      { label:'P\u0159\u00edsp\u011bvek na sklad', bez: c.prispSklad, sP: c.prispSklad*(1+pri), kVypl: c.prispSklad*0.8, vypl: 0, zisk: 0 },
+    ]
+    const radkyHTML = radky.map((r,i) => `
+      <tr style="background:${i%2===0?'#f8fafc':'#ffffff'}">
+        <td>${r.label}</td>
+        <td>${r.bez ? fmtK(r.bez) : '\u2014'}</td>
+        <td>${r.sP ? fmtK(r.sP) : '\u2014'}</td>
+        <td>${r.kVypl ? fmtK(r.kVypl) : '\u2014'}</td>
+        <td>${r.vypl ? fmtK(r.vypl) : '\u2014'}</td>
+        <td style="color:${r.zisk>0?'#047857':r.zisk<0?'#b91c1c':'#64748b'};font-weight:700">${r.zisk ? fmtK(r.zisk) : '\u2014'}</td>
+      </tr>`).join('')
+    const html = `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Rozbor stavby</title><style>
+      @page { size: A4 ${orient}; margin: 8mm; }
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+      body { background: white; color: #1e293b; font-size: 10px; }
+      .hlavicka { background: #1d4ed8; color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; border-radius: 4px; margin-bottom: 8px; }
+      .hlavicka h1 { font-size: 14px; font-weight: 800; }
+      .hlavicka .build { font-size: 9px; opacity: 0.8; }
+      .info { margin-bottom: 10px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+      .info h2 { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 3px; }
+      .info .meta { color: #64748b; font-size: 9px; }
+      .bazova { font-size: 11px; font-weight: 700; color: #1d4ed8; margin-top: 4px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+      th { background: #1d4ed8; color: white; padding: 5px 6px; text-align: right; font-size: 9px; font-weight: 700; }
+      th:first-child { text-align: left; }
+      td { padding: 4px 6px; text-align: right; border-bottom: 1px solid #f1f5f9; font-size: 9px; }
+      td:first-child { text-align: left; font-weight: 500; }
+      .celkem td { background: #dbeafe; font-weight: 800; color: #1d4ed8; font-size: 10px; border-top: 2px solid #1d4ed8; }
+      .zisk-row { margin-top: 6px; font-size: 11px; font-weight: 800; color: ${ziskBarva}; }
+      .zapati { position: fixed; bottom: 4mm; left: 8mm; right: 8mm; font-size: 8px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 3px; display: flex; justify-content: space-between; }
+    </style></head><body>
+      <div class="hlavicka">
+        <h1>Rozbor staveb &mdash; ZMES s.r.o.</h1>
+        <span class="build">Build: ${s.import_build || 'manual'}</span>
+      </div>
+      <div class="info">
+        <h2>${s.nazev || 'Bez n\u00e1zvu'}</h2>
+        <div class="meta">${[s.cislo && ('\u010d. ' + s.cislo), s.oblast, s.datum].filter(Boolean).join('  \u00b7  ')}</div>
+        <div class="bazova">B\u00e1zov\u00e1 cena: ${fmtK(c.bazova)} K\u010d &nbsp;&nbsp; P\u0159ir\u00e1\u017eka: ${(pri*100).toFixed(1)} %</div>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="width:22%">Sekce</th>
+          <th>Bez p\u0159ir\u00e1\u017eky</th>
+          <th>Se p\u0159ir\u00e1\u017ekou</th>
+          <th>K vyplacen\u00ed</th>
+          <th>Vyplaceno</th>
+          <th>Zisk</th>
+        </tr></thead>
+        <tbody>${radkyHTML}</tbody>
+        <tfoot><tr class="celkem">
+          <td>CELKEM ZA STAVBU</td>
+          <td></td>
+          <td>${fmtK(c.bazova)}</td>
+          <td></td>
+          <td>${vyplCelkem ? fmtK(vyplCelkem) : '\u2014'}</td>
+          <td style="color:${ziskBarva}">${c.celkemZisk ? fmtK(c.celkemZisk) : '\u2014'}</td>
+        </tr></tfoot>
+      </table>
+      ${c.celkemZisk ? `<div class="zisk-row">Zisk celkem: ${fmtK(c.celkemZisk)} K\u010d (${ziskPct} %)</div>` : ''}
+      <div class="zapati">
+        <span>Rozbor staveb &middot; ZMES s.r.o.</span>
+        <span>${new Date().toLocaleString('cs-CZ')}</span>
+      </div>
+      <script>window.onload=function(){window.print()};window.onafterprint=function(){window.close()};<\/script>
+    </body></html>`
+    const w = window.open('', '_blank', 'width=900,height=700')
+    if (w) { w.document.write(html); w.document.close() }
   }
 
   // ── Export do Excelu ──────────────────────────────────────
@@ -2713,7 +2781,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_03 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_04 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2762,7 +2830,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_03</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_04</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
