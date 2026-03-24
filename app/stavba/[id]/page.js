@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_06
+// Build: 20260324_07
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_06    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_07    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1917,112 +1917,21 @@ export default function StavbaPage() {
   // ── Tisk s volbou orientace ────────────────────────────
   const handleTisk = (orient) => {
     setPrintOrientDialog(false)
-    const pri = num(s.prirazka)
-    const fmtK = n => n ? Number(n).toLocaleString('cs-CZ', { minimumFractionDigits:2, maximumFractionDigits:2 }) : '\u2014'
-    const vyplCelkem = num(s.vypl_mzdy) + num(s.vypl_mech) + num(s.vypl_zemni) + num(s.vypl_gn)
-    const ziskPct = c.bazova > 0 ? (c.celkemZisk / c.bazova * 100).toFixed(1) : '0'
-    const ziskBarva = c.celkemZisk >= 0 ? '#047857' : '#b91c1c'
-
-    // Pomocník: řádky sekce
-    const sekceHTML = (nazev, barva, polozky, sekceObj, sumBez, sumSP, vyplField, ziskVal) => {
-      const radky = polozky.map(it => {
-        const rows = sekceObj[it.key]?.rows || []
-        const castka = rows.reduce((a,r) => a + num(r.castka), 0)
-        if (!castka) return ''
-        const label = sekceObj[it.key]?.customLabel || it.label
-        return `<tr><td style="padding-left:16px;color:#334155">${label}</td><td>${fmtK(castka)}</td><td></td><td></td><td></td><td></td></tr>`
-      }).join('')
-      if (!sumBez && !sumSP) return ''
-      return `
-        <tr style="background:#f1f5f9">
-          <td style="font-weight:700;color:${barva}">${nazev}</td>
-          <td style="font-weight:700">${fmtK(sumBez)}</td>
-          <td style="font-weight:700">${fmtK(sumSP)}</td>
-          <td></td>
-          <td style="font-weight:700">${vyplField ? fmtK(num(vyplField)) : '\u2014'}</td>
-          <td style="font-weight:700;color:${ziskVal>=0?'#047857':'#b91c1c'}">${ziskVal ? fmtK(ziskVal) : '\u2014'}</td>
-        </tr>${radky}`
+    // Přepnout na záložku Rozbor pokud tam ještě nejsme
+    if (tab !== 'rozbor') setTab('rozbor')
+    let styleEl = document.getElementById('print-orient-style')
+    if (!styleEl) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'print-orient-style'
+      document.head.appendChild(styleEl)
     }
-
-    const tbody = [
-      sekceHTML('Mzdy mont\u00e1\u017ee','#1d4ed8', MZDY, s.mzdy, c.mzdySumBez, c.mzdySumHzs, s.vypl_mzdy, c.mzdyZisk),
-      sekceHTML('Mechanizace','#b45309', MECH, s.mech, c.mechSumBez, c.mechSumS, s.vypl_mech, c.mechZisk),
-      sekceHTML('Zemn\u00ed pr\u00e1ce','#b91c1c', ZEMNI, s.zemni, c.zemniSumBez, c.zemniSumS, s.vypl_zemni, c.zemniZisk),
-      sekceHTML('Glob\u00e1ln\u00ed n\u00e1klady','#047857', GN, s.gn, c.gnSumBez, c.gnSumS, s.vypl_gn, c.gnZisk),
-      sekceHTML('Dolo\u017eeno fakturou','#6d28d9', DOF, s.dof, c.dofBez, c.dofSumS, null, 0),
-      sekceHTML('DOFEGD (evidenčn\u00ed)','#475569', DOFEGD, s.dofegd, c.dofegdBez, c.dofegdBez, null, 0),
-    ].join('')
-
-    const html = `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title>Rozbor stavby</title><style>
-      @page { size: A4 ${orient}; margin: 8mm; }
-      * { box-sizing:border-box; margin:0; padding:0; font-family:Arial,sans-serif; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-      body { background:white; color:#1e293b; font-size:9px; }
-      .hlavicka { background:#1d4ed8; color:white; padding:7px 10px; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
-      .hlavicka h1 { font-size:13px; font-weight:800; }
-      .hlavicka small { font-size:8px; opacity:0.8; }
-      .info { margin-bottom:8px; padding-bottom:7px; border-bottom:2px solid #1d4ed8; }
-      .info h2 { font-size:12px; font-weight:700; margin-bottom:2px; }
-      .info .meta { color:#64748b; font-size:8px; margin-bottom:3px; }
-      .info .bazova { font-size:10px; font-weight:700; color:#1d4ed8; }
-      table { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:8.5px; }
-      th { background:#1d4ed8; color:white; padding:4px 5px; text-align:right; font-size:8px; }
-      th:first-child { text-align:left; width:28%; }
-      td { padding:3px 5px; text-align:right; border-bottom:1px solid #f1f5f9; }
-      td:first-child { text-align:left; }
-      .celkem-row td { background:#dbeafe; font-weight:800; color:#1d4ed8; font-size:9px; border-top:2px solid #1d4ed8; }
-      .zisk-blok { margin-top:6px; font-size:10px; font-weight:800; color:${ziskBarva}; }
-      .zapati { margin-top:12px; padding-top:4px; border-top:1px solid #e2e8f0; font-size:7.5px; color:#94a3b8; display:flex; justify-content:space-between; }
-    </style></head><body>
-      <div class="hlavicka">
-        <h1>Rozbor staveb \u2014 ZMES s.r.o.</h1>
-        <small>Build: ${s.import_build || 'manual'}</small>
-      </div>
-      <div class="info">
-        <h2>${s.nazev || 'Bez n\u00e1zvu'}</h2>
-        <div class="meta">${[s.cislo&&('\u010d. '+s.cislo), s.oblast, s.datum].filter(Boolean).join(' \u00b7 ')}</div>
-        <div class="bazova">B\u00e1zov\u00e1 cena: ${fmtK(c.bazova)} K\u010d &nbsp; P\u0159ir\u00e1\u017eka: ${(pri*100).toFixed(1)} %</div>
-      </div>
-      <table>
-        <thead><tr>
-          <th>Sekce / Polo\u017eka</th>
-          <th>Bez p\u0159ir\u00e1\u017eky</th>
-          <th>Se p\u0159ir\u00e1\u017ekou</th>
-          <th>K vyplacen\u00ed</th>
-          <th>Vyplaceno</th>
-          <th>Zisk</th>
-        </tr></thead>
-        <tbody>${tbody}</tbody>
-        <tfoot><tr class="celkem-row">
-          <td>CELKEM ZA STAVBU</td>
-          <td></td>
-          <td>${fmtK(c.bazova)}</td>
-          <td></td>
-          <td>${vyplCelkem ? fmtK(vyplCelkem) : '\u2014'}</td>
-          <td style="color:${ziskBarva}">${c.celkemZisk ? fmtK(c.celkemZisk) : '\u2014'}</td>
-        </tr></tfoot>
-      </table>
-      ${c.celkemZisk ? `<div class="zisk-blok">Zisk celkem: ${fmtK(c.celkemZisk)} K\u010d (${ziskPct} %)</div>` : ''}
-      <div class="zapati">
-        <span>Rozbor staveb \u00b7 ZMES s.r.o.</span>
-        <span>${new Date().toLocaleString('cs-CZ')}</span>
-      </div>
-    </body></html>`
-
-    // iframe tisk — žádné nové okno, žádná URL v záhlaví
-    let iframe = document.getElementById('tisk-iframe')
-    if (iframe) iframe.remove()
-    iframe = document.createElement('iframe')
-    iframe.id = 'tisk-iframe'
-    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none;'
-    document.body.appendChild(iframe)
-    iframe.contentDocument.open()
-    iframe.contentDocument.write(html)
-    iframe.contentDocument.close()
+    styleEl.textContent = '@page { size: A4 ' + orient + '; margin: 8mm; }'
+    // Krátký timeout aby se záložka Rozbor stihla vyrenderovat
     setTimeout(() => {
-      iframe.contentWindow.focus()
-      iframe.contentWindow.print()
-      setTimeout(() => iframe.remove(), 2000)
-    }, 300)
+      document.documentElement.classList.add('printing')
+      window.print()
+      setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
+    }, 150)
   }
 
   // ── Export do Excelu ──────────────────────────────────────
@@ -2807,7 +2716,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_06 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_07 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2856,7 +2765,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_06</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_07</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
