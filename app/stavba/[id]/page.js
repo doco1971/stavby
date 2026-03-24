@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_09
+// Build: 20260324_10
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_09    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_10    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1921,159 +1921,157 @@ export default function StavbaPage() {
     const rb = s.rozbor || {}
     const defaultIdx = num(s.default_index_rozbor ?? -15)
     const getIdx = (key) => { const v = rb[key]?.idx; return v !== undefined && v !== '' ? num(v) : defaultIdx }
-    const hzsM = num(s.hzs_mont); const hzsZ = num(s.hzs_zem)
-    const zmesM = num(s.zmes_mont); const zmesZ = num(s.zmes_zem)
     const F = n => n ? Number(n).toLocaleString('cs-CZ',{minimumFractionDigits:2,maximumFractionDigits:2}) : '\u2014'
     const pct = (pri*100).toFixed(1) + '\u00a0%'
 
-    // Řádek tabulky pro tisk
     const tr = (label, bez, sP, kVypl, vypl, zisk, pozn, barva, bold=false, bg='') => {
-      const ziskC = zisk !== null ? (zisk >= 0 ? '#047857' : '#b91c1c') : '#94a3b8'
-      return `<tr style="background:${bg};${bold?'font-weight:700;':''}">
-        <td style="text-align:left;color:${barva};padding:4px 6px;border-bottom:1px solid #e2e8f0">${label}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0">${F(bez)}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b">${bez?pct:'\u2014'}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0">${F(sP)}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b">${kVypl?F(kVypl):'\u2014'}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#f59e0b">${vypl?F(vypl):'\u2014'}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:${ziskC};font-weight:${zisk!==null?'700':'400'}">${zisk!==null?F(zisk):'\u2014'}</td>
-        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:8px">${pozn||''}</td>
+      const zC = zisk !== null ? (zisk >= 0 ? '#047857' : '#b91c1c') : '#94a3b8'
+      return `<tr style="background:${bg}">
+        <td style="text-align:left;color:${bold?barva:'#334155'};font-weight:${bold?700:400};padding:3px 5px;border:1px solid #e2e8f0">${label}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;font-weight:${bold?700:400}">${F(bez)}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;color:#64748b">${bez?pct:'\u2014'}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;font-weight:${bold?700:400}">${F(sP)}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;color:#64748b">${kVypl?F(kVypl):'\u2014'}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;color:#f59e0b;font-weight:${vypl?700:400}">${vypl?F(vypl):'\u2014'}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;color:${zC};font-weight:${zisk!==null?700:400}">${zisk!==null?F(zisk):'\u2014'}</td>
+        <td style="padding:3px 5px;border:1px solid #e2e8f0;color:#64748b;font-size:7.5px">${pozn||''}</td>
       </tr>`
     }
 
-    // Hlavička sekce
-    const th = (label, barva) => `<tr style="background:${barva}22">
-      <td colspan="8" style="padding:5px 8px;font-weight:800;color:${barva};font-size:10px;border-bottom:2px solid ${barva}44;text-transform:uppercase;letter-spacing:0.5px;text-align:left">${label}</td>
+    const th = (label, barva) => `<tr style="background:${barva}18">
+      <td colspan="8" style="padding:5px 8px;font-weight:800;color:${barva};font-size:9.5px;border:1px solid ${barva}55;text-transform:uppercase;letter-spacing:0.5px;text-align:left">${label}</td>
     </tr>`
 
-    // MZDY
+    // ── MZDY (klíče bez prefixu)
     let rows = th('Mzdy mont\u00e1\u017ee','#3b82f6')
-    const mzdyItems = [
-      { key:'mont_vn', label:'Mont\u00e1\u017e VN + TS', hod: c.hodMont?.mont_vn||0, zmes: zmesM },
-      { key:'mont_nn', label:'Mont\u00e1\u017e NN', hod: c.hodMont?.mont_nn||0, zmes: zmesM },
-      { key:'mont_opto', label:'Mont\u00e1\u017e Opto', hod: c.hodMont?.mont_opto||0, zmes: zmesM },
-      { key:'rezerv_mont', label: s.mzdy?.rezerv_mont?.customLabel||'Rezerva mont\u00e1\u017e', hod: undefined, zmes: undefined },
-    ]
-    mzdyItems.forEach(it => {
+    ;[
+      {key:'mont_vn', label:'Mont\u00e1\u017e VN + TS', hzs: num(s.hzs_mont), zmes: num(s.zmes_mont), hod: c.hodMont?.mont_vn||0},
+      {key:'mont_nn', label:'Mont\u00e1\u017e NN', hzs: num(s.hzs_mont), zmes: num(s.zmes_mont), hod: c.hodMont?.mont_nn||0},
+      {key:'mont_opto', label:'Mont\u00e1\u017e Opto', hzs: num(s.hzs_mont), zmes: num(s.zmes_mont), hod: c.hodMont?.mont_opto||0},
+      {key:'rezerv_mont', label:s.mzdy?.rezerv_mont?.customLabel||'Rezerva mont\u00e1\u017e', hzs:0, zmes:0, hod:0},
+    ].forEach(it => {
       const bez = c.mzdyT?.[it.key]?.bez || 0
-      if (!bez && !num(rb[it.key]?.vypl)) return
-      const sP = bez * (1 + pri)
-      const idx = getIdx(it.key)
-      const kVypl = it.hod !== undefined ? it.hod * it.zmes * (1+idx/100) : (bez*0.6)*(1+idx/100)
       const vypl = num(rb[it.key]?.vypl||0)
+      if (!bez && !vypl) return
+      const sP = bez * (1+pri)
+      const idx = getIdx(it.key)
+      const kVypl = it.hod > 0 ? it.hod * it.zmes * (1+idx/100) : (bez*0.6)*(1+idx/100)
       const zisk = vypl > 0 ? sP - vypl * 1.34 : null
       rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#3b82f6')
     })
-    const mzdySP = c.mzdySumHzs
     const mzdyVypl = num(s.vypl_mzdy)
-    rows += tr('CELKEM MZDY', c.mzdySumBez, mzdySP, 0, mzdyVypl, mzdyVypl>0?c.mzdyZisk:null, '', '#3b82f6', true, '#dbeafe')
+    rows += tr('CELKEM MZDY', c.mzdySumBez, c.mzdySumHzs, 0, mzdyVypl, mzdyVypl>0?c.mzdyZisk:null, '', '#3b82f6', true, '#dbeafe')
 
-    // MECH
+    // ── MECH (klíče s prefixem mech_)
     rows += th('Mechanizace','#f59e0b')
-    const mechItems = [
-      {key:'jerab',label:'Autojer\u00e1b'},{key:'nakladni',label:'N\u00e1kladn\u00ed auto'},{key:'traktor',label:'Traktor'},
-      {key:'plosina',label:'Plo\u0161ina'},{key:'pila',label:'Motorov\u00e1 pila'},{key:'kango',label:'Bouraci kladivo'},
-      {key:'dodavka',label:'Dod\u00e1vkov\u00e9 auto'},{key:'mech_sdok',label:'Za\u0159\u00edzen\u00ed SDOK'},
-    ]
-    mechItems.forEach(it => {
-      const bez = c.mechT?.[it.key]?.bez || 0
-      if (!bez && !num(rb[it.key]?.vypl)) return
-      const sP = bez * (1 + pri)
+    ;[
+      {key:'mech_jerab',label:'Autojer\u00e1b'},{key:'mech_nakladni',label:'N\u00e1kladn\u00ed auto'},
+      {key:'mech_traktor',label:'Traktor'},{key:'mech_plosina',label:'Plo\u0161ina'},
+      {key:'mech_pila',label:'Motorov\u00e1 pila'},{key:'mech_kango',label:'Bouraci kladivo'},
+      {key:'mech_dodavka',label:'Dod\u00e1vkov\u00e9 auto'},{key:'mech_sdok',label:'Za\u0159\u00edzen\u00ed SDOK'},
+    ].forEach(it => {
+      const dataKey = it.key.replace('mech_','')
+      const bez = c.mechT?.[dataKey]?.bez || 0
+      const vypl = num(rb[it.key]?.vypl||0)
+      if (!bez && !vypl) return
+      const sP = bez * (1+pri)
       const idx = getIdx(it.key)
       const kVypl = bez * 0.8 * (1+idx/100)
-      const vypl = num(rb[it.key]?.vypl||0)
       const zisk = vypl > 0 ? sP - vypl : null
       rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#f59e0b')
     })
     const mechVypl = num(s.vypl_mech)
     rows += tr('CELKEM MECHANIZACE', c.mechSumBez, c.mechSumS, 0, mechVypl, mechVypl>0?c.mechZisk:null, '', '#f59e0b', true, '#fef3c7')
 
-    // ZEMNÍ
+    // ── ZEMNÍ (klíče s prefixem zemni_rb_)
     rows += th('Zemn\u00ed pr\u00e1ce','#ef4444')
-    const zemniItems = [
-      {key:'zemni_prace',label:'Zemn\u00ed pr\u00e1ce'},{key:'zadlazby',label:'Z\u00e1dla\u017eby'},{key:'asfalt',label:'Asfalt'},
-      {key:'nalosute',label:'Nalo\u017een\u00ed sut\u011b'},{key:'bagr',label:'Bagr'},{key:'kompresor',label:'Kompresor'},
-      {key:'rezac',label:'\u0158eza\u010d asfaltu'},{key:'uhlova_bruska',label:'\u00dchlova bruska'},
-      {key:'mot_pech',label:'Motorov\u00fd p\u011bch'},{key:'stav_prace',label:'Stav. pr\u00e1ce'},
-      {key:'def_fasady',label:'Def. fasady'},{key:'def_str',label:'Def. st\u0159echy'},
-      {key:'optotrubka',label:'Optotrubka'},{key:'zaorkab',label:'Zaor\u00e1n\u00ed kabel\u016f'},
-      {key:'vez_ts',label:'V\u011b\u017eov\u00e1 TS'},{key:'protlak',label:'Protlak ne\u0159\u00edzen\u00fd'},
-      {key:'protlak_rizeny',label:'Protlak \u0159\u00edzen\u00fd'},{key:'roura_pe',label:'Roura PE'},
-      {key:'pisek',label:'P\u00edsek'},{key:'sterk',label:'\u0160t\u011brk'},{key:'beton',label:'Beton'},
-      {key:'rezerv_zemni',label:s.zemni?.rezerv_zemni?.customLabel||'Rezerva zemn\u00ed'},
-    ]
-    zemniItems.forEach(it => {
-      const rows2 = s.zemni?.[it.key]?.rows || []
-      const bez = rows2.reduce((a,r)=>a+num(r.castka),0)
-      if (!bez && !num(rb[it.key]?.vypl)) return
-      const sP = bez * (1 + pri)
+    ;[
+      {key:'zemni_rb_zemni_prace',label:'Zemn\u00ed pr\u00e1ce',dk:'zemni_prace'},
+      {key:'zemni_rb_zadlazby',label:'Z\u00e1dla\u017eby',dk:'zadlazby'},
+      {key:'zemni_rb_asfalt',label:'Asfalt',dk:'asfalt'},
+      {key:'zemni_rb_nalosute',label:'Nalo\u017een\u00ed sut\u011b',dk:'nalosute'},
+      {key:'zemni_rb_bagr',label:'Bagr',dk:'bagr'},
+      {key:'zemni_rb_kompresor',label:'Kompresor',dk:'kompresor'},
+      {key:'zemni_rb_rezac',label:'\u0158eza\u010d asfaltu',dk:'rezac'},
+      {key:'zemni_rb_mot_pech',label:'Motorov\u00fd p\u011bch',dk:'mot_pech'},
+      {key:'zemni_rb_stav_prace',label:'Stav. pr\u00e1ce',dk:'stav_prace'},
+      {key:'zemni_rb_optotrubka',label:'Optotrubka',dk:'optotrubka'},
+      {key:'zemni_rb_protlak',label:'Protlak',dk:'protlak'},
+      {key:'zemni_rb_roura_pe',label:'Roura PE',dk:'roura_pe'},
+      {key:'zemni_rb_pisek',label:'P\u00edsek',dk:'pisek'},
+      {key:'zemni_rb_sterk',label:'\u0160t\u011brk',dk:'sterk'},
+      {key:'zemni_rb_beton',label:'Beton',dk:'beton'},
+      {key:'zemni_rb_rezerv_zemni',label:s.zemni?.rezerv_zemni?.customLabel||'Rezerva zemn\u00ed',dk:'rezerv_zemni'},
+    ].forEach(it => {
+      const bez = itemSum(s.zemni?.[it.dk]?.rows||[])
+      const vypl = num(rb[it.key]?.vypl||0)
+      if (!bez && !vypl) return
+      const sP = bez * (1+pri)
       const idx = getIdx(it.key)
       const kVypl = bez * 0.8 * (1+idx/100)
-      const vypl = num(rb[it.key]?.vypl||0)
       const zisk = vypl > 0 ? sP - vypl : null
       rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#ef4444')
     })
     const zemniVypl = num(s.vypl_zemni)
     rows += tr('CELKEM ZEMN\u00cd PR\u00c1CE', c.zemniSumBez, c.zemniSumS, 0, zemniVypl, zemniVypl>0?c.zemniZisk:null, '', '#ef4444', true, '#fee2e2')
 
-    // GN
+    // ── GN (klíče s prefixem gn_rb_)
     rows += th('Glob\u00e1ln\u00ed n\u00e1klady','#10b981')
-    const gnItems = [
-      {key:'inzenyrska',label:'In\u017een\u00fdring CAPEX'},{key:'geodetika',label:'Geodetick\u00e9 pr\u00e1ce'},
-      {key:'te_evidence',label:'Dokumentace TE'},{key:'vychozi_revize',label:'V\u00fdchoz\u00ed revize'},
-      {key:'pripl_ppn',label:'P\u0159\u00edplatek PPN'},{key:'ekolog_likv',label:'Ekolog. likvidace'},
-      {key:'material_vyn',label:'Materi\u00e1l v\u00fdnosov\u00fd'},{key:'doprava_mat',label:'Doprava materi\u00e1lu'},
-      {key:'pripl_capex',label:'P\u0159\u00edplatek CAPEX'},{key:'kolaudace',label:'Kolaudace'},
-      {key:'pausal_bo_do150',label:'Pau\u0161\u00e1l BO do 150'},{key:'pausal_bo_nad150',label:'Pau\u0161\u00e1l BO nad 150'},
-    ]
-    gnItems.forEach(it => {
-      const rows2 = s.gn?.[it.key]?.rows || []
-      const bez = rows2.reduce((a,r)=>a+num(r.castka),0)
-      if (!bez && !num(rb[it.key]?.vypl)) return
-      const sP = bez * (1 + pri)
+    ;[
+      {key:'gn_rb_inzenyrska',label:'In\u017een\u00fdring CAPEX',dk:'inzenyrska'},
+      {key:'gn_rb_geodetika',label:'Geodetick\u00e9 pr\u00e1ce',dk:'geodetika'},
+      {key:'gn_rb_te_evidence',label:'Dokumentace TE',dk:'te_evidence'},
+      {key:'gn_rb_vychozi_revize',label:'V\u00fdchoz\u00ed revize',dk:'vychozi_revize'},
+      {key:'gn_rb_ekolog_likv',label:'Ekolog. likvidace',dk:'ekolog_likv'},
+      {key:'gn_rb_material_vyn',label:'Materi\u00e1l v\u00fdnosov\u00fd',dk:'material_vyn'},
+      {key:'gn_rb_doprava_mat',label:'Doprava materi\u00e1lu',dk:'doprava_mat'},
+      {key:'gn_rb_pripl_capex',label:'P\u0159\u00edplatek CAPEX',dk:'pripl_capex'},
+      {key:'gn_rb_kolaudace',label:'Kolaudace',dk:'kolaudace'},
+    ].forEach(it => {
+      const bez = itemSum(s.gn?.[it.dk]?.rows||[])
+      const vypl = num(rb[it.key]?.vypl||0)
+      if (!bez && !vypl) return
+      const sP = bez * (1+pri)
       const idx = getIdx(it.key)
       const kVypl = bez * 0.8 * (1+idx/100)
-      const vypl = num(rb[it.key]?.vypl||0)
       const zisk = vypl > 0 ? sP - vypl : null
       rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#10b981')
     })
     const gnVypl = num(s.vypl_gn)
     rows += tr('CELKEM GN', c.gnSumBez, c.gnSumS, 0, gnVypl, gnVypl>0?c.gnZisk:null, '', '#10b981', true, '#d1fae5')
 
-    // CELKEM ZA STAVBU
+    // ── CELKEM ZA STAVBU
     const vyplCelkem = num(s.vypl_mzdy)+num(s.vypl_mech)+num(s.vypl_zemni)+num(s.vypl_gn)
     const ziskC = vyplCelkem > 0 ? c.celkemZisk : null
     const ziskPct = ziskC !== null && c.bazova > 0 ? ' (' + (ziskC/c.bazova*100).toFixed(1) + '\u00a0%)' : ''
-    rows += `<tr style="background:#dbeafe;font-weight:800;border-top:3px solid #1d4ed8">
-      <td style="padding:6px 8px;color:#1d4ed8;font-size:11px">CELKEM ZA STAVBU</td>
-      <td style="padding:6px;color:#1d4ed8">${F(c.mzdySumBez+c.mechSumBez+c.zemniSumBez+c.gnSumBez)}</td>
-      <td style="padding:6px;color:#64748b">${pct}</td>
-      <td style="padding:6px;color:#1d4ed8;font-size:11px">${F(c.bazova)}</td>
-      <td></td>
-      <td style="padding:6px;color:#f59e0b">${vyplCelkem?F(vyplCelkem):'\u2014'}</td>
-      <td style="padding:6px;color:${ziskC!==null?(ziskC>=0?'#047857':'#b91c1c'):'#94a3b8'};font-size:11px">${ziskC!==null?F(ziskC)+ziskPct:'\u2014'}</td>
-      <td></td>
+    rows += `<tr style="background:#dbeafe">
+      <td style="padding:5px 8px;color:#1d4ed8;font-weight:800;font-size:10px;border:2px solid #1d4ed8">CELKEM ZA STAVBU</td>
+      <td style="padding:5px;color:#1d4ed8;font-weight:800;border:2px solid #1d4ed8">${F(c.mzdySumBez+c.mechSumBez+c.zemniSumBez+c.gnSumBez)}</td>
+      <td style="padding:5px;color:#64748b;border:2px solid #1d4ed8">${pct}</td>
+      <td style="padding:5px;color:#1d4ed8;font-weight:800;font-size:10px;border:2px solid #1d4ed8">${F(c.bazova)}</td>
+      <td style="border:2px solid #1d4ed8"></td>
+      <td style="padding:5px;color:#f59e0b;font-weight:800;border:2px solid #1d4ed8">${vyplCelkem?F(vyplCelkem):'\u2014'}</td>
+      <td style="padding:5px;color:${ziskC!==null?(ziskC>=0?'#047857':'#b91c1c'):'#94a3b8'};font-weight:800;font-size:10px;border:2px solid #1d4ed8">${ziskC!==null?F(ziskC)+ziskPct:'\u2014'}</td>
+      <td style="border:2px solid #1d4ed8"></td>
     </tr>`
 
     const html = `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title></title><style>
-      @page { size: A4 ${orient}; margin: 8mm; }
+      @page{size:A4 ${orient};margin:7mm}
       *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
       body{background:white;color:#1e293b;font-size:9px}
-      .top{background:#1d4ed8;color:white;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
-      .top h1{font-size:13px;font-weight:800}
-      .top small{font-size:8px;opacity:.8}
-      .meta{margin-bottom:7px;padding-bottom:6px;border-bottom:2px solid #1d4ed8}
-      .meta h2{font-size:12px;font-weight:700;margin-bottom:2px}
+      .top{background:#1d4ed8;color:white;padding:6px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+      .top h1{font-size:12px;font-weight:800}
+      .top small{font-size:7.5px;opacity:.8}
+      .meta{margin-bottom:6px;padding-bottom:5px;border-bottom:2px solid #1d4ed8}
+      .meta h2{font-size:11px;font-weight:700;margin-bottom:2px}
       .meta p{color:#64748b;font-size:8px}
-      .meta .baz{color:#1d4ed8;font-weight:700;font-size:10px;margin-top:3px}
+      .meta .baz{color:#1d4ed8;font-weight:700;font-size:9.5px;margin-top:2px}
       table{width:100%;border-collapse:collapse;font-size:8.5px;table-layout:fixed}
-      th{background:#1e293b;color:white;padding:4px 4px;text-align:right;font-size:8px;white-space:nowrap;overflow:hidden}
-      th:first-child{text-align:left;width:26%}
-      th:nth-child(2){width:11%}th:nth-child(3){width:8%}th:nth-child(4){width:11%}
-      th:nth-child(5){width:11%}th:nth-child(6){width:10%}th:nth-child(7){width:10%}th:nth-child(8){width:13%}
-      td{text-align:right;padding:3px 4px!important;overflow:hidden;white-space:nowrap}
-      td:first-child{text-align:left}
-      .foot{margin-top:10px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:7.5px;color:#94a3b8;display:flex;justify-content:space-between}
+      th{background:#1e293b;color:white;padding:4px 5px;text-align:right;font-size:7.5px;border:1px solid #334155;overflow:hidden}
+      th:first-child{text-align:left}
+      td{text-align:right;overflow:hidden;white-space:nowrap}
+      col.c0{width:21%}col.c1{width:12%}col.c2{width:8%}col.c3{width:12%}col.c4{width:11%}col.c5{width:11%}col.c6{width:12%}col.c7{width:13%}
+      .foot{margin-top:8px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:7.5px;color:#94a3b8;display:flex;justify-content:space-between}
     </style></head><body>
       <div class="top"><h1>Rozbor staveb \u2014 ZMES s.r.o.</h1><small>${s.import_build||'manual'}</small></div>
       <div class="meta">
@@ -2082,15 +2080,19 @@ export default function StavbaPage() {
         <p class="baz">B\u00e1zov\u00e1 cena: ${F(c.bazova)}\u00a0K\u010d\u2002\u2002P\u0159ir\u00e1\u017eka: ${(pri*100).toFixed(1)}\u00a0%</p>
       </div>
       <table>
+        <colgroup><col class="c0"><col class="c1"><col class="c2"><col class="c3"><col class="c4"><col class="c5"><col class="c6"><col class="c7"></colgroup>
         <thead><tr>
           <th style="text-align:left">Polo\u017eka</th>
-          <th>Bez p\u0159ir\u00e1\u017eky</th><th>P\u0159ir\u00e1\u017eka</th><th>Se p\u0159ir\u00e1\u017ekou</th>
+          <th>Bez p\u0159ir\u00e1\u017eky</th><th>P\u0159ir.</th><th>Se p\u0159ir\u00e1\u017ekou</th>
           <th>K vyplacen\u00ed</th><th>Vyplaceno</th><th>Zisk</th><th>Pozn\u00e1mka</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="foot"><span>Rozbor staveb \u00b7 ZMES s.r.o.</span><span>${new Date().toLocaleString('cs-CZ')}</span></div>
-      <script>window.onload=function(){setTimeout(function(){window.print()},250)};window.onafterprint=function(){window.close()};<\/script>
+      <script>
+        window.onload = function() { setTimeout(function(){ window.print() }, 300) }
+        window.onafterprint = function() { setTimeout(function(){ window.close() }, 500) }
+      <\/script>
     </body></html>`
 
     const w = window.open('about:blank','_blank')
@@ -2883,7 +2885,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_09 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_10 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2932,7 +2934,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_09</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_10</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
