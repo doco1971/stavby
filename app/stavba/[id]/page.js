@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_07
+// Build: 20260324_08
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_07    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_08    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -1917,21 +1917,185 @@ export default function StavbaPage() {
   // ── Tisk s volbou orientace ────────────────────────────
   const handleTisk = (orient) => {
     setPrintOrientDialog(false)
-    // Přepnout na záložku Rozbor pokud tam ještě nejsme
-    if (tab !== 'rozbor') setTab('rozbor')
-    let styleEl = document.getElementById('print-orient-style')
-    if (!styleEl) {
-      styleEl = document.createElement('style')
-      styleEl.id = 'print-orient-style'
-      document.head.appendChild(styleEl)
+    const pri = num(s.prirazka)
+    const rb = s.rozbor || {}
+    const defaultIdx = num(s.default_index_rozbor ?? -15)
+    const getIdx = (key) => { const v = rb[key]?.idx; return v !== undefined && v !== '' ? num(v) : defaultIdx }
+    const hzsM = num(s.hzs_mont); const hzsZ = num(s.hzs_zem)
+    const zmesM = num(s.zmes_mont); const zmesZ = num(s.zmes_zem)
+    const F = n => n ? Number(n).toLocaleString('cs-CZ',{minimumFractionDigits:2,maximumFractionDigits:2}) : '\u2014'
+    const pct = (pri*100).toFixed(1) + '\u00a0%'
+
+    // Řádek tabulky pro tisk
+    const tr = (label, bez, sP, kVypl, vypl, zisk, pozn, barva, bold=false, bg='') => {
+      const ziskC = zisk !== null ? (zisk >= 0 ? '#047857' : '#b91c1c') : '#94a3b8'
+      return `<tr style="background:${bg};${bold?'font-weight:700;':''}">
+        <td style="text-align:left;color:${barva};padding:4px 6px;border-bottom:1px solid #e2e8f0">${label}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0">${F(bez)}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b">${bez?pct:'\u2014'}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0">${F(sP)}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b">${kVypl?F(kVypl):'\u2014'}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#f59e0b">${vypl?F(vypl):'\u2014'}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:${ziskC};font-weight:${zisk!==null?'700':'400'}">${zisk!==null?F(zisk):'\u2014'}</td>
+        <td style="padding:4px 6px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:8px">${pozn||''}</td>
+      </tr>`
     }
-    styleEl.textContent = '@page { size: A4 ' + orient + '; margin: 8mm; }'
-    // Krátký timeout aby se záložka Rozbor stihla vyrenderovat
-    setTimeout(() => {
-      document.documentElement.classList.add('printing')
-      window.print()
-      setTimeout(() => document.documentElement.classList.remove('printing'), 1000)
-    }, 150)
+
+    // Hlavička sekce
+    const th = (label, barva) => `<tr style="background:${barva}22">
+      <td colspan="8" style="padding:5px 8px;font-weight:800;color:${barva};font-size:10px;border-bottom:2px solid ${barva}44;text-transform:uppercase;letter-spacing:0.5px">${label}</td>
+    </tr>`
+
+    // MZDY
+    let rows = th('Mzdy mont\u00e1\u017ee','#3b82f6')
+    const mzdyItems = [
+      { key:'mont_vn', label:'Mont\u00e1\u017e VN + TS', hod: c.hodMont?.mont_vn||0, zmes: zmesM },
+      { key:'mont_nn', label:'Mont\u00e1\u017e NN', hod: c.hodMont?.mont_nn||0, zmes: zmesM },
+      { key:'mont_opto', label:'Mont\u00e1\u017e Opto', hod: c.hodMont?.mont_opto||0, zmes: zmesM },
+      { key:'rezerv_mont', label: s.mzdy?.rezerv_mont?.customLabel||'Rezerva mont\u00e1\u017e', hod: undefined, zmes: undefined },
+    ]
+    mzdyItems.forEach(it => {
+      const bez = c.mzdyT?.[it.key]?.bez || 0
+      if (!bez && !num(rb[it.key]?.vypl)) return
+      const sP = bez * (1 + pri)
+      const idx = getIdx(it.key)
+      const kVypl = it.hod !== undefined ? it.hod * it.zmes * (1+idx/100) : (bez*0.6)*(1+idx/100)
+      const vypl = num(rb[it.key]?.vypl||0)
+      const zisk = vypl > 0 ? sP - vypl * 1.34 : null
+      rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#3b82f6')
+    })
+    const mzdySP = c.mzdySumHzs
+    const mzdyVypl = num(s.vypl_mzdy)
+    rows += tr('CELKEM MZDY', c.mzdySumBez, mzdySP, 0, mzdyVypl, mzdyVypl>0?c.mzdyZisk:null, '', '#3b82f6', true, '#dbeafe')
+
+    // MECH
+    rows += th('Mechanizace','#f59e0b')
+    const mechItems = [
+      {key:'jerab',label:'Autojer\u00e1b'},{key:'nakladni',label:'N\u00e1kladn\u00ed auto'},{key:'traktor',label:'Traktor'},
+      {key:'plosina',label:'Plo\u0161ina'},{key:'pila',label:'Motorov\u00e1 pila'},{key:'kango',label:'Bouraci kladivo'},
+      {key:'dodavka',label:'Dod\u00e1vkov\u00e9 auto'},{key:'mech_sdok',label:'Za\u0159\u00edzen\u00ed SDOK'},
+    ]
+    mechItems.forEach(it => {
+      const bez = c.mechT?.[it.key]?.bez || 0
+      if (!bez && !num(rb[it.key]?.vypl)) return
+      const sP = bez * (1 + pri)
+      const idx = getIdx(it.key)
+      const kVypl = bez * 0.8 * (1+idx/100)
+      const vypl = num(rb[it.key]?.vypl||0)
+      const zisk = vypl > 0 ? sP - vypl : null
+      rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#f59e0b')
+    })
+    const mechVypl = num(s.vypl_mech)
+    rows += tr('CELKEM MECHANIZACE', c.mechSumBez, c.mechSumS, 0, mechVypl, mechVypl>0?c.mechZisk:null, '', '#f59e0b', true, '#fef3c7')
+
+    // ZEMNÍ
+    rows += th('Zemn\u00ed pr\u00e1ce','#ef4444')
+    const zemniItems = [
+      {key:'zemni_prace',label:'Zemn\u00ed pr\u00e1ce'},{key:'zadlazby',label:'Z\u00e1dla\u017eby'},{key:'asfalt',label:'Asfalt'},
+      {key:'nalosute',label:'Nalo\u017een\u00ed sut\u011b'},{key:'bagr',label:'Bagr'},{key:'kompresor',label:'Kompresor'},
+      {key:'rezac',label:'\u0158eza\u010d asfaltu'},{key:'uhlova_bruska',label:'\u00dchlova bruska'},
+      {key:'mot_pech',label:'Motorov\u00fd p\u011bch'},{key:'stav_prace',label:'Stav. pr\u00e1ce'},
+      {key:'def_fasady',label:'Def. fasady'},{key:'def_str',label:'Def. st\u0159echy'},
+      {key:'optotrubka',label:'Optotrubka'},{key:'zaorkab',label:'Zaor\u00e1n\u00ed kabel\u016f'},
+      {key:'vez_ts',label:'V\u011b\u017eov\u00e1 TS'},{key:'protlak',label:'Protlak ne\u0159\u00edzen\u00fd'},
+      {key:'protlak_rizeny',label:'Protlak \u0159\u00edzen\u00fd'},{key:'roura_pe',label:'Roura PE'},
+      {key:'pisek',label:'P\u00edsek'},{key:'sterk',label:'\u0160t\u011brk'},{key:'beton',label:'Beton'},
+      {key:'rezerv_zemni',label:s.zemni?.rezerv_zemni?.customLabel||'Rezerva zemn\u00ed'},
+    ]
+    zemniItems.forEach(it => {
+      const rows2 = s.zemni?.[it.key]?.rows || []
+      const bez = rows2.reduce((a,r)=>a+num(r.castka),0)
+      if (!bez && !num(rb[it.key]?.vypl)) return
+      const sP = bez * (1 + pri)
+      const idx = getIdx(it.key)
+      const kVypl = bez * 0.8 * (1+idx/100)
+      const vypl = num(rb[it.key]?.vypl||0)
+      const zisk = vypl > 0 ? sP - vypl : null
+      rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#ef4444')
+    })
+    const zemniVypl = num(s.vypl_zemni)
+    rows += tr('CELKEM ZEMN\u00cd PR\u00c1CE', c.zemniSumBez, c.zemniSumS, 0, zemniVypl, zemniVypl>0?c.zemniZisk:null, '', '#ef4444', true, '#fee2e2')
+
+    // GN
+    rows += th('Glob\u00e1ln\u00ed n\u00e1klady','#10b981')
+    const gnItems = [
+      {key:'inzenyrska',label:'In\u017een\u00fdring CAPEX'},{key:'geodetika',label:'Geodetick\u00e9 pr\u00e1ce'},
+      {key:'te_evidence',label:'Dokumentace TE'},{key:'vychozi_revize',label:'V\u00fdchoz\u00ed revize'},
+      {key:'pripl_ppn',label:'P\u0159\u00edplatek PPN'},{key:'ekolog_likv',label:'Ekolog. likvidace'},
+      {key:'material_vyn',label:'Materi\u00e1l v\u00fdnosov\u00fd'},{key:'doprava_mat',label:'Doprava materi\u00e1lu'},
+      {key:'pripl_capex',label:'P\u0159\u00edplatek CAPEX'},{key:'kolaudace',label:'Kolaudace'},
+      {key:'pausal_bo_do150',label:'Pau\u0161\u00e1l BO do 150'},{key:'pausal_bo_nad150',label:'Pau\u0161\u00e1l BO nad 150'},
+    ]
+    gnItems.forEach(it => {
+      const rows2 = s.gn?.[it.key]?.rows || []
+      const bez = rows2.reduce((a,r)=>a+num(r.castka),0)
+      if (!bez && !num(rb[it.key]?.vypl)) return
+      const sP = bez * (1 + pri)
+      const idx = getIdx(it.key)
+      const kVypl = bez * 0.8 * (1+idx/100)
+      const vypl = num(rb[it.key]?.vypl||0)
+      const zisk = vypl > 0 ? sP - vypl : null
+      rows += tr(it.label, bez, sP, kVypl, vypl, zisk, rb[it.key]?.pozn, '#10b981')
+    })
+    const gnVypl = num(s.vypl_gn)
+    rows += tr('CELKEM GN', c.gnSumBez, c.gnSumS, 0, gnVypl, gnVypl>0?c.gnZisk:null, '', '#10b981', true, '#d1fae5')
+
+    // CELKEM ZA STAVBU
+    const vyplCelkem = num(s.vypl_mzdy)+num(s.vypl_mech)+num(s.vypl_zemni)+num(s.vypl_gn)
+    const ziskC = vyplCelkem > 0 ? c.celkemZisk : null
+    const ziskPct = ziskC !== null && c.bazova > 0 ? ' (' + (ziskC/c.bazova*100).toFixed(1) + '\u00a0%)' : ''
+    rows += `<tr style="background:#dbeafe;font-weight:800;border-top:3px solid #1d4ed8">
+      <td style="padding:6px 8px;color:#1d4ed8;font-size:11px">CELKEM ZA STAVBU</td>
+      <td style="padding:6px;color:#1d4ed8">${F(c.mzdySumBez+c.mechSumBez+c.zemniSumBez+c.gnSumBez)}</td>
+      <td style="padding:6px;color:#64748b">${pct}</td>
+      <td style="padding:6px;color:#1d4ed8;font-size:11px">${F(c.bazova)}</td>
+      <td></td>
+      <td style="padding:6px;color:#f59e0b">${vyplCelkem?F(vyplCelkem):'\u2014'}</td>
+      <td style="padding:6px;color:${ziskC!==null?(ziskC>=0?'#047857':'#b91c1c'):'#94a3b8'};font-size:11px">${ziskC!==null?F(ziskC)+ziskPct:'\u2014'}</td>
+      <td></td>
+    </tr>`
+
+    const html = `<!DOCTYPE html><html lang="cs"><head><meta charset="UTF-8"><title></title><style>
+      @page { size: A4 ${orient}; margin: 8mm; }
+      *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+      body{background:white;color:#1e293b;font-size:9px}
+      .top{background:#1d4ed8;color:white;padding:7px 10px;display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}
+      .top h1{font-size:13px;font-weight:800}
+      .top small{font-size:8px;opacity:.8}
+      .meta{margin-bottom:7px;padding-bottom:6px;border-bottom:2px solid #1d4ed8}
+      .meta h2{font-size:12px;font-weight:700;margin-bottom:2px}
+      .meta p{color:#64748b;font-size:8px}
+      .meta .baz{color:#1d4ed8;font-weight:700;font-size:10px;margin-top:3px}
+      table{width:100%;border-collapse:collapse;font-size:8.5px}
+      th{background:#1e293b;color:white;padding:5px 6px;text-align:right;font-size:8px;white-space:nowrap}
+      th:first-child{text-align:left;width:22%}
+      td{text-align:right}
+      .foot{margin-top:10px;padding-top:4px;border-top:1px solid #e2e8f0;font-size:7.5px;color:#94a3b8;display:flex;justify-content:space-between}
+    </style></head><body>
+      <div class="top"><h1>Rozbor staveb \u2014 ZMES s.r.o.</h1><small>${s.import_build||'manual'}</small></div>
+      <div class="meta">
+        <h2>${s.nazev||'Bez n\u00e1zvu'}</h2>
+        <p>${[s.cislo&&('\u010d.\u00a0'+s.cislo),s.oblast,s.datum].filter(Boolean).join('\u2002\u00b7\u2002')}</p>
+        <p class="baz">B\u00e1zov\u00e1 cena: ${F(c.bazova)}\u00a0K\u010d\u2002\u2002P\u0159ir\u00e1\u017eka: ${(pri*100).toFixed(1)}\u00a0%</p>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Polo\u017eka</th>
+          <th>Bez p\u0159ir\u00e1\u017eky</th><th>P\u0159ir\u00e1\u017eka</th><th>Se p\u0159ir\u00e1\u017ekou</th>
+          <th>K vyplacen\u00ed</th><th>Vyplaceno</th><th>Zisk</th><th>Pozn\u00e1mka</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="foot"><span>Rozbor staveb \u00b7 ZMES s.r.o.</span><span>${new Date().toLocaleString('cs-CZ')}</span></div>
+      <script>window.onload=function(){setTimeout(function(){window.print()},250)};window.onafterprint=function(){window.close()};<\/script>
+    </body></html>`
+
+    const w = window.open('about:blank','_blank')
+    if (!w) return
+    w.document.open()
+    w.document.write(html)
+    w.document.close()
+    w.document.title = ''
   }
 
   // ── Export do Excelu ──────────────────────────────────────
@@ -2716,7 +2880,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_07 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_08 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2765,7 +2929,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_07</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_08</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
