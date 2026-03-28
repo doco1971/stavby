@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_13
+// Build: 20260324_14
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_13    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260324_14    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -823,6 +823,9 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
 
   // Hodiny montáže z compute (mont_vn + mont_nn, bez opto)
   const hodMont    = (c.mzdyT?.['mont_vn']?.hod || 0) + (c.mzdyT?.['mont_nn']?.hod || 0)
+  const hodOpto     = c.hodMont?.mont_opto || 0
+  const optoBez     = hodOpto * hzsM
+  const optoSP      = optoBez * (1 + pri)
   const zmesM      = num(s.zmes_mont)
   const montBez    = hodMont * hzsM
   const ppnBez     = itemSum(s.gn['pripl_ppn']?.rows||[])
@@ -834,9 +837,9 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const zemniMzdyBez = num(rb['mzdy_zemni']?.bez||0)
   const rezervBez    = num(rb['mzdy_rezerv']?.bez||0)
 
-  const celkemBez  = montBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
+  const celkemBez  = montBez + optoBez + zemniMzdyBez + ppnBez + stimulBez + fasadyBez + strechyBez + bruskaBez + inzBez + rezervBez
   const celkemSP   = celkemBez * (1 + pri)
-  const celkemVypl = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
+  const celkemVypl = ['mzdy_mont','mzdy_opto','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv']
     .reduce((a,k) => a + num(rb[k]?.vypl||0), 0)
 
   // Celkem K vyplacení = součet K vyplacení z jednotlivých řádků
@@ -860,6 +863,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   })()
   const celkemKVypl =
     rowKVypl(montBez,    'mzdy_mont',    hodMont, zmesM) +
+    rowKVypl(optoBez,    'mzdy_opto',    hodOpto, zmesM) +
     zemniKVypl +
     rowKVypl(ppnBez,     'mzdy_ppn') +
     rowKVypl(stimulBez,  'mzdy_stimul') +
@@ -883,6 +887,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
   const rezervSP  = rezervBez * (1 + pri)
   const celkemZiskSum =
     rowZisk(montSP,    'mzdy_mont') +
+    rowZisk(optoSP,    'mzdy_opto') +
     rowZisk(zemniSP,   'mzdy_zemni') +
     rowZisk(ppnSP,     'mzdy_ppn') +
     rowZisk(stimulSP,  'mzdy_stimul') +
@@ -907,6 +912,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
         <TH left>Poznámka</TH>
       </div>
       <RowAuto  label="Montážní práce"       bez={montBez}    hod={hodMont} zmes={zmesM}  rbKey="mzdy_mont"    ti={1} />
+      <RowAuto  label="Montáž Opto"           bez={optoBez}    hod={hodOpto} zmes={zmesM}  rbKey="mzdy_opto"    ti={4} />
       <RowManual label="Zemní práce"                                                    rbKey="mzdy_zemni"   ti={4} />
       <RowAuto  label="Příplatek PPN NN"     bez={ppnBez}         rbKey="mzdy_ppn"     ti={8} />
       <RowAuto  label="Stimul. přirážka+PPV" bez={stimulBez}   rbKey="mzdy_stimul"  ti={11} />
@@ -1114,7 +1120,8 @@ function RozborZemni({ s, T, c, sRef, setS }) {
     { label:'Naložení a doprava sutě', rbKey:'zemni_rb_nalosute' },
     { label:'Stav. práce m. rozsahu', rbKey:'zemni_rb_stav_prace' },
     { label:'Optotrubka',             rbKey:'zemni_rb_optotrubka' },
-    { label:'Protlak',                rbKey:'zemni_rb_protlak' },
+    { label:'Protlak neřízený',       rbKey:'zemni_rb_protlak' },
+    { label:'Protlak řízený',         rbKey:'zemni_rb_protlak_rizeny' },
     { label:'Asfalt',                 rbKey:'zemni_rb_asfalt' },
     { label:'Rezerv. zemní',          rbKey:'zemni_rb_rezerv_zemni' },
   ]
@@ -1466,7 +1473,7 @@ function RozborCelkem({ s, T, c, sRef, rozbor: rbProp }) {
   const mechRows = mechKeys.map(k => ({ k, sP: itemSum(s.mech[mechMap[k]]?.rows||[])*(1+pri), ziskFn: ziskRow }))
 
   // --- ZEMNÍ ---
-  const zemniMap = { zemni_rb_zemni_prace:'zemni_prace', zemni_rb_zadlazby:'zadlazby', zemni_rb_bagr:'bagr', zemni_rb_kompresor:'kompresor', zemni_rb_rezac:'rezac', zemni_rb_mot_pech:'mot_pech', zemni_rb_nalosute:'nalosute', zemni_rb_stav_prace:'stav_prace', zemni_rb_optotrubka:'optotrubka', zemni_rb_protlak:'protlak', zemni_rb_asfalt:'asfalt', zemni_rb_rezerv_zemni:'rezerv_zemni' }
+  const zemniMap = { zemni_rb_zemni_prace:'zemni_prace', zemni_rb_zadlazby:'zadlazby', zemni_rb_bagr:'bagr', zemni_rb_kompresor:'kompresor', zemni_rb_rezac:'rezac', zemni_rb_mot_pech:'mot_pech', zemni_rb_nalosute:'nalosute', zemni_rb_stav_prace:'stav_prace', zemni_rb_optotrubka:'optotrubka', zemni_rb_protlak:'protlak', zemni_rb_protlak_rizeny:'protlak_rizeny', zemni_rb_asfalt:'asfalt', zemni_rb_rezerv_zemni:'rezerv_zemni' }
   const zemniLocked = ['zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton']
   const zemniLockedMap = { zemni_rb_roura_pe:'roura_pe', zemni_rb_pisek:'pisek', zemni_rb_sterk:'sterk', zemni_rb_beton:'beton' }
   const zemniRows = [
@@ -1814,7 +1821,7 @@ export default function StavbaPage() {
       const dof    = data.dof    || {}; for (const it of DOF)    if (!dof[it.key])    dof[it.key]    = { rows: mkRows(), open: false }
       const dofegd = data.dofegd || {}; for (const it of DOFEGD) if (!dofegd[it.key]) dofegd[it.key] = { rows: mkRows(), open: false }
       const rozbor = data.rozbor || {}
-      const rbDefaults = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
+      const rbDefaults = ['mzdy_mont','mzdy_opto','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv',
         'mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila',
         'zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac',
         'zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak',
@@ -2014,7 +2021,8 @@ export default function StavbaPage() {
       {key:'zemni_rb_mot_pech',dk:'mot_pech',label:'Motorov\u00fd p\u011bch'},
       {key:'zemni_rb_stav_prace',dk:'stav_prace',label:'Stav. pr\u00e1ce'},
       {key:'zemni_rb_optotrubka',dk:'optotrubka',label:'Optotrubka'},
-      {key:'zemni_rb_protlak',dk:'protlak',label:'Protlak'},
+      {key:'zemni_rb_protlak',dk:'protlak',label:'Protlak neřízený'},
+      {key:'zemni_rb_protlak_rizeny',dk:'protlak_rizeny',label:'Protlak řízený'},
       {key:'zemni_rb_roura_pe',dk:'roura_pe',label:'Roura PE'},
       {key:'zemni_rb_pisek',dk:'pisek',label:'P\u00edsek'},
       {key:'zemni_rb_sterk',dk:'sterk',label:'\u0160t\u011brk'},
@@ -2040,8 +2048,10 @@ export default function StavbaPage() {
       {key:'gn_rb_doprava_mat',dk:'doprava_mat',label:'Doprava materi\u00e1lu'},
       {key:'gn_rb_pripl_capex',dk:'pripl_capex',label:'P\u0159\u00edplatek CAPEX'},
       {key:'gn_rb_kolaudace',dk:'kolaudace',label:'Kolaudace'},
+      {key:'gn_rb_popl_ver',dk:'popl_ver_prostranstvi',sec:'dof',label:'Popl. veřejné prostranství'},
     ].forEach(it => {
-      const bez = itemSum(s.gn?.[it.dk]?.rows||[])
+      const sekce = it.sec === 'dof' ? s.dof : s.gn
+      const bez = itemSum(sekce?.[it.dk]?.rows||[])
       if (!bez && !hasVypl(it.key)) return
       const sP = bez*(1+pri), idx = getIdx(it.key)
       rows += tRow(it.label, bez, sP, bez*0.8*(1+idx/100), it.key, false, '#10b981')
@@ -2800,7 +2810,6 @@ export default function StavbaPage() {
       ekolog_likv:    findRow('Eko'),
       material_vyn:   findRow('Materiál výnosový'),
       doprava_mat:    findRow('Doprava mat'),
-      popl_ver:       findRow('veř.prostranství'),
       pripl_capex:    findRow('Capex'),
       kolaudace:      findRow('Kolaudace'),
     }
@@ -2815,6 +2824,7 @@ export default function StavbaPage() {
       spec_zadlazby:findRow('Speciální zádlažby'),
       omezeni_dopr: findRow('Omezení sil'),
       rezerva:      findRow('Rezerva'),
+      popl_ver_prostranstvi: findRow('veř.prostranství'),
     }
 
     // Sestavení parsed dat
@@ -2924,7 +2934,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_13 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260324_14 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2973,7 +2983,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_13</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_14</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -3024,11 +3034,7 @@ export default function StavbaPage() {
                 )}
                 <button onClick={() => setPrintOrientDialog(true)}
                   style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  🖨️ Tisk
-                </button>
-                <button onClick={exportExcel}
-                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
-                  📊 Excel
+                  🖨️ Tisk rozboru
                 </button>
                 <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
                   <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
@@ -3041,6 +3047,14 @@ export default function StavbaPage() {
                     🔍 Rozpis
                   </button>
                 )}
+                <button onClick={() => setPrintOrientDialog(true)}
+                  style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  🖨️ Tisk vstupních hodnot
+                </button>
+                <button onClick={exportExcel}
+                  style={{ padding:'6px 12px', background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                  📊 Excel
+                </button>
                 <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
                   <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
                   <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
@@ -3177,6 +3191,8 @@ export default function StavbaPage() {
                     const zM = (k, sP) => hv(k) ? sP - num(rb[k].vypl)*1.34 : null
                     const mzdyRowsSP = [
                       { k:'mzdy_mont', sP:(itemSum(s.mzdy['mont_vn']?.rows||[])+itemSum(s.mzdy['mont_nn']?.rows||[]))*num(s.hzs_mont)*(1+pri2), f:zM },
+                      { k:'mzdy_opto', sP:(c.hodMont?.mont_opto||0)*num(s.hzs_mont)*(1+pri2), f:zM },
+                      { k:'mzdy_opto', sP:(c.hodMont?.mont_opto||0)*num(s.hzs_mont)*(1+pri2), f:zM },
                       { k:'mzdy_zemni', sP:num(rb['mzdy_zemni']?.bez||0)*(1+pri2), f:zM },
                       { k:'mzdy_ppn', sP:itemSum(s.gn['pripl_ppn']?.rows||[])*(1+pri2), f:zM },
                       { k:'mzdy_stimul', sP:itemSum(s.dof['stimul_prirazka']?.rows||[])*(1+pri2), f:zM },
@@ -3207,6 +3223,7 @@ export default function StavbaPage() {
                       { k:'zemni_rb_stav_prace', sP:itemSum(s.zemni['stav_prace']?.rows||[])*(1+pri2), f:zR },
                       { k:'zemni_rb_optotrubka', sP:itemSum(s.zemni['optotrubka']?.rows||[])*(1+pri2), f:zR },
                       { k:'zemni_rb_protlak', sP:itemSum(s.zemni['protlak']?.rows||[])*(1+pri2), f:zR },
+                      { k:'zemni_rb_protlak_rizeny', sP:itemSum(s.zemni['protlak_rizeny']?.rows||[])*(1+pri2), f:zR },
                       { k:'zemni_rb_roura_pe', sP:itemSum(s.zemni['roura_pe']?.rows||[]), f:zR },
                       { k:'zemni_rb_pisek', sP:itemSum(s.zemni['pisek']?.rows||[]), f:zR },
                       { k:'zemni_rb_sterk', sP:itemSum(s.zemni['sterk']?.rows||[]), f:zR },
@@ -3222,8 +3239,10 @@ export default function StavbaPage() {
                       { k:'gn_rb_doprava_mat', sP:itemSum(s.gn['doprava_mat']?.rows||[])*(1+pri2), f:zR },
                       { k:'gn_rb_pripl_capex', sP:itemSum(s.gn['pripl_capex']?.rows||[])*(1+pri2), f:zR },
                       { k:'gn_rb_kolaudace', sP:itemSum(s.gn['kolaudace']?.rows||[])*(1+pri2), f:zR },
+                      { k:'gn_rb_popl_ver', sP:itemSum(s.dof['popl_ver_prostranstvi']?.rows||[])*(1+pri2), f:zR },
+                      { k:'gn_rb_popl_ver', sP:itemSum(s.dof['popl_ver_prostranstvi']?.rows||[])*(1+pri2), f:zR },
                     ]
-                    const VYPL_KEYS = ['mzdy_mont','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv','mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila','zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac','zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak','zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton','gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn','gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace','ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
+                    const VYPL_KEYS = ['mzdy_mont','mzdy_opto','mzdy_zemni','mzdy_ppn','mzdy_stimul','mzdy_fasady','mzdy_strechy','mzdy_bruska','mzdy_inz','mzdy_rezerv','mech_jerab','mech_nakladni','mech_traktor','mech_plosina','mech_dodavka','mech_kango','mech_pila','zemni_rb_zemni_prace','zemni_rb_zadlazby','zemni_rb_bagr','zemni_rb_kompresor','zemni_rb_rezac','zemni_rb_mot_pech','zemni_rb_nalosute','zemni_rb_stav_prace','zemni_rb_optotrubka','zemni_rb_protlak','zemni_rb_protlak_rizeny','zemni_rb_asfalt','zemni_rb_rezerv_zemni','zemni_rb_roura_pe','zemni_rb_pisek','zemni_rb_sterk','zemni_rb_beton','gn_rb_geodetika','gn_rb_te_evidence','gn_rb_vychozi_revize','gn_rb_ekolog_likv','gn_rb_material_vyn','gn_rb_doprava_mat','gn_rb_popl_ver','gn_rb_pripl_capex','gn_rb_kolaudace','ost_rb_mat_zhot','ost_rb_prisp','ost_rb_gzs']
                     const kompletni = VYPL_KEYS.every(k => hv(k))
                     const hasAny = VYPL_KEYS.some(k => hv(k))
                     const ziskCelkem = mzdyRowsSP.reduce((a,r) => { const z=r.f(r.k,r.sP); return z!==null?a+z:a }, 0)
