@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260328_04
+// Build: 20260328_05
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260328_04    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260328_05    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -2723,7 +2723,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260328_04 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260328_05 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2747,14 +2747,28 @@ export default function StavbaPage() {
         /* Světlý motiv pro tisk — přepíše tmavý motiv */
         html.printing, html.printing body { background: white !important; color: #1e293b !important; }
         html.printing .no-print { display: none !important; }
-        html.printing * { border-color: #e2e8f0 !important; }
-        html.printing [style*="background:rgba(59,130,246"] { background-color: #dbeafe !important; }
-        html.printing [style*="background:rgba(245,158,11"] { background-color: #fef3c7 !important; }
-        html.printing [style*="background:rgba(239,68,68"]  { background-color: #fee2e2 !important; }
-        html.printing [style*="background:rgba(16,185,129"] { background-color: #d1fae5 !important; }
-        html.printing [style*="background:rgba(139,92,246"] { background-color: #ede9fe !important; }
-        html.printing [style*="background:rgba(37,99,235"]  { background-color: #dbeafe !important; }
-        html.printing [style*="background:linear-gradient"] { background: #1d4ed8 !important; }
+        html.printing * { background-color: transparent !important; background-image: none !important; border-color: #e2e8f0 !important; color: #1e293b !important; }
+        html.printing [style*="color:#3b82f6"],[style*="color:#60a5fa"] { color: #1d4ed8 !important; }
+        html.printing [style*="color:#f59e0b"] { color: #b45309 !important; }
+        html.printing [style*="color:#ef4444"] { color: #b91c1c !important; }
+        html.printing [style*="color:#10b981"] { color: #047857 !important; }
+        html.printing [style*="color:#8b5cf6"] { color: #6d28d9 !important; }
+        html.printing [style*="color:#94a3b8"], html.printing [style*="color:#64748b"] { color: #475569 !important; }
+        html.printing [style*="background:rgba(59,130,246"]  { background-color: #dbeafe !important; }
+        html.printing [style*="background:rgba(245,158,11"]  { background-color: #fef3c7 !important; }
+        html.printing [style*="background:rgba(239,68,68"]   { background-color: #fee2e2 !important; }
+        html.printing [style*="background:rgba(16,185,129"]  { background-color: #d1fae5 !important; }
+        html.printing [style*="background:rgba(139,92,246"]  { background-color: #ede9fe !important; }
+        html.printing [style*="background:rgba(37,99,235"]   { background-color: #dbeafe !important; }
+        html.printing [style*="background:rgba(99,102,241"]  { background-color: #e0e7ff !important; }
+        html.printing [style*="background:rgba(20,184,166"]  { background-color: #ccfbf1 !important; }
+        html.printing [style*="background:linear-gradient(135deg,#2563eb"] { background-color: #1d4ed8 !important; color: white !important; }
+        html.printing [style*="background:linear-gradient(135deg,rgba"] { background-color: #dbeafe !important; }
+        html.printing .rozbor-mzdy-header  { background-color: #dbeafe !important; }
+        html.printing .rozbor-mech-header  { background-color: #fef3c7 !important; }
+        html.printing .rozbor-zemni-header { background-color: #fee2e2 !important; }
+        html.printing .rozbor-gn-header    { background-color: #d1fae5 !important; }
+        html.printing .rozbor-ost-header   { background-color: #ede9fe !important; }
       `}</style>
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
@@ -2763,7 +2777,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260328_04</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260328_05</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
