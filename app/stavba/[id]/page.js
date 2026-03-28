@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260324_14
+// Build: 20260328_01
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260324_14    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260328_01    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -823,7 +823,7 @@ function RozborMzdy({ s, T, c, sRef, setS }) {
 
   // Hodiny montáže z compute (mont_vn + mont_nn, bez opto)
   const hodMont    = (c.mzdyT?.['mont_vn']?.hod || 0) + (c.mzdyT?.['mont_nn']?.hod || 0)
-  const hodOpto     = c.hodMont?.mont_opto || 0
+  const hodOpto     = c.mzdyT?.['mont_opto']?.hod || 0
   const optoBez     = hodOpto * hzsM
   const optoSP      = optoBez * (1 + pri)
   const zmesM      = num(s.zmes_mont)
@@ -1762,6 +1762,7 @@ export default function StavbaPage() {
   const [katalogDialog, setKatalogDialog] = useState(null)
   const [deleteConfirm2, setDeleteConfirm2] = useState(null) // { nazev, onConfirm }
   const [printOrientDialog, setPrintOrientDialog] = useState(false)
+  const [printMode, setPrintMode] = useState('rozbor') // 'rozbor' | 'vstup'
   const [importDialog, setImportDialog] = useState(null)
   const [profile, setProfile] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState(null)
@@ -1924,6 +1925,14 @@ export default function StavbaPage() {
   // ── Tisk s volbou orientace ────────────────────────────
   const handleTisk = (orient) => {
     setPrintOrientDialog(false)
+    if (printMode === 'vstup') {
+      let styleEl = document.getElementById('print-orient-style')
+      if (!styleEl) { styleEl = document.createElement('style'); styleEl.id = 'print-orient-style'; document.head.appendChild(styleEl) }
+      styleEl.textContent = '@page { size: A4 ' + orient + '; margin: 8mm; }'
+      document.documentElement.classList.add('printing')
+      setTimeout(() => { window.print(); setTimeout(() => document.documentElement.classList.remove('printing'), 1000) }, 150)
+      return
+    }
     const pri = num(s.prirazka)
     const rb = s.rozbor || {}
     const defaultIdx = num(s.default_index_rozbor ?? -15)
@@ -2725,7 +2734,7 @@ export default function StavbaPage() {
           archeolog_dozor:       { rows:[{ id:uid(), popis:'Archeologický dozor',                castka:String(Math.round(gnRowAll(['1101925']) || rowsGN.filter(r=>String(r[4]||'').toLowerCase().includes('archeolog')).reduce((a,r)=>a+(num(r[8])||num(r[6])),0))) }], open:false },
           uhrady_zem_kultury:    { rows:[{ id:uid(), popis:'Úhrady za zemědělské kultury',       castka:String(gnRowAll(['1101923'])) }], open:false },
           nahrady_maj_ujmy:      { rows:[{ id:uid(), popis:'Náhrady majetkové újmy',             castka:String(gnRowAll(['1101924'])) }], open:false },
-          popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003_'])) }], open:false },
+          popl_ver_prostranstvi: { rows:[{ id:uid(), popis:'Poplatky za veřejné prostranství',   castka:String(gnRowAll(['1102003'])) }], open:false },
           koordinator_bozp:      { rows:[{ id:uid(), popis:'Koordinátor BOZP',                   castka:String(gnRowAll(['1102560'])) }], open:false },
           zadl_mesto:            { rows:[{ id:uid(), popis:'Zádlažby subdodavatelsky městem',    castka:String(gnRowAll(['9491'])) }], open:false },
           proj_geod:             { rows:[{ id:uid(), popis:'Projektové a geodetické práce',      castka:String(gnRowAll(['9100'])) }], open:false },
@@ -2934,7 +2943,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260324_14 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260328_01 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2983,7 +2992,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260324_14</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260328_01</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -3032,7 +3041,7 @@ export default function StavbaPage() {
                     🔍 Rozpis
                   </button>
                 )}
-                <button onClick={() => setPrintOrientDialog(true)}
+                <button onClick={() => { setPrintMode('rozbor'); setPrintOrientDialog(true) }}
                   style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🖨️ Tisk rozboru
                 </button>
@@ -3047,7 +3056,7 @@ export default function StavbaPage() {
                     🔍 Rozpis
                   </button>
                 )}
-                <button onClick={() => setPrintOrientDialog(true)}
+                <button onClick={() => { setPrintMode('vstup'); setPrintOrientDialog(true) }}
                   style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🖨️ Tisk vstupních hodnot
                 </button>
@@ -3089,9 +3098,9 @@ export default function StavbaPage() {
         {tab==='vstup' && (
           <div>
             {/* Parametry */}
-            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'16px 18px', marginBottom:20 }}>
+            <div style={{ background:T.card, border:`1px solid ${T.border}`, borderRadius:10, padding:'20px 24px', marginBottom:24 }}>
               <div style={{ color:'#f59e0b', fontSize:11, fontWeight:800, letterSpacing:1, textTransform:'uppercase', marginBottom:14 }}>⚙️ Parametry stavby</div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(6,1fr)', gap:12 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))', gap:16 }}>
                 {[
                   { l:'Název stavby', k:'nazev', span:true },
                   { l:'Číslo stavby', k:'cislo' },
@@ -3110,7 +3119,7 @@ export default function StavbaPage() {
                 ].map(({l,k,span,isPct,isSelect})=>(
                   <div key={k||l} style={span?{gridColumn:'1/-1'}:{}}>
                     {!k ? null : <>
-                    <div style={{ color:T.muted, fontSize:10, fontWeight:700, letterSpacing:0.5, marginBottom:4 }}>{l}</div>
+                    <div style={{ color:T.muted, fontSize:11, fontWeight:700, letterSpacing:0.5, marginBottom:5 }}>{l}</div>
                     {isSelect ? (
                       <select value={s[k]||''} onChange={e=>!isReadOnly && setField(k,e.target.value)}
                         disabled={isReadOnly}
