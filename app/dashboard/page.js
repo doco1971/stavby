@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260328_05
+// Build: 20260328_06
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260328_05 – export PDF + Excel v záložce Rozbor (editor stavby)
+// 20260328_06 – export PDF + Excel v záložce Rozbor (editor stavby)
 // 20260323_09 – filtr staveb podle autora (dropdown, dynamický ze staveb)
 // 20260323_08 – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07 – fix DeleteSmazatModal: React.useState → useState (client-side crash)
@@ -42,7 +42,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260328_05'
+const BUILD = '20260328_06'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
