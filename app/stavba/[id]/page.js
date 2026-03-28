@@ -1,6 +1,6 @@
 'use client'
 // ============================================================
-// Build: 20260328_03
+// Build: 20260328_04
 // Kalkulace stavby – hlavní editor stavby
 // ============================================================
 // POPIS APLIKACE:
@@ -91,7 +91,7 @@
 // ALTER TABLE stavby ADD COLUMN IF NOT EXISTS rozbor jsonb DEFAULT '{}';
 //
 // CHANGELOG:
-// 20260328_03    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
+// 20260328_04    – export do PDF (jsPDF) a Excel (SheetJS): tlačítka v záložce Rozbor
 // 20260323_08    – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07    – fix DeleteSmazatModal: React.useState → useState (client-side crash)
 // 20260323_06    – dvojité potvrzení mazání: krok 2 zadání slova SMAZAT (editor i dashboard)
@@ -2723,7 +2723,7 @@ export default function StavbaPage() {
       dof:    noveDof,
       dofegd: noveDofegd,
       prispevek_sklad: prispevekSklad > 0 ? String(Math.round(prispevekSklad * 100) / 100) : s.prispevek_sklad,
-      import_build: `20260328_03 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
+      import_build: `20260328_04 / ${String(now.getDate()).padStart(2,'0')}.${String(now.getMonth()+1).padStart(2,'0')}.${now.getFullYear()} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`,
     }
     setS(updated)
     sRef.current = updated
@@ -2745,25 +2745,16 @@ export default function StavbaPage() {
           * { overflow: visible !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         }
         /* Světlý motiv pro tisk — přepíše tmavý motiv */
-        html.printing, html.printing body { background: white !important; color: black !important; }
+        html.printing, html.printing body { background: white !important; color: #1e293b !important; }
         html.printing .no-print { display: none !important; }
-        html.printing * {
-          background-color: transparent !important;
-          color: black !important;
-          border-color: #cccccc !important;
-        }
-        html.printing [style*="color:#3b82f6"], html.printing [style*="color: #3b82f6"] { color: #1d4ed8 !important; }
-        html.printing [style*="color:#f59e0b"], html.printing [style*="color: #f59e0b"] { color: #b45309 !important; }
-        html.printing [style*="color:#ef4444"], html.printing [style*="color: #ef4444"] { color: #b91c1c !important; }
-        html.printing [style*="color:#10b981"], html.printing [style*="color: #10b981"] { color: #047857 !important; }
-        html.printing [style*="color:#8b5cf6"], html.printing [style*="color: #8b5cf6"] { color: #6d28d9 !important; }
-        html.printing [style*="color:#60a5fa"], html.printing [style*="color: #60a5fa"] { color: #1d4ed8 !important; }
+        html.printing * { border-color: #e2e8f0 !important; }
         html.printing [style*="background:rgba(59,130,246"] { background-color: #dbeafe !important; }
         html.printing [style*="background:rgba(245,158,11"] { background-color: #fef3c7 !important; }
         html.printing [style*="background:rgba(239,68,68"]  { background-color: #fee2e2 !important; }
         html.printing [style*="background:rgba(16,185,129"] { background-color: #d1fae5 !important; }
         html.printing [style*="background:rgba(139,92,246"] { background-color: #ede9fe !important; }
         html.printing [style*="background:rgba(37,99,235"]  { background-color: #dbeafe !important; }
+        html.printing [style*="background:linear-gradient"] { background: #1d4ed8 !important; }
       `}</style>
       {/* HEADER */}
       <div className="no-print" style={{ background:T.header, borderBottom:'1px solid rgba(100,116,139,0.5)', padding:'0 20px', position:'sticky', top:0, zIndex:100 }}>
@@ -2772,7 +2763,7 @@ export default function StavbaPage() {
           {tab !== 'rozbor' && tab !== 'vstup' && (
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 0 2px', flexWrap:'wrap' }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260328_03</span>}</div>
+              <div style={{ fontSize:10, color:T.muted, letterSpacing:1.5, textTransform:'uppercase', display:'flex', gap:12, alignItems:'center' }}><span>Rozbor staveb · {s.oblast}</span>{tab==='vstup' && <span style={{ color:'#64748b', fontFamily:'monospace' }}>📦 20260328_04</span>}</div>
               <div style={{ fontSize:15, fontWeight:800, color:T.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                 {s.nazev || <span style={{ color:T.muted }}>Bez názvu…</span>}
               </div>
@@ -2825,10 +2816,7 @@ export default function StavbaPage() {
                   style={{ padding:'6px 12px', background:'rgba(37,99,235,0.15)', border:'1px solid rgba(37,99,235,0.4)', borderRadius:6, color:'#60a5fa', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   🖨️ Tisk rozboru
                 </button>
-                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-                </div>
+                <button onClick={toggleTheme} style={{ padding:'5px 10px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, fontSize:16, cursor:'pointer', lineHeight:1 }}>{dark ? '☀️' : '🌙'}</button>
               </>) : (<>
                 {canEdit && (
                   <button onClick={() => setRozpisDialog(true)}
@@ -2844,10 +2832,7 @@ export default function StavbaPage() {
                   style={{ padding:'6px 12px', background:'rgba(16,185,129,0.12)', border:'1px solid rgba(16,185,129,0.4)', borderRadius:6, color:'#10b981', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
                   📊 Excel
                 </button>
-                <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-                  <button onClick={() => dark && toggleTheme()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-                  <button onClick={() => !dark && toggleTheme()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-                </div>
+                <button onClick={toggleTheme} style={{ padding:'5px 10px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, fontSize:16, cursor:'pointer', lineHeight:1 }}>{dark ? '☀️' : '🌙'}</button>
                 {canDelete && (
                   <button onClick={deleteStavba} style={{ padding:'6px 12px', background:'rgba(239,68,68,0.15)', border:'1px solid rgba(239,68,68,0.4)', borderRadius:6, color:'#ef4444', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                     🗑️ Smazat
@@ -2889,13 +2874,8 @@ export default function StavbaPage() {
                   { l:'Přirážka %',   k:'prirazka', isPct:true },
                   { l:'HZS montáž (Kč/h)', k:'hzs_mont' },
                   { l:'HZS zemní (Kč/h)',  k:'hzs_zem' },
-                  { l:'empty1', k:null },
-                  { l:'empty2', k:null },
-                  { l:'empty3', k:null },
-                  { l:'empty4', k:null },
                   { l:'ZMES montáž (Kč/h)', k:'zmes_mont' },
                   { l:'ZMES zemní (Kč/h)',  k:'zmes_zem' },
-
                 ].map(({l,k,span,isPct,isSelect})=>(
                   <div key={k||l} style={span?{gridColumn:'1/-1'}:{}}>
                     {!k ? null : <>

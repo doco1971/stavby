@@ -1,5 +1,5 @@
 // ============================================================
-// Build: 20260328_03
+// Build: 20260328_04
 // Kalkulace stavby – Dashboard
 // ============================================================
 // Cesty: app/dashboard/page.js
@@ -15,7 +15,7 @@
 // - Zvýrazněná tlačítka Nastavení a Odhlásit
 //
 // CHANGELOG:
-// 20260328_03 – export PDF + Excel v záložce Rozbor (editor stavby)
+// 20260328_04 – export PDF + Excel v záložce Rozbor (editor stavby)
 // 20260323_09 – filtr staveb podle autora (dropdown, dynamický ze staveb)
 // 20260323_08 – SMAZAT modal: písmena se rozsvěcují červeně při psaní
 // 20260323_07 – fix DeleteSmazatModal: React.useState → useState (client-side crash)
@@ -42,7 +42,7 @@ import { createClient } from '../../lib/supabase'
 import { useTheme } from '../layout'
 
 const OBLASTI = ['Jihlava', 'Třebíč', 'Znojmo']
-const BUILD = '20260328_03'
+const BUILD = '20260328_04'
 
 export default function Dashboard() {
   const { dark, toggle, T } = useTheme()
@@ -227,10 +227,7 @@ export default function Dashboard() {
             <span style={{ fontWeight: 800, fontSize: 15, color: T.text }}>Kalkulace stavby</span>
             <span style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>📦 {BUILD}</span>
           </div>
-          <div style={{ display:'flex', border:`1px solid ${T.border}`, borderRadius:6, overflow:'hidden' }}>
-            <button onClick={() => dark && toggle()} style={{ padding:'5px 10px', background: !dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', color: !dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>☀️</button>
-            <button onClick={() => !dark && toggle()} style={{ padding:'5px 10px', background: dark ? 'rgba(255,255,255,0.15)' : 'transparent', border:'none', borderLeft:`1px solid ${T.border}`, color: dark ? T.text : T.muted, fontSize:12, cursor:'pointer' }}>🌙</button>
-          </div>
+          <button onClick={toggle} style={{ padding:'5px 10px', background:'transparent', border:`1px solid ${T.border}`, borderRadius:6, fontSize:16, cursor:'pointer', lineHeight:1 }}>{dark ? '☀️' : '🌙'}</button>
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
             <span style={{ color:'#94a3b8', fontSize:12 }}>{profile?.name || user?.email}</span>
             {profile?.name && <span style={{ color:'#64748b', fontSize:11 }}>{user?.email}</span>}
